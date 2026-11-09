@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Masari Project Specification</title>
+<style>
+  @page { size: A4; margin: 20mm 18mm 20mm 18mm; }
+  :root { --ink:#1d1d1f; --muted:#5b5b63; --line:#dcdce2; --accent:#2457c5; --soft:#eef3fc; --head:#f4f4f6; }
+  * { box-sizing: border-box; }
+  body { font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif; color: var(--ink); font-size: 10.2pt; line-height: 1.5; margin: 0; background:#fff; }
+  h1 { font-size: 24pt; margin: 0 0 4pt; letter-spacing: -0.3pt; }
+  h2 { font-size: 15pt; margin: 22pt 0 6pt; padding-bottom: 3pt; border-bottom: 1.5pt solid var(--accent); break-after: avoid; }
+  h3 { font-size: 11.5pt; margin: 14pt 0 4pt; break-after: avoid; }
+  p { margin: 4pt 0 6pt; }
+  ul, ol { margin: 4pt 0 8pt; padding-left: 18pt; }
+  li { margin: 2pt 0; }
+  table { width: 100%; border-collapse: collapse; margin: 6pt 0 10pt; font-size: 9.4pt; break-inside: avoid; }
+  .keep { break-inside: avoid; }
+  tr { break-inside: avoid; }
+  th, td { border: 0.75pt solid var(--line); padding: 5pt 6pt; text-align: left; vertical-align: top; }
+  th { background: var(--head); font-weight: bold; }
+  .cover { border-left: 5pt solid var(--accent); padding: 4pt 0 4pt 14pt; margin-bottom: 14pt; }
+  .subtitle { font-size: 13pt; color: var(--muted); margin: 0 0 8pt; }
+  .meta { font-size: 9pt; color: var(--muted); }
+  .note { background: var(--soft); border: 0.75pt solid #c9d8f5; border-radius: 4pt; padding: 7pt 10pt; margin: 8pt 0; }
+  .tag { display:inline-block; font-size: 8pt; font-weight: bold; color: #fff; background: var(--accent); border-radius: 3pt; padding: 0 4pt; margin-left: 3pt; vertical-align: 1pt; }
+  .toc ol { columns: 2; column-gap: 24pt; }
+  .figure { margin: 8pt 0 4pt; break-inside: avoid; }
+  .caption { font-size: 8.5pt; color: var(--muted); text-align: center; margin-top: 2pt; }
+  .ar { font-family: "DejaVu Sans", sans-serif; direction: rtl; unicode-bidi: embed; }
+  .small { font-size: 8.8pt; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>Masari <span class="ar" style="font-weight:normal;color:var(--muted)">(مساري)</span></h1>
+  <p class="subtitle">A smart platform for the university student's journey</p>
+  <p class="meta">Project specification · English edition · Source: Arabic spec by @mazen, Nov 8, 2026 · Translated Nov 9, 2026</p>
+</div>
+
+<div class="toc note">
+  <strong>Contents</strong>
+  <ol>
+    <li>Idea and problem</li>
+    <li>Users and roles</li>
+    <li>The six modules</li>
+    <li>Module details</li>
+    <li>The AI layer</li>
+    <li>Integration between modules</li>
+    <li>Security</li>
+    <li>Technologies</li>
+    <li>Why the project is strong</li>
+    <li>Implementation notes and scope</li>
+    <li>Risks and mitigations</li>
+    <li>Open questions</li>
+    <li>Glossary</li>
+  </ol>
+</div>
+
+<h2>1. Idea and problem</h2>
+<p>Masari ("my path") is a single platform that accompanies the student from the first day of college until graduation and employment. At the same time it serves faculty members and the college administration. It replaces a set of scattered tools, each of which solves only a small piece of the problem.</p>
+<p><strong>Problems the platform addresses:</strong></p>
+<ul>
+  <li>Students do not understand the academic regulations (bylaws), and the same questions reach Student Affairs every year.</li>
+  <li>Timetables are prepared by hand and contain conflicts.</li>
+  <li>Grading programming assignments takes a lot of time, and copying between students is hard to detect manually.</li>
+  <li>Faculty members have no quick way to verify that an exam is balanced and covers the course.</li>
+  <li>Buying textbooks and their access codes happens on paper at the library, with crowds, queues, and staff overhead.</li>
+  <li>Students graduate without knowing what they lack for the job market, and cannot easily find a suitable internship.</li>
+</ul>
+
+<div class="keep"><h2>2. Users and roles</h2>
+<p>The platform has four roles, each with separate permissions:</p>
+<table>
+  <tr><th style="width:24%">Role</th><th>Main use of the platform</th></tr>
+  <tr><td>Student</td><td>Ask regulation questions, view timetable, submit programming assignments and receive feedback, buy textbooks and codes, analyze CV and skill gaps, find and track internships, use AI study aids.</td></tr>
+  <tr><td>Faculty member</td><td>Auto-grade programming assignments and review plagiarism results, analyze exams before approval, request diagrams for exam questions, review AI-generated educational drawings before publishing.</td></tr>
+  <tr><td>Student Affairs</td><td>Dashboard for student questions and timetables, generate announcement posters.</td></tr>
+  <tr><td>Administration</td><td>Manage textbook codes, sales, and revenue; manage internship opportunities; oversee the platform.</td></tr>
+</table></div>
+
+<div class="keep"><h2>3. The six modules</h2>
+<p>The platform consists of six modules, each with a primary user and a clear task.</p>
+<table>
+  <tr><th style="width:15%">Module</th><th style="width:17%">Serves</th><th>What it does</th><th style="width:24%">Core technology</th></tr>
+  <tr><td><strong>Mu'eed</strong><br><span class="ar small">معيد</span></td><td>Students and Student Affairs</td><td>A smart assistant that answers questions about the regulations in Arabic, a timetable generator that resolves conflicts, and a dashboard for Student Affairs.</td><td>RAG over Arabic documents + Constraint Satisfaction</td></tr>
+  <tr><td><strong>CodeJudge</strong></td><td>Students and faculty</td><td>Automatic grading of programming assignments with test cases, similarity (plagiarism) detection between submissions, and feedback to the student in Arabic.</td><td>Code analysis using AST</td></tr>
+  <tr><td><strong>Mizan</strong><br><span class="ar small">ميزان</span></td><td>Faculty</td><td>Analyzes an exam before it is approved: table of specifications (test blueprint), Bloom's taxonomy levels, and course coverage.</td><td>Question classification with NLP</td></tr>
+  <tr><td><strong>Kitabi</strong><br><span class="ar small">كتابي</span></td><td>Students and administration</td><td>Buy textbooks and their access codes online; the code and the book are delivered instantly to the student's account.</td><td>Payment gateway + automatic code distribution</td></tr>
+  <tr><td><strong>CareerMap</strong></td><td>Students</td><td>Analyzes the student's CV and compares it with jobs, identifies missing skills, and produces an ordered learning plan.</td><td>Semantic skill matching</td></tr>
+  <tr><td><strong>Tadreeb</strong><br><span class="ar small">تدريب</span></td><td>Students and administration</td><td>Connects students with suitable internship opportunities, tracks them, and evaluates them.</td><td>Semantic matching + tracking</td></tr>
+</table></div>
+
+<h2>4. Module details</h2>
+
+<h3>4.1 Mu'eed: regulations assistant and timetables</h3>
+<ul>
+  <li>Chat assistant answering students' questions about the college regulations, in Arabic, grounded in the official Arabic documents (Retrieval-Augmented Generation).</li>
+  <li>Timetable generator that produces schedules without conflicts using constraint satisfaction.</li>
+  <li>Dashboard for Student Affairs.</li>
+  <li>Holds the course catalog and course descriptions, which feed Mizan and Kitabi.</li>
+</ul>
+
+<h3>4.2 CodeJudge: programming assignment grading</h3>
+<ul>
+  <li>Automatic grading of submissions against test cases.</li>
+  <li>Plagiarism detection that still works when variable names are changed, by comparing Abstract Syntax Trees (AST).</li>
+  <li>Feedback to the student in Arabic.</li>
+  <li>Sends each student's weak points to CareerMap.</li>
+</ul>
+
+<h3>4.3 Mizan: exam analysis</h3>
+<ul>
+  <li>Analyzes an exam before approval.</li>
+  <li>Builds the table of specifications (blueprint).</li>
+  <li>Classifies each question by Bloom's taxonomy level using NLP.</li>
+  <li>Measures coverage of the course, using course descriptions received from Mu'eed.</li>
+  <li>Planned as a light version first: Bloom classification + table of specifications + report.</li>
+</ul>
+
+<h3>4.4 Kitabi: textbooks and codes (newest module)</h3>
+<ul>
+  <li>The books for each course appear automatically according to the student's year (level) and division, linked to the courses in Mu'eed.</li>
+  <li>Payment by card, Fawry, or mobile wallet.</li>
+  <li>The administration uploads the codes once, and the system assigns exactly one code to each student after payment.</li>
+  <li>Administration dashboard: who bought, revenue, remaining codes, and students who have not bought yet.</li>
+  <li>An electronic receipt for every transaction.</li>
+</ul>
+
+<h3>4.5 CareerMap: career readiness</h3>
+<ul>
+  <li>Analyzes the student's CV and compares it with job postings.</li>
+  <li>Identifies missing skills and produces an ordered learning plan.</li>
+  <li>Uses semantic matching between skills and jobs.</li>
+  <li>Receives weak points from CodeJudge, and sends required skills to Tadreeb.</li>
+</ul>
+
+<h3>4.6 Tadreeb: internships</h3>
+<ul>
+  <li>Matches students with suitable internship opportunities (semantic matching).</li>
+  <li>Tracks each internship and records its evaluation.</li>
+  <li>Receives the required skills from CareerMap.</li>
+</ul>
+
+<div class="keep"><h2>5. The AI layer</h2>
+<p>On top of the six modules sits an AI layer that uses their shared data. Proposals that are candidates to be implemented first are marked <span class="tag">Candidate</span>.</p>
+
+<h3>5.1 Student assistance</h3>
+<table>
+  <tr><th style="width:22%">Feature</th><th>What it does</th><th style="width:20%">Depends on</th></tr>
+  <tr><td>Study planner</td><td>A daily study plan built from the timetable and exam dates, adjusted automatically when the student falls behind.</td><td>Mu'eed</td></tr>
+  <tr><td>Question bank from the book</td><td>Review questions generated from the course textbook, distributed across Bloom's levels.</td><td>Kitabi + Mizan</td></tr>
+  <tr><td>Audio summary</td><td>Each chapter becomes a short audio file in colloquial (Egyptian) Arabic.</td><td>Kitabi</td></tr>
+  <tr><td>Early warning</td><td>Alerts the academic advisor when a student's grades drop or the student stops submitting.</td><td>CodeJudge</td></tr>
+  <tr><td>Elective course advisor</td><td>Suggests courses based on the student's level, interests, and career goals.</td><td>CareerMap</td></tr>
+</table></div>
+
+<h3>5.2 Image generation</h3>
+<ul>
+  <li><strong>Concept drawing</strong> <span class="tag">Candidate</span>: the student asks about a concept and gets an illustration or a flowchart.</li>
+  <li><strong>Revision infographic</strong>: a one-page summary of each chapter.</li>
+  <li><strong>College posters</strong> <span class="tag">Candidate</span>: Student Affairs writes an announcement and gets a ready poster; the same for internship announcements.</li>
+  <li><strong>Exam diagrams</strong>: a faculty member requests a drawing for a question (circuit, network, chart).</li>
+</ul>
+
+<h3>5.3 Video generation</h3>
+<ul>
+  <li><strong>Explain-in-a-minute</strong> <span class="tag">Candidate</span>: part of a lecture becomes a short video made of animated slides with Arabic voice-over and written subtitles.</li>
+  <li><strong>Welcome video for first-year students</strong>: explains the platform and the regulations; regenerated every year from Mu'eed's data.</li>
+  <li><strong>Course revision video</strong> before the exam, covering the most important points.</li>
+</ul>
+
+<div class="keep">
+<h2>6. Integration between modules</h2>
+<p>The modules share the student profile, so what happens in one feeds the others.</p>
+
+<div class="figure">
+<svg viewBox="0 0 720 330" width="100%" xmlns="http://www.w3.org/2000/svg" font-family="DejaVu Sans, Arial, sans-serif" font-size="12">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8a8a94"/></marker>
+  </defs>
+  <g fill="#fff" stroke="#bdbdc6" stroke-width="1.2">
+    <rect x="20" y="20" width="200" height="46" rx="8"/>
+    <rect x="260" y="20" width="200" height="46" rx="8"/>
+    <rect x="500" y="20" width="200" height="46" rx="8"/>
+    <rect x="20" y="194" width="200" height="46" rx="8"/>
+    <rect x="260" y="194" width="200" height="46" rx="8"/>
+    <rect x="500" y="194" width="200" height="46" rx="8"/>
+  </g>
+  <rect x="20" y="106" width="680" height="46" rx="8" fill="#e3ecfb" stroke="#2457c5" stroke-width="1.8"/>
+  <rect x="20" y="272" width="680" height="46" rx="8" fill="#ededf0" stroke="#bdbdc6" stroke-width="1.2"/>
+  <g text-anchor="middle" font-weight="bold" fill="#1d1d1f">
+    <text x="120" y="48">Mu'eed</text><text x="360" y="48">Mizan</text><text x="600" y="48">Kitabi</text>
+    <text x="120" y="222">CodeJudge</text><text x="360" y="222">CareerMap</text><text x="600" y="222">Tadreeb</text>
+    <text x="360" y="134">Shared student profile: year, courses, grades, skills</text>
+    <text x="360" y="292">AI layer</text>
+  </g>
+  <text x="360" y="309" text-anchor="middle" font-size="10" fill="#5b5b63">study planner, question bank, early warning, images and video</text>
+  <g stroke="#8a8a94" stroke-width="1.2" fill="none">
+    <line x1="222" y1="43" x2="257" y2="43" marker-end="url(#a)"/>
+    <line x1="222" y1="217" x2="257" y2="217" marker-end="url(#a)"/>
+    <line x1="462" y1="217" x2="497" y2="217" marker-end="url(#a)"/>
+    <line x1="120" y1="69" x2="120" y2="103" marker-start="url(#a)" marker-end="url(#a)"/>
+    <line x1="360" y1="69" x2="360" y2="103" marker-start="url(#a)" marker-end="url(#a)"/>
+    <line x1="600" y1="69" x2="600" y2="103" marker-start="url(#a)" marker-end="url(#a)"/>
+    <line x1="120" y1="155" x2="120" y2="191" marker-start="url(#a)" marker-end="url(#a)"/>
+    <line x1="360" y1="155" x2="360" y2="191" marker-start="url(#a)" marker-end="url(#a)"/>
+    <line x1="600" y1="155" x2="600" y2="191" marker-start="url(#a)" marker-end="url(#a)"/>
+    <polyline points="20,129 8,129 8,295 17,295" marker-end="url(#a)"/>
+  </g>
+  <g font-size="10" fill="#5b5b63" text-anchor="middle">
+    <text x="240" y="14">course descriptions</text>
+    <text x="240" y="188">weak points</text>
+    <text x="480" y="188">required skills</text>
+  </g>
+</svg>
+<div class="caption">Module integration: six modules, one shared profile, one AI layer. Horizontal arrows are data passed directly between two modules.</div>
+</div>
+</div>
+
+<p>Every module reads from and writes to the shared student profile. Three paths move data directly between modules:</p>
+<ul>
+  <li><strong>Mu'eed → Mizan:</strong> course descriptions.</li>
+  <li><strong>CodeJudge → CareerMap:</strong> the student's weak points.</li>
+  <li><strong>CareerMap → Tadreeb:</strong> required skills.</li>
+</ul>
+<p>Kitabi takes the student's courses from the shared profile to display their books automatically.</p>
+
+<h2>7. Security</h2>
+<p>Security is a core part of the design, especially in Kitabi, because it handles payments and paid content.</p>
+<ul>
+  <li>Every book code is bound to the student's account, so it cannot be sold or transferred to another student.</li>
+  <li>Every downloaded PDF carries a watermark with the student's name and code, so the source of any leak can be identified.</li>
+  <li>Codes are protected in the database, and every payment transaction is logged so any problem can be resolved easily.</li>
+  <li>Separate permissions for each role: student, faculty member, Student Affairs, administration.</li>
+  <li>The platform itself is tested against common vulnerabilities before delivery.</li>
+</ul>
+
+<h2>8. Technologies</h2>
+<table>
+  <tr><th style="width:36%">Area</th><th>Use</th></tr>
+  <tr><td>RAG over Arabic documents</td><td>Answering regulation questions in Mu'eed</td></tr>
+  <tr><td>Constraint Satisfaction</td><td>Generating conflict-free timetables</td></tr>
+  <tr><td>AST-based code analysis</td><td>Detecting copying even when variable names are changed</td></tr>
+  <tr><td>Natural Language Processing</td><td>Classifying exam questions by Bloom's level, and matching skills to jobs</td></tr>
+  <tr><td>Payment gateway (sandbox / test mode)</td><td>Payments in Kitabi</td></tr>
+  <tr><td>Image, audio, and video generation</td><td>The AI layer</td></tr>
+</table>
+
+<h2>9. Why the project is strong</h2>
+<p>Masari's strength is that it is an integrated platform serving three groups with real technical depth, not a collection of side-by-side tools.</p>
+<ul>
+  <li><strong>Integrated, not bundled:</strong> the modules share the same data, so what happens in one feeds the others.</li>
+  <li><strong>Serves three groups:</strong> students, faculty members, and the administration.</li>
+  <li><strong>Technical depth in every module:</strong> RAG, scheduling algorithms, code analysis, Arabic language processing, and media generation.</li>
+  <li><strong>Arabic and Egyptian:</strong> built on Egyptian regulations, courses, and reality, not a translation of a foreign tool.</li>
+  <li><strong>Feasible:</strong> needs no approvals from external bodies and no large cost; the college's own data is enough for a pilot.</li>
+  <li><strong>Scalable:</strong> any other college can use it by changing only the regulations and courses.</li>
+  <li><strong>Tangible impact:</strong> less time spent by Student Affairs, conflict-free timetables, faster and fairer grading, balanced exams, and an end to textbook queues.</li>
+</ul>
+
+<div class="keep"><h2>10. Implementation notes and scope</h2>
+<p>Six modules plus an AI layer is a heavy load for a single developer over about six months, so the project is built in phases with clear priorities.</p>
+<h3>Scope priorities</h3>
+<ol>
+  <li><strong>Foundation:</strong> accounts, permissions, and the shared database.</li>
+  <li><strong>The strongest modules for the demo:</strong> Mu'eed, CodeJudge, and Kitabi.</li>
+  <li><strong>Complementary modules:</strong> Mizan (light version: Bloom classification + table of specifications + report), CareerMap, and Tadreeb.</li>
+  <li><strong>AI layer:</strong> start with the three candidate features, then the rest if time allows.</li>
+</ol></div>
+
+<h2>11. Risks and mitigations</h2>
+<table>
+  <tr><th style="width:45%">Risk</th><th>Mitigation</th></tr>
+  <tr><td>Real payment gateways need a merchant account in the college's name, which is an external approval.</td><td>Use the payment gateway's test (sandbox) mode for the demo, and activate a real account later if the college adopts the platform.</td></tr>
+  <tr><td>Image generation models are weak at rendering Arabic text.</td><td>The model generates only the image; the Arabic text is added on top of it in code.</td></tr>
+  <tr><td>Generated educational drawings may contain scientific errors.</td><td>Generate drawing code (Mermaid or SVG) instead of an image, plus a faculty review button before publishing.</td></tr>
+  <tr><td>Generating a full video from text is expensive and slow.</td><td>Compose the video from images, audio, and subtitles with a tool such as FFmpeg.</td></tr>
+  <tr><td>Too many modules for a single developer.</td><td>Stick to the scope priorities above.</td></tr>
+</table>
+
+<h2>12. Open questions</h2>
+<div class="note">Are the college's textbooks printed or PDF? If they are printed, Kitabi adds booking a pickup appointment with a QR code.</div>
+
+<h2>13. Glossary</h2>
+<table>
+  <tr><th style="width:26%">Term</th><th>Meaning</th></tr>
+  <tr><td>Masari <span class="ar">(مساري)</span></td><td>"My path": the name of the platform.</td></tr>
+  <tr><td>Mu'eed <span class="ar">(معيد)</span></td><td>"Teaching assistant": the regulations and timetables module.</td></tr>
+  <tr><td>Mizan <span class="ar">(ميزان)</span></td><td>"Scale / balance": the exam analysis module.</td></tr>
+  <tr><td>Kitabi <span class="ar">(كتابي)</span></td><td>"My book": the textbooks and codes module.</td></tr>
+  <tr><td>Tadreeb <span class="ar">(تدريب)</span></td><td>"Training / internship": the internships module.</td></tr>
+  <tr><td>Regulations (La'iha) <span class="ar">(اللائحة)</span></td><td>The college's academic bylaws: rules for courses, grading, and progression.</td></tr>
+  <tr><td>Year / division <span class="ar">(الفرقة / الشعبة)</span></td><td>The student's academic year (level) and specialization track.</td></tr>
+  <tr><td>Student Affairs <span class="ar">(شئون الطلاب)</span></td><td>The college office handling student administration.</td></tr>
+  <tr><td>Fawry</td><td>A widely used Egyptian payment network.</td></tr>
+  <tr><td>Table of specifications</td><td>An exam blueprint mapping questions to course topics and cognitive levels.</td></tr>
+  <tr><td>Bloom's taxonomy</td><td>Levels of cognitive skill: remember, understand, apply, analyze, evaluate, create.</td></tr>
+  <tr><td>RAG</td><td>Retrieval-Augmented Generation: an AI model answers from retrieved source documents.</td></tr>
+  <tr><td>AST</td><td>Abstract Syntax Tree: a structural representation of code, independent of naming and formatting.</td></tr>
+  <tr><td>Constraint Satisfaction</td><td>An algorithmic approach that finds an assignment (e.g., a timetable) meeting all given constraints.</td></tr>
+</table>
+
+</body>
+</html>
