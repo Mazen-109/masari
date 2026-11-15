@@ -1,10 +1,14 @@
 <!--
 SYNC IMPACT REPORT (temporary review aid — remove before committing, per speckit-constitution)
 
-Version change: (unversioned template) → 1.0.0
-Bump rationale: first ratified constitution; all placeholders replaced (initial adoption = 1.0.0).
+Version change: (unversioned template) → 1.0.0 → 1.1.0
+Bump rationale: 1.0.0 = first ratified constitution (all placeholders replaced). 1.1.0 (MINOR) = owner's
+amendment of 2026-11-15: a new Orchestrator role is added and is authorised to squash-merge a pull request
+once the reviewer returns VERDICT: APPROVE and CI is green (replaces "only the owner merges").
 
 Modified principles: none (initial adoption)
+Modified sections (1.1.0): Development Workflow & Quality Gates — Roles, Review + new Merge rule,
+  Repository protection
 Added principles:
   I.   Code Quality & Maintainability
   II.  Testing Discipline (NON-NEGOTIABLE)
@@ -257,7 +261,11 @@ Architecture rules:
 **Roles**
 
 - **Owner** (Mazen): approves the roadmap, specs, and constitution changes; owns all secrets and external
-  accounts; merges pull requests.
+  accounts; may merge any pull request that satisfies the merge rule below.
+- **Orchestrator** — the main Claude Code session that dispatches work (see `docs/delegation.md`): assigns
+  one PR batch at a time to the implementer, requests the review, and — by the owner's standing
+  authorisation — squash-merges a pull request when the merge rule below is satisfied, then continues with
+  the next batch without waiting for the owner.
 - **Architect / Reviewer** — Claude Fable 5.2 (`claude-fable-5-2`, high effort): writes the constitution,
   specs, plans, and tasks; reviews every pull request read-only; never writes implementation code in a PR
   it reviews.
@@ -301,14 +309,21 @@ and `tasks.md` exist and the analyze pass has no CRITICAL finding.
 **Review**: after CI is green, the reviewer (Fable 5.2) checks the diff against the batch's tasks and
 acceptance checks, the spec/plan/contracts, and every principle of this constitution, and ends with
 `VERDICT: APPROVE` or `VERDICT: CHANGES_REQUESTED` plus a numbered list of required changes. Requested
-changes are pushed to the same PR and re-reviewed. Only the owner merges, and only with green CI and an
-`APPROVE` verdict on the latest commit.
+changes are pushed to the same PR and re-reviewed.
+
+**Merge rule**: a pull request is squash-merged by the orchestrator (or the owner) when, and only when,
+all required CI gates are green **and** the reviewer's verdict on the PR's latest commit is
+`VERDICT: APPROVE`. A commit pushed after the verdict invalidates it and requires a new review. The
+implementer and the reviewer never merge. The orchestrator MUST stop and ask the owner instead of merging
+when a PR amends this constitution, changes `docs/roadmap.md` or a feature's `spec.md` scope, needs a
+secret or an external account, or carries a Spec deviation the reviewer has not explicitly accepted.
 
 **Definition of Done for a PR batch**: all its tasks ticked; all acceptance checks demonstrably true;
 gates 1–8 green; reviewer verdict `APPROVE`; no secrets; documentation current.
 
 **Repository protection** (configured by the owner on GitHub): `main` is protected — no direct pushes,
-pull request required, required status checks = the CI jobs above, squash merge only.
+pull request required, required status checks = the CI jobs above, squash merge only. The reviewer's
+verdict is recorded as a PR comment by the orchestrator before merging.
 
 ## Governance
 
@@ -328,4 +343,4 @@ pull request required, required status checks = the CI jobs above, squash merge 
 - **Periodic review**: the architect re-reads this constitution at the start of every new feature's
   planning and proposes amendments when practice and text have drifted.
 
-**Version**: 1.0.0 | **Ratified**: 2026-11-14 | **Last Amended**: 2026-11-14
+**Version**: 1.1.0 | **Ratified**: 2026-11-14 | **Last Amended**: 2026-11-15

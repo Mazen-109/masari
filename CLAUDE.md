@@ -99,7 +99,12 @@ the repo or in a diff, stop and report it; it must be rotated, not just removed.
    + JS budget, gitleaks, dependency audit. Never disable, skip, or weaken a gate or a test.
 7. **Implementer**: Claude Opus 5.5 (`claude-opus-5-5`). **Reviewer**: Claude Fable 5.2
    (`claude-fable-5-2`, read-only) — ends with `VERDICT: APPROVE` or `VERDICT: CHANGES_REQUESTED`.
-   Fixes go to the same PR. Only the owner merges (squash). See `docs/delegation.md` for how to dispatch.
+   Fixes go to the same PR.
+8. **Merge**: the orchestrator (the main session that dispatches work; authorised by the owner) squash-merges
+   the PR once CI is green **and** Fable 5.2 returned `VERDICT: APPROVE` on the latest commit, then moves to
+   the next batch. Implementer and reviewer never merge. The orchestrator stops and asks the owner instead
+   when a PR amends the constitution, changes roadmap/spec scope, needs a secret or external account, or
+   has an unaccepted Spec deviation. See `docs/delegation.md` for how to dispatch.
 
 ## Spec Kit
 
