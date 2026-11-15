@@ -48,7 +48,7 @@ Idempotent. Exit 1 with a one-line reason on failure (never prints a connection 
 ## 3. `pnpm db:seed` — `packages/db/scripts/seed.ts`
 
 Runs `seedDemo` (data in `data-model.md` §5). Idempotent: running twice changes nothing. Prints the demo
-college slug and, when an administrator invitation was created (from PR-15), the line
+college slug and, when an administrator invitation was created (from PR-26), the line
 `Admin invitation link: <APP_URL>/ar/invite/<token>`. Refuses to run when `APP_ENV=production`.
 
 ## 4. `pnpm tenant:create` — `packages/db/scripts/tenant-create.ts` (FR-018)

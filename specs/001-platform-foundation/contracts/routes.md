@@ -28,15 +28,15 @@ Shell: `public-header` (wordmark «مساري», language switch), centred conte
 
 | Path | File (`src/app/[locale]/(public)/…`) | Purpose | Query params | Batch |
 |---|---|---|---|---|
-| `/` (locale root) | `../page.tsx` | Signed in → `/dashboard`; signed out → `/sign-in` | — | PR-10 |
-| `/sign-in` | `sign-in/page.tsx` | Email + password form; links to register and forgot password | `next`, `reason` (`account_suspended` \| `tenant_suspended`), `reset=1`, `invited=1`, `verified=1` → info banner | PR-10 |
-| `/register` | `register/page.tsx` | Student registration form | `u=<college slug>` preselects and locks the college | PR-9 |
-| `/verify-email` | `verify-email/page.tsx` | "Check your email" + resend form (email input) | — | PR-9 |
-| `/email-verified` | `email-verified/page.tsx` | Result of the confirmation link: success (link to sign-in) or invalid/expired (resend form) | `error` (set by the auth library on failure) | PR-9 |
-| `/forgot-password` | `forgot-password/page.tsx` | Request a reset link; always shows the same confirmation | — | PR-14 |
-| `/reset-password` | `reset-password/page.tsx` | Set a new password | `token`, `error` | PR-14 |
-| `/invite/[token]` | `invite/[token]/page.tsx` | Accept an invitation: shows college name + role; form (name, password, consent). Invalid/expired/used/revoked token → explanatory screen, no form | — | PR-16 |
-| `/privacy` | `privacy/page.tsx` | Privacy notice (FR-011) | — | PR-9 |
+| `/` (locale root) | `../page.tsx` | Signed in → `/dashboard`; signed out → `/sign-in` | — | PR-18 |
+| `/sign-in` | `sign-in/page.tsx` | Email + password form; links to register and forgot password | `next`, `reason` (`account_suspended` \| `tenant_suspended`), `reset=1`, `invited=1` → info banner | PR-18 |
+| `/register` | `register/page.tsx` | Student registration form | `u=<college slug>` preselects and locks the college | PR-16 |
+| `/verify-email` | `verify-email/page.tsx` | "Check your email" + resend form (email input) | — | PR-16 (resend: PR-17) |
+| `/email-verified` | `email-verified/page.tsx` | Result of the confirmation link: success (link to sign-in) or invalid/expired (resend form) | `error` (set by the auth library on failure) | PR-17 |
+| `/forgot-password` | `forgot-password/page.tsx` | Request a reset link; always shows the same confirmation | — | PR-24 |
+| `/reset-password` | `reset-password/page.tsx` | Set a new password | `token`, `error` | PR-24 |
+| `/invite/[token]` | `invite/[token]/page.tsx` | Accept an invitation: shows college name + role; form (name, password, consent). Invalid/expired/used/revoked token → explanatory screen, no form | — | PR-27 |
+| `/privacy` | `privacy/page.tsx` | Privacy notice (FR-011) | — | PR-15 |
 
 ## 3. Onboarding — route group `(onboarding)`
 
@@ -44,7 +44,7 @@ Minimal shell (header with college name, language switch, sign out; no navigatio
 
 | Path | File | Access | Behaviour | Batch |
 |---|---|---|---|---|
-| `/onboarding` | `(onboarding)/onboarding/page.tsx` | `requireSession('/onboarding', { allowIncompleteProfile: true })` | Student without profile → form (student code, level, division). Anyone else → redirect `/dashboard`. | PR-13 |
+| `/onboarding` | `(onboarding)/onboarding/page.tsx` | `requireSession('/onboarding', { allowIncompleteProfile: true })` | Student without profile → form (student code, level, division). Anyone else → redirect `/dashboard`. | PR-22 |
 
 ## 4. Signed-in screens — route group `(app)`
 
@@ -63,13 +63,13 @@ The current entry has `aria-current="page"`.
 
 | Path | File (`src/app/[locale]/(app)/…`) | Guard | Content | Batch |
 |---|---|---|---|---|
-| `/dashboard` | `dashboard/page.tsx` | `requireSession('/dashboard')` | Greeting with name; college name; module cards (name, one-sentence description, "coming soon" badge); students: code/level/division summary; admins: shortcut cards to the four admin screens | PR-10 (basic), PR-11 (cards), PR-13 (student summary), PR-17 (admin shortcuts) |
-| `/profile` | `profile/page.tsx` | `requireSession('/profile')` | Account form (name; email read-only); students: academic form (code read-only, level, division) | PR-13 |
-| `/modules/[moduleKey]` | `modules/[moduleKey]/page.tsx` | `requireSession(...)` then `notFound()` unless key ∈ `visibleModules(...)` | Module name, description, "coming soon" | PR-11 |
-| `/admin/users` | `admin/users/page.tsx` | `requirePermission('admin.users.manage', …)` | Filters (`q`, `role`, `status`), table, pagination (`page`), row actions | PR-19 |
-| `/admin/invitations` | `admin/invitations/page.tsx` | `requirePermission('admin.invitations.manage', …)` | Invite form; table with status and revoke | PR-17 |
-| `/admin/divisions` | `admin/divisions/page.tsx` | `requirePermission('admin.settings.manage', …)` | Add form; table with edit and activate/deactivate | PR-21 |
-| `/admin/settings` | `admin/settings/page.tsx` | `requirePermission('admin.settings.manage', …)` | College names, allowed domains, levels, enabled modules | PR-20 |
+| `/dashboard` | `dashboard/page.tsx` | `requireSession('/dashboard')` | Greeting with name; college name; module cards (name, one-sentence description, "coming soon" badge); students: code/level/division summary; admins: shortcut cards to the four admin screens | PR-18 (basic), PR-19 (cards), PR-22 (student summary); each admin screen's batch adds its shortcut (PR-28, PR-32, PR-35, PR-36) |
+| `/profile` | `profile/page.tsx` | `requireSession('/profile')` | Account form (name; email read-only); students: academic form (code read-only, level, division) | PR-23 |
+| `/modules/[moduleKey]` | `modules/[moduleKey]/page.tsx` | `requireSession(...)` then `notFound()` unless key ∈ `visibleModules(...)` | Module name, description, "coming soon" | PR-19 |
+| `/admin/users` | `admin/users/page.tsx` | `requirePermission('admin.users.manage', …)` | Filters (`q`, `role`, `status`), table, pagination (`page`), row actions | PR-32 (list), PR-33, PR-34 (actions) |
+| `/admin/invitations` | `admin/invitations/page.tsx` | `requirePermission('admin.invitations.manage', …)` | Invite form; table with status and revoke | PR-28 (revoke: PR-29) |
+| `/admin/divisions` | `admin/divisions/page.tsx` | `requirePermission('admin.settings.manage', …)` | Add form; table with edit and activate/deactivate | PR-36 |
+| `/admin/settings` | `admin/settings/page.tsx` | `requirePermission('admin.settings.manage', …)` | College names, allowed domains, levels, enabled modules | PR-35 |
 
 Query parameters of `/admin/users`: `q` (≤ 100 chars, trimmed), `role` (one of the four roles), `status`
 (`active` \| `suspended`), `page` (integer ≥ 1, default 1). Invalid values are ignored (treated as absent).

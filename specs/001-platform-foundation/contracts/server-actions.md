@@ -112,7 +112,9 @@ Fields: `tenantSlug`, `name`, `email`, `password`, `consent`. Locale from `getLo
 8. Audit `user.registered`.
 9. `redirect('/{locale}/verify-email')` — identical for steps 5, 6, and 7.
 
-Never returns information that distinguishes steps 5/6/7.
+Never returns information that distinguishes steps 5/6/7. If sending an email in steps 5–7 fails, log
+`email.failed` (template name only) and still continue to step 9 — the user can request the confirmation
+email again from the "check your email" screen.
 
 ### 4.2 `resendVerificationAction` (form) — FR-004, FR-005, FR-009
 

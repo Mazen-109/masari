@@ -40,6 +40,7 @@ Available once feature 001 / PR-1 is merged (run from the repo root):
 | Apply migrations + ensure runtime DB role | `pnpm db:migrate` |
 | Seed demo college | `pnpm db:seed` |
 | Create a college + first-admin invitation | `pnpm tenant:create --slug <slug> --name-ar "<…>" --name-en "<…>" --admin-email <email>` |
+| Suspend / reactivate a college | `pnpm tenant:set-status --slug <slug> --status active\|suspended` |
 | Generate a migration after a schema change | `pnpm db:generate` |
 | Dev server (http://localhost:3000) | `pnpm dev` |
 | Lint / format / types | `pnpm lint` · `pnpm format` (check: `pnpm format:check`) · `pnpm typecheck` |

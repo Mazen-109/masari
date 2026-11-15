@@ -60,7 +60,7 @@ export type SessionContext = {
     id: string; slug: string; nameAr: string; nameEn: string;
     levelsCount: number; enabledModules: ModuleKey[]; allowedEmailDomains: string[];
   };
-  studentProfile: { studentCode: string; level: number; divisionId: string } | null;  // added in PR-13; null for non-students
+  studentProfile: { studentCode: string; level: number; divisionId: string } | null;  // added in PR-22; null for non-students
 };
 
 /** Cached per request (React cache). Returns null when there is no session, the user is suspended,

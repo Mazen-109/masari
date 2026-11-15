@@ -33,6 +33,9 @@ Template alignment check:
   ✅ CLAUDE.md                             — runtime guidance created alongside this version
   ✅ docs/delegation.md                    — model roles match (Opus 5.5 implements, Fable 5.2 reviews)
 
+Consistency edit (2026-11-15, same version, made while analysing feature 001): principle III now names the
+only tables exempt from forced RLS (tenant registry, auth identity tables) and their compensating controls.
+
 Deferred items / TODOs: none.
 Unverified at ratification: exact package versions (npm registry unreachable from the planning sandbox);
 majors are fixed below, exact versions are pinned by task T001 of feature 001.
@@ -102,7 +105,11 @@ are the contract that makes one-PR-per-task delivery safe.
 - **Tenant isolation**: every table that holds college-owned data MUST carry `tenant_id`, MUST have
   PostgreSQL row-level security enabled and forced, and MUST be accessed only inside a transaction that
   sets the tenant context. The application connects with a database role that is neither superuser nor
-  `BYPASSRLS`; the app MUST refuse to start in production otherwise.
+  `BYPASSRLS`; the app MUST refuse to start otherwise. The only tables exempt from forced row-level
+  security are the tenant registry itself and the authentication library's identity tables (users,
+  sessions, accounts, verification tokens), which must be readable before a tenant is known; they MUST be
+  queried only by the authentication library and by repository functions that take an explicit tenant
+  filter and have cross-tenant tests.
 - **Authorisation**: deny by default. Every page, server action, and route handler MUST check the session
   and the required permission on the server; hiding a link is not access control. Proxy/middleware MUST
   NOT be the only authorisation layer.

@@ -172,6 +172,12 @@ export function createAdminInvitation(migrationUrl: string, tenantId: string, em
 export function setTenantStatus(migrationUrl: string, slug: string, status: TenantStatus):
   Promise<'updated' | 'not_found'>;                                                     // suspending deletes the college's sessions
 export function seedDemo(migrationUrl: string): Promise<{ tenantId: string; adminInvitationToken: string | null }>;
+
+// Test support (src/admin/test-support.ts) — used only by packages/db/test and apps/web/e2e
+export function getUserByEmail(migrationUrl: string, email: string):
+  Promise<(UserSummary & { privacyConsentAt: Date | null }) | null>;
+export function countAuditEvents(migrationUrl: string, tenantSlug: string, action: string): Promise<number>;
+export function expireInvitation(migrationUrl: string, email: string): Promise<void>;   // sets expires_at to the past
 ```
 
 All `admin` functions that write tenant-scoped rows set the tenant context exactly like `withTenant` does.
@@ -191,4 +197,6 @@ All `admin` functions that write tenant-scoped rows set the tenant context exact
 | `sessions.int.test.ts` | `revokeAllForUser` deletes only that user's sessions. |
 | `student-profiles.int.test.ts` | Unique code per college (and concurrent creates → exactly one wins); same code in two colleges; division from another college → `invalid_division`; cross-college invisibility; `maxLevelInUse`. |
 | `invitations.int.test.ts` | One pending per email; expired pending replaced; token lookup works only with the matching hash and returns nothing for other tokens; concurrent `claim` → exactly one succeeds; `release`; `revoke` states; cross-college invisibility. |
+| `auth-schema.int.test.ts` | Defaults `student`/`active`/`ar`; upper-case email, unknown role, and missing tenant rejected; deleting a user cascades to sessions and accounts. |
+| `cli.int.test.ts` | `tenant-create` and `tenant-set-status` scripts: outputs and exit codes of `cli.md` §4–5; nothing changes on failure. |
 | `admin.int.test.ts` | `createTenant` defaults + `GEN` division; duplicate slug; `createAdminInvitation`; `setTenantStatus` deletes sessions; `seedDemo` is idempotent. |

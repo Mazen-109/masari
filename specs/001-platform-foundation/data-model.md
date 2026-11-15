@@ -257,6 +257,9 @@ is released (`status='pending'`, `accepted_at=NULL`).
 Index: `audit_events_tenant_created_idx (tenant_id, created_at DESC)`. The runtime role has no `UPDATE` or
 `DELETE` privilege (append-only; tested).
 
+`recordAudit` (web) accepts only actions from the catalogue below and rejects any string metadata value
+longer than 64 characters.
+
 Action catalogue (the only values written in this feature; `metadata` keys in braces — IDs and
 enumerations only, never emails, names, tokens, or passwords):
 
@@ -299,7 +302,7 @@ users   1 ──< invitations.invited_by / accepted_user_id (nullable)
 - **Demo college** (`pnpm db:seed`, idempotent): slug `demo`, «كلية الحاسبات والذكاء الاصطناعي (تجريبي)» /
   "Faculty of Computers and AI (Demo)", divisions `GEN` «عام»/General (0), `CS` «علوم الحاسب»/Computer
   Science (10), `IS` «نظم المعلومات»/Information Systems (20), `IT` «تكنولوجيا المعلومات»/Information
-  Technology (30), `AI` «الذكاء الاصطناعي»/Artificial Intelligence (40). From PR-15 on, the seed also
+  Technology (30), `AI` «الذكاء الاصطناعي»/Artificial Intelligence (40). From PR-26 on, the seed also
   ensures a pending admin invitation for `admin@demo.masari.test` when the college has no administrator and
   prints its link. The seed never creates passwords.
 

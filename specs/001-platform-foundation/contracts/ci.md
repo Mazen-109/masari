@@ -17,10 +17,10 @@ constitution's eight required gates
 
 | Job id | Constitution gate | Steps | Added in |
 |---|---|---|---|
-| `quality` | 1, 2, 3 | `pnpm format:check` → `pnpm lint` → `pnpm typecheck` → `pnpm i18n:check` → `pnpm rtl:check` (the last two from PR-5) | PR-2 |
+| `quality` | 1, 2, 3 | `pnpm format:check` → `pnpm lint` → `pnpm typecheck` → `pnpm i18n:check` → `pnpm rtl:check` (`i18n:check` from PR-7, `rtl:check` from PR-8) | PR-2 |
 | `test` | 4 | PostgreSQL service → `pnpm test` (coverage thresholds enforced by Vitest config) | PR-2 (service used from PR-3) |
 | `build` | 5 | `pnpm build` with **no** application environment variables set | PR-2 |
-| `e2e` | 6 | PostgreSQL service → `pnpm --filter @masari/web exec playwright install --with-deps chromium` → `pnpm test:e2e`; on failure upload `apps/web/playwright-report` as an artifact (7 days) | PR-6 |
+| `e2e` | 6 | PostgreSQL service → `pnpm --filter @masari/web exec playwright install --with-deps chromium` → `pnpm test:e2e`; on failure upload `apps/web/playwright-report` as an artifact (7 days) | PR-10 |
 | `secrets` | 7 | checkout with `fetch-depth: 0` → gitleaks (config `.gitleaks.toml`) | PR-2 |
 | `audit` | 8 | `pnpm audit --prod --audit-level high` | PR-2 |
 
@@ -60,7 +60,7 @@ The repository needs **no GitHub secrets** for this feature.
 | `@masari/web` | `src/server/**`, `src/lib/**`, `src/modules/**`, `src/features/**/schemas.ts`, `src/features/**/rules.ts`; excluding `src/server/auth/auth.ts`, `src/server/auth/session.ts`, `src/server/auth/action-context.ts`, `src/server/email/transport.ts` (exercised end-to-end) | lines ≥ 80%, branches ≥ 70% |
 
 Thresholds are switched on in the batch that adds the first real code to each package (PR-3 for
-`@masari/db`, PR-6 for `@masari/web`) and are never lowered afterwards.
+`@masari/db`, PR-9 for `@masari/web`) and are never lowered afterwards.
 
 ## 5. Accessibility and script-budget gates (inside `e2e`)
 
@@ -70,7 +70,7 @@ Thresholds are switched on in the batch that adds the first real code to each pa
   each in `ar` and `en`. **Every batch that adds a screen appends it to the list.**
 - `apps/web/e2e/perf-budget.spec.ts` loads a fresh context, sums `encodedDataLength` of all `Script`
   responses (Chromium DevTools protocol) until network idle, and asserts ≤ 200 KB for public screens
-  (`/ar/sign-in`, `/ar/register`) and ≤ 300 KB for signed-in screens (`/ar/dashboard`, `/ar/admin/users` once
+  (`/ar/sign-in`, `/ar/register`; `/ar` until those exist) and ≤ 300 KB for signed-in screens (`/ar/dashboard`, `/ar/admin/users` once
   it exists).
 
 ## 6. Repository files that belong to CI

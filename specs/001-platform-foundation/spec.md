@@ -329,7 +329,7 @@ refused, and the disabled module is gone from every role's navigation.
 - **FR-009**: The system MUST limit repeated attempts, per email address and per network address, with
   these limits (attempts / window): sign-in 10 / 10 min per email and 100 / 10 min per network address;
   registration 3 / hour per email and 60 / 10 min per network address; confirmation resend 3 / hour per
-  email; password-recovery request 3 / hour per email and 60 / 10 min per network address; invitation
+  email and 60 / 10 min per network address; password-recovery request 3 / hour per email and 60 / 10 min per network address; invitation
   acceptance 30 / 10 min per network address. When a limit is hit, the user MUST be told to try again later
   and when.
 - **FR-010**: Users MUST be able to recover a forgotten password through an emailed single-use link valid
@@ -380,7 +380,8 @@ refused, and the disabled module is gone from every role's navigation.
 
 - **FR-020**: An administrator MUST be able to invite an email address to any of the four roles. An
   invitation MUST be single-use and valid for 7 days. At most one pending invitation per email per college
-  may exist. An email that already has an account MUST NOT be invitable.
+  may exist. An email that already has an account MUST NOT be invitable. An
+  administrator MUST NOT be able to create more than 60 invitations per hour.
 - **FR-021**: An invitee MUST be able to accept by setting their name and password; the account is created
   in the inviting college with the invited role and a confirmed email (no separate confirmation step).
 - **FR-022**: An administrator MUST be able to see the college's invitations with their status (pending,
