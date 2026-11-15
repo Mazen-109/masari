@@ -1,0 +1,85 @@
+# Masari — .gitignore (pnpm workspace · Next.js · TypeScript · PostgreSQL)
+
+# --- Dependencies ---
+node_modules/
+.pnpm-store/
+.pnp
+.pnp.*
+
+# --- Secrets & local environment (NEVER commit; see constitution, principle III) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+credentials.json
+service-account*.json
+
+# --- Build outputs ---
+.next/
+out/
+dist/
+build/
+.turbo/
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
+
+# --- Tests, coverage, reports ---
+coverage/
+.nyc_output/
+playwright-report/
+blob-report/
+test-results/
+apps/web/e2e/.auth/
+.lighthouseci/
+
+# --- Local runtime data ---
+.tmp/
+tmp/
+*.log
+logs/
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+# (captured dev/test emails live under .tmp/emails when EMAIL_TRANSPORT=capture)
+# local database dumps / volumes
+*.dump
+*.sql.gz
+pgdata/
+.pgdata/
+
+# --- Caches ---
+.cache/
+.eslintcache
+.prettiercache
+.stylelintcache
+
+# --- OS / editors ---
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- Agent / review scratch (per-machine) ---
+.claude/settings.local.json
+.claude/.cc-writes/
+brief.txt
+review.diff
+
+# --- Local shell / sandbox artifacts that may appear at the repo root ---
+/.bash_profile
+/.bashrc
+/.profile
+/.zprofile
+/.zshrc
+/.gitconfig
+/.ripgreprc
