@@ -128,7 +128,7 @@ Every unknown in the plan's Technical Context is resolved here. Format per item:
   explicit `auth.api.sendVerificationEmail`. All three branches end with the same redirect to the "check
   your email" screen. `acceptInvitationAction` atomically claims the invitation, creates the user with the
   invitation's email and college, then sets the invited role and `email_verified = true`; any failure after
-  the claim releases it. Invitations cannot be created for an email that already has an account, and
+  the claim deletes the account it created and releases the claim. Invitations cannot be created for an email that already has an account, and
   self-registration is refused for an email with a pending invitation — together these close the
   "pre-register someone's email, then inherit their invited role" attack.
 - **Rationale**: FR-005/FR-013/FR-020–023; one place for each rule.
@@ -139,10 +139,16 @@ Every unknown in the plan's Technical Context is resolved here. Format per item:
 
 - **Decision**: a small PostgreSQL-backed fixed-window limiter in `@masari/db` (`rate_limit_counters`,
   atomic upsert) applied in the public Server Actions with composite keys (per email **and** per IP) and the
-  limits of FR-009. Client IP = first entry of `x-forwarded-for`, else `"unknown"`.
+  limits of FR-009. The client IP comes from `X-Forwarded-For` only as far as the deployment's own proxies
+  vouch for it: `TRUSTED_PROXY_HOPS` (default 0 = header ignored) selects the entry counted from the right;
+  anything else is `null` and shares one strict bucket (`contracts/http-and-env.md` §5). End-to-end tests
+  send a distinct address per test through that same rule, so limits are never relaxed for tests. Expired
+  counters are purged opportunistically by the limiter itself.
 - **Rationale**: Better Auth's built-in limiter is IP-only and does not apply to server-side `auth.api`
   calls; IP-only limits would lock out a lecture hall behind one campus NAT, and too-generous IP limits do
   not stop guessing one account. A database table works on serverless and on-premises with no extra service.
+  The first `X-Forwarded-For` entry is client-controlled behind any proxy that appends, so taking it would
+  let an attacker choose a fresh bucket per request; counting from the right uses only proxy-written entries.
 - **Alternatives**: Redis/Upstash limiter — new infrastructure (constitution VII). In-memory — useless on
   serverless and multi-instance.
 
@@ -169,7 +175,7 @@ Every unknown in the plan's Technical Context is resolved here. Format per item:
   role changes apply immediately.
 - **Rationale**: FR-014/FR-015/FR-030/FR-031; layouts do not re-run on every navigation, so layout-only
   checks are insufficient; a tiny matrix is easier to audit than a policy engine.
-- **Alternatives**: CASL/Casbin — unnecessary for 4 roles × 12 permissions. Proxy-based protection —
+- **Alternatives**: CASL/Casbin — unnecessary for 4 roles × 10 permissions. Proxy-based protection —
   explicitly rejected (§3).
 
 ## 12. Internationalisation
@@ -296,7 +302,8 @@ Every unknown in the plan's Technical Context is resolved here. Format per item:
 - **Decision**: `apps/web/src/server/log.ts` — a ~30-line JSON-lines logger over `console` with levels and
   an `event` name; `no-console` lint rule everywhere else. Audit events go to the tenant-scoped,
   append-only `audit_events` table (runtime role has `INSERT`/`SELECT` only) through
-  `recordAudit(ctx, event)`; metadata is a small, schema-checked object of IDs and enumerations — never
+  `recordAudit(ctx, event, tx?)` — in the same transaction as the change whenever the change is made
+  through `withTenant`; metadata is a small, schema-checked object of IDs and enumerations — never
   emails, names, tokens, or passwords. Failed sign-ins for unknown emails have no tenant and are logged (not
   audited) without the email.
 - **Rationale**: FR-044; constitution III (logs without personal data).

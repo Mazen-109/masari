@@ -1,51 +1,77 @@
 <!--
-SYNC IMPACT REPORT (temporary review aid — remove before committing, per speckit-constitution)
+SYNC IMPACT REPORT
 
-Version change: (unversioned template) → 1.0.0 → 1.1.0
-Bump rationale: 1.0.0 = first ratified constitution (all placeholders replaced). 1.1.0 (MINOR) = owner's
-amendment of 2026-11-15: a new Orchestrator role is added and is authorised to squash-merge a pull request
-once the reviewer returns VERDICT: APPROVE and CI is green (replaces "only the owner merges").
+Version change: 1.1.0 → 1.2.0
+Bump rationale (MINOR): by the owner's decision of 2026-11-16 the product-specific draft constitution
+(draft v1.0.0 of 2026-11-09: seven product principles + platform constraints) is folded into this document.
+Five principles are added, three are materially expanded (II, III, IV), and two get one line each (V, VII);
+no principle, gate, or stack row is removed or redefined, and the numbering I–VII is unchanged (feature
+documents cite those numbers).
+History: 1.0.0 (2026-11-14) first ratified text, principles I–VII, stack, workflow, governance ·
+1.1.0 (2026-11-15) Orchestrator role and merge rule · 1.2.0 (2026-11-16) this merge.
 
-Modified principles: none (initial adoption)
-Modified sections (1.1.0): Development Workflow & Quality Gates — Roles, Review + new Merge rule,
-  Repository protection
 Added principles:
-  I.   Code Quality & Maintainability
-  II.  Testing Discipline (NON-NEGOTIABLE)
-  III. Security & Student-Data Privacy (NON-NEGOTIABLE)
-  IV.  Arabic-First, RTL-Native, Bilingual
-  V.   Accessibility
-  VI.  Performance on Real Student Devices
-  VII. Simplicity (YAGNI)
-Added sections:
-  - Technology Stack & Architecture Constraints
-  - Development Workflow & Quality Gates
-  - Governance
+  VIII. Payment & Paid-Content Integrity (NON-NEGOTIABLE)  ← draft II (codes, watermark, receipts, sandbox)
+  IX.   One Shared Student Profile, Integrated Modules     ← draft III
+  X.    Human Review for Consequential Decisions           ← draft IV
+  XI.   Grounded and Practical AI                          ← draft V
+  XII.  Phased Scope                                       ← draft VI (its YAGNI half was already VII)
+Modified principles:
+  II.  Testing Discipline — adds the critical paths that MUST be tested and "every acceptance scenario is
+       verifiable by a test or a documented manual check" (draft VII)
+  III. Security & Student-Data Privacy — names the four roles; data visible only to the roles that need it; a
+       student can see what is held about them; OWASP Top 10 testing before any delivery or demo to a real
+       college; the Kitabi bullet moved to principle VIII; the AI bullet points to X and XI
+  IV.  Arabic-First — Arabic for every notification, error, receipt, and AI output; RTL designed and verified
+       first; Egyptian college reality; formal vs colloquial Arabic; NO Arabic text rendered by an
+       image-generation model (generated images carry no text; Arabic text is overlaid in code)
+  V.   Accessibility — UI work SHOULD use the Impeccable design skill
+  VII. Simplicity — precedence order extended to the twelve principles
+Modified sections:
+  Technology Stack & Architecture Constraints — pilot-data rule (one college's own data, no external approvals)
+  Development Workflow & Quality Gates — clarify step in the Spec Kit flow; specs state what and why,
+    technology belongs in the plan; `main` stays runnable; the PR size target no longer counts end-to-end
+    spec files and an oversize PR is split or explained, never a reason to stop
+  Governance — amendments are made with the speckit-constitution skill; CLAUDE.md and templates MUST stay
+    consistent with this document
 Removed sections: none
+Not carried over from the draft (superseded by owner decisions already in 1.1.0, or weaker than this text):
+  - "The project owner reviews and approves merges to main" → the Merge rule stays (the orchestrator merges
+    on green CI + reviewer APPROVE; the owner is asked in the cases listed there).
+  - "Basic accessibility" → principle V (WCAG 2.1 AA) is stricter and stays.
 
-Template alignment check:
+Template and document alignment check:
   ✅ .specify/templates/plan-template.md   — "Constitution Check" is filled per feature from this file; no edit needed
   ✅ .specify/templates/spec-template.md   — no conflict (specs stay technology-agnostic)
   ✅ .specify/templates/tasks-template.md  — template says tests are optional; this constitution makes tests
                                              MANDATORY (principle II) and adds "PR batches". Feature tasks.md
                                              files follow the constitution; the template itself is not modified
                                              (speckit-constitution writes only this file).
-  ✅ CLAUDE.md                             — runtime guidance created alongside this version
+  ✅ CLAUDE.md                             — product rules VIII–XII summarised; PR size rule updated
+  ✅ docs/roadmap.md                       — release order equals principle XII; 013 review wording and the
+                                             005 dependency corrected
+  ✅ specs/001-platform-foundation/plan.md — Constitution Check re-run against 1.2.0 (rows VIII–XII added)
   ✅ docs/delegation.md                    — model roles match (Opus 5.5 implements, Fable 5.2 reviews)
 
-Consistency edit (2026-11-15, same version, made while analysing feature 001): principle III now names the
-only tables exempt from forced RLS (tenant registry, auth identity tables) and their compensating controls.
+Earlier consistency edit (2026-11-15, version 1.1.0, made while analysing feature 001): principle III names
+the only tables exempt from forced RLS (tenant registry, auth identity tables) and their compensating controls.
 
 Deferred items / TODOs: none.
+Open product questions for the owner: printed or PDF textbooks (principle VIII, docs/roadmap.md §5 no. 1);
+whether a student may see their own AI drawing before faculty review (principle X, docs/roadmap.md §5 no. 5).
 Unverified at ratification: exact package versions (npm registry unreachable from the planning sandbox);
 majors are fixed below, exact versions are pinned by task T001 of feature 001.
+Merging: this pull request amends the constitution and the roadmap, so by the Merge rule the owner merges it,
+not the orchestrator.
 -->
 
 # Masari Constitution
 
 Masari (مساري, "my path") is a multi-tenant platform that accompanies a university student from the first
 day of college to graduation and employment, and serves faculty, Student Affairs, and college
-administration. Product source of truth: `docs/masari-spec-en.html`. Delivery order: `docs/roadmap.md`.
+administration. This constitution sets the non-negotiable rules that every feature, plan, and line of code
+follows. Product source of truth: `docs/masari-spec-en.html` (rendered as `docs/masari-spec-en.pdf`).
+Delivery order: `docs/roadmap.md`.
 
 Normative words: **MUST / MUST NOT** are binding and enforced in review; **SHOULD** may be deviated from
 only with a written reason in the pull request.
@@ -90,6 +116,13 @@ place for everything are cheaper than cleverness.
 - Every tenant-scoped table MUST have an integration test proving that tenant A cannot read or write
   tenant B's rows.
 - Every permission MUST have a test for both an allowed role and a denied role.
+- **Critical paths**: the following MUST have passing automated tests before the feature that delivers
+  them is considered done — payment confirmation and code assignment (including concurrent purchases),
+  role permissions, timetable conflict-freedom, CodeJudge grading against test cases, and plagiarism
+  detection with renamed variables. A bug found in a critical path MUST get a regression test with the fix.
+- Every feature spec MUST include acceptance scenarios, and each scenario MUST be verifiable by an
+  automated test or, where automation is impossible (for example a usability outcome), a documented manual
+  check.
 - Line coverage MUST be ≥ 80% for `packages/db/src` and for the unit-testable parts of the web app
   (`src/server`, `src/lib`, `src/modules`, and every feature's `schemas.ts` / `rules.ts`). Coverage is a
   floor, not a goal: untested acceptance scenarios fail review regardless of the percentage.
@@ -98,7 +131,8 @@ place for everything are cheaper than cleverness.
   boundary. Skipped or `.only` tests MUST NOT be merged.
 
 **Rationale**: the implementer is an AI agent and the reviewer cannot manually exercise every flow; tests
-are the contract that makes one-PR-per-task delivery safe.
+are the contract that makes one-PR-per-task delivery safe. The critical paths are where a silent failure
+costs money, fairness, or trust, and they are what the demo depends on.
 
 ### III. Security & Student-Data Privacy (NON-NEGOTIABLE)
 
@@ -110,9 +144,10 @@ are the contract that makes one-PR-per-task delivery safe.
   sessions, accounts, verification tokens), which must be readable before a tenant is known; they MUST be
   queried only by the authentication library and by repository functions that take an explicit tenant
   filter and have cross-tenant tests.
-- **Authorisation**: deny by default. Every page, server action, and route handler MUST check the session
-  and the required permission on the server; hiding a link is not access control. Proxy/middleware MUST
-  NOT be the only authorisation layer.
+- **Authorisation**: deny by default. Access control is role-based with four separate roles — student,
+  faculty member, Student Affairs, administration. Every page, server action, and route handler MUST check
+  the session and the required permission on the server; hiding a link or a button is not access control.
+  Proxy/middleware MUST NOT be the only authorisation layer.
 - **Authentication**: use the adopted auth library (no hand-rolled password hashing, session, or token
   logic). Passwords are hashed with a memory-hard algorithm; sessions use `HttpOnly`, `Secure`,
   `SameSite=Lax` cookies; sign-in, registration, and recovery endpoints are rate-limited; responses MUST
@@ -128,18 +163,18 @@ are the contract that makes one-PR-per-task delivery safe.
   suspension, invitation, payment, code assignment) MUST be written to the append-only audit log.
 - **Privacy**: personal data is processed under Egypt's Personal Data Protection Law (No. 151/2020):
   users see a privacy notice and give explicit consent at registration; each college's data is logically
-  isolated and exportable/deletable per college. Student personal data MUST NOT be sent to third parties
-  (including LLM providers) beyond what the feature strictly requires, and never for model training.
+  isolated and exportable/deletable per college. Student data (grades, CVs, submissions, purchases) MUST
+  be visible only to the roles that need it, and a student MUST be able to see what the platform holds
+  about them. Student personal data MUST NOT be sent to third parties (including LLM providers) beyond the
+  minimum the feature strictly requires, and never for model training.
 - **Web hardening**: OWASP Top 10 is the baseline. Output is escaped by default (no
   `dangerouslySetInnerHTML` with untrusted content), state-changing requests are CSRF-protected,
   security headers and a Content-Security-Policy are set, uploads are type/size-checked and never executed,
-  and dependencies with known high-severity vulnerabilities block merging.
-- **Payments and paid content** (Kitabi): only gateway sandbox credentials until the college signs a
-  merchant agreement; card data never touches Masari servers; payment webhooks are signature-verified and
-  idempotent; book codes are encrypted at rest and bound to exactly one student account.
+  and dependencies with known high-severity vulnerabilities block merging. The platform MUST be tested
+  against the OWASP Top 10 before any delivery or demo to a real college (roadmap feature 009).
+- **Payments and paid content** (Kitabi): governed by principle VIII.
 - **AI safety**: LLM output is untrusted input. It MUST NOT trigger privileged actions without a server-side
-  permission check, and AI-generated educational content shown to other users requires the human review
-  step defined in the product spec.
+  permission check. Human review of AI output is governed by principle X, grounding by principle XI.
 
 **Rationale**: Masari stores data about real students and will handle payments; a single cross-college leak
 would end the product commercially and harm real people.
@@ -147,11 +182,18 @@ would end the product commercially and harm real people.
 ### IV. Arabic-First, RTL-Native, Bilingual
 
 - Arabic (`ar`, right-to-left) is the default and primary locale; English (`en`) is fully supported. Every
-  user-facing string MUST exist in both `messages/ar.json` and `messages/en.json` in the same PR; CI fails
-  on missing or extra keys. Hardcoded user-facing text in components is forbidden.
-- Arabic copy is written natively in clear Modern Standard Arabic with the terms Egyptian students
+  user-facing screen, message, notification, error, receipt, and AI output MUST be available in Arabic.
+  Every user-facing string MUST exist in both `messages/ar.json` and `messages/en.json` in the same PR; CI
+  fails on missing or extra keys. Hardcoded user-facing text in components is forbidden.
+- Layouts are designed right-to-left first and verified in RTL; left-to-right is the secondary direction.
+- Content MUST reflect Egyptian college reality (regulations, level and division, Fawry, local terms)
+  rather than a translated foreign tool. Arabic copy is written natively with the terms Egyptian students
   actually use (الفرقة، الشعبة، شئون الطلاب، اللائحة); it is never a word-for-word translation of the
-  English. Egyptian colloquial Arabic is used only where the product spec asks for it.
+  English. Formal Arabic (clear Modern Standard Arabic) is used for the interface and for official content
+  (regulations, receipts, announcements); Egyptian colloquial Arabic is used only where the product spec
+  calls for it (audio summaries, student-facing feedback).
+- Arabic text MUST never be rendered by an image-generation model. Generated images carry no text; Arabic
+  text is overlaid in code, with correct shaping and direction.
 - Layout MUST use CSS logical properties and Tailwind logical utilities (`ms-*`, `me-*`, `ps-*`, `pe-*`,
   `start-*`, `end-*`, `text-start`, `text-end`). Physical direction utilities (`ml-*`, `mr-*`, `pl-*`,
   `pr-*`, `left-*`, `right-*`, `text-left`, `text-right`) are forbidden and checked in CI. Directional
@@ -160,11 +202,12 @@ would end the product commercially and harm real people.
   `dir="ltr"` or `<bdi>`. Letter-spacing and italics MUST NOT be applied to Arabic text.
 - Numbers use Western digits (0–9) in both locales; dates use the Gregorian calendar and the
   `Africa/Cairo` time zone unless a spec says otherwise. All formatting goes through the shared helpers.
-- Emails, PDFs, generated images, and AI answers follow the same rule: Arabic first, correct shaping and
-  direction, English available.
+- Emails, PDFs, composed images (posters, diagrams, video subtitles), and AI answers follow the same rule:
+  Arabic first, correct shaping and direction, English available.
 
 **Rationale**: the product's differentiator is being genuinely Arabic and Egyptian, not a translated
-foreign tool; RTL defects are the first thing an Arabic reader notices.
+foreign tool; RTL defects are the first thing an Arabic reader notices, and Arabic text inside generated
+images is a known failure point.
 
 ### V. Accessibility
 
@@ -177,6 +220,8 @@ foreign tool; RTL defects are the first thing an Arabic reader notices.
   label; errors are announced and linked to their field; meaning is never conveyed by colour alone.
 - Text contrast ≥ 4.5:1 (3:1 for large text and UI components); touch targets ≥ 44×44 CSS px; the UI
   remains usable at 200% zoom and at 320 px width; `prefers-reduced-motion` is respected.
+- UI work SHOULD use the Impeccable design skill installed in the repository (`.claude/skills/impeccable`)
+  together with `PRODUCT.md` and `DESIGN.md`.
 
 **Rationale**: a university platform is a public-facing service for every student, including those using
 assistive technology and low-end phones.
@@ -210,11 +255,98 @@ queue.
   well-documented technology that a student can learn from official docs.
 - Prefer deleting code to adding configuration. Three similar lines are better than a premature
   abstraction; extract on the third real use.
-- When principles conflict, the order of precedence is: III (security & privacy) → II (testing) →
-  V (accessibility) → IV (Arabic-first) → VII (simplicity) → I (code quality) → VI (performance).
+- When principles conflict, the order of precedence is: III (security & privacy) → VIII (payment &
+  paid-content integrity) → II (testing) → X (human review) → XI (grounded AI) → V (accessibility) →
+  IV (Arabic-first) → IX (shared profile) → XII (phased scope) → VII (simplicity) → I (code quality) →
+  VI (performance).
 
-**Rationale**: six modules and an AI layer are a heavy scope for a small team; every unnecessary moving
-part is paid for in every later feature.
+**Rationale**: six modules and an AI layer are a heavy scope for one developer working with AI agents over
+about six months; every unnecessary moving part is paid for in every later feature.
+
+### VIII. Payment & Paid-Content Integrity (NON-NEGOTIABLE)
+
+- Every textbook access code MUST be assigned to exactly one student, exactly once, and only after a
+  confirmed payment. Assignment MUST be atomic: two concurrent purchases can never receive the same code,
+  and a paid student can never receive zero codes.
+- Codes MUST be bound to the student's account, MUST NOT be transferable, MUST be encrypted at rest, and
+  MUST never be logged in plain text.
+- Every downloaded PDF MUST carry a watermark with the student's name and student code.
+- Every payment transaction and every code assignment MUST be written to the append-only audit log, and
+  every transaction MUST produce an electronic receipt.
+- Kitabi MUST use the payment gateway's sandbox/test mode until the college has its own merchant account
+  (a signed merchant agreement). Target payment methods: card, Fawry, and mobile wallet. Switching to live
+  payments is a deliberate configuration change, never a code default.
+- Card data never touches Masari servers; payment webhooks are signature-verified and idempotent.
+- **Open question**: whether textbooks are printed or PDF is not settled. If printed, Kitabi adds pickup
+  booking with a QR code; features MUST NOT assume one answer until the owner settles it.
+
+**Rationale**: Kitabi handles money and paid content; one duplicated or leaked code damages trust in the
+whole platform.
+
+### IX. One Shared Student Profile, Integrated Modules
+
+- All modules MUST read from and write to one shared student profile (level, division, courses, grades,
+  skills) as the single source of truth. A module MUST NOT keep its own copy of profile data that can drift.
+- Data passed directly between modules MUST go through an explicit, documented contract (principle I: the
+  shared core or an exported module interface). The defined paths are: Mu'eed → Mizan (course
+  descriptions), CodeJudge → CareerMap (weak points), CareerMap → Tadreeb (required skills), and Kitabi
+  reading the student's courses from the shared profile. A new path needs a documented contract in the
+  plan of the feature that adds it.
+- Each module MUST remain independently usable and testable: if another module is missing, disabled, or
+  not yet built, it degrades gracefully instead of failing.
+- College-specific content (regulations, course catalog, levels, divisions, books) MUST be data, not code,
+  so that another college can adopt Masari by changing data only.
+
+**Rationale**: "integrated, not bundled" is what makes Masari more than a set of side-by-side tools, and
+portability to other colleges is a stated goal.
+
+### X. Human Review for Consequential Decisions
+
+- Plagiarism (similarity) results from CodeJudge are evidence for a faculty member to review; the system
+  MUST NOT penalise a student automatically.
+- Mizan exam analysis is advisory; the faculty member makes the final approval decision.
+- AI-generated educational drawings and exam diagrams MUST pass a faculty review step before they are
+  published to students.
+- Early-warning alerts go to the academic advisor; they MUST NOT trigger automatic consequences for the
+  student.
+- Automatic grades from test cases MUST show the student which tests passed and which failed, so that
+  every grade is explainable.
+
+**Rationale**: decisions that affect a student's grades, record, or what students learn need an
+accountable human, and automated signals can be wrong.
+
+### XI. Grounded and Practical AI
+
+- The Mu'eed assistant MUST answer only from the college's official regulation documents (retrieval-
+  augmented generation), MUST cite the source section for each answer, and MUST say it does not know rather
+  than invent an answer when the documents do not cover the question.
+- Educational drawings MUST be generated as code (Mermaid or SVG) rather than raster images, so that they
+  can be reviewed and corrected.
+- Video MUST be composed from images, audio, and subtitles (for example with FFmpeg) rather than generated
+  end-to-end from text.
+- Every AI feature MUST have a defined fallback for when the model or provider is unavailable, and its cost
+  per use MUST be estimated in the plan.
+- Student personal data sent to an external AI provider MUST be the minimum needed for the task
+  (principle III).
+
+**Rationale**: these are the mitigations the product spec chose for scientific errors, cost, and
+reliability; making them rules keeps every AI feature consistent.
+
+### XII. Phased Scope
+
+- Work MUST follow the product spec's scope priorities, in order (`docs/roadmap.md` maps them to features
+  and releases):
+  1. Foundation: accounts, roles and permissions, and the shared database.
+  2. Demo-critical modules: Mu'eed, CodeJudge, and Kitabi.
+  3. Complementary modules: Mizan (light version: Bloom classification, table of specifications, report),
+     CareerMap, and Tadreeb.
+  4. AI layer: the three candidate features first (concept drawing, college posters, explain-in-a-minute
+     video), then the rest if time allows.
+- A later phase MUST NOT start while an earlier phase has blocking defects, unless the exception is
+  justified in the plan.
+- Within a phase, the simplest design that meets the spec wins (principle VII).
+
+**Rationale**: a working demo of the strongest modules beats many half-finished ones.
 
 ## Technology Stack & Architecture Constraints
 
@@ -248,6 +380,8 @@ Architecture rules:
 - **Multi-tenancy**: one shared database and schema; a tenant is one college. Each user belongs to exactly
   one tenant. Tenant-specific behaviour is data (settings, enabled modules, regulations, catalog), never a
   code fork. Each of the six product modules can be enabled or disabled per tenant.
+- **Pilot data**: the platform MUST be runnable with one college's own data and without approvals from
+  external bodies.
 - **Portability**: code MUST NOT depend on a hosting provider's proprietary runtime APIs (no edge-only
   code paths, no provider-specific KV/queue/blob SDKs, no provider-specific database drivers). Anything
   provider-specific sits behind an interface with a self-hostable implementation.
@@ -279,9 +413,11 @@ Architecture rules:
 - **Implementer** — Claude Opus 5.5 (`claude-opus-5-5`, medium effort): implements exactly one PR batch per
   pull request; never merges and never reviews its own work.
 
-**Spec-driven flow**: constitution → `docs/roadmap.md` → per feature `specs/NNN-name/` (spec → plan →
-tasks → analyze) → implementation. No implementation starts for a feature until its `spec.md`, `plan.md`,
-and `tasks.md` exist and the analyze pass has no CRITICAL finding.
+**Spec-driven flow**: constitution → `docs/roadmap.md` → per feature `specs/NNN-name/` (specify → clarify
+when needed → plan → tasks → analyze) → implementation. No implementation starts for a feature until its
+`spec.md`, `plan.md`, and `tasks.md` exist and the analyze pass has no CRITICAL finding. Specs describe
+what and why in the user's language; technology choices belong in the plan. `main` MUST stay in a runnable
+state.
 
 **One task = one pull request**
 
@@ -293,7 +429,9 @@ and `tasks.md` exist and the analyze pass has no CRITICAL finding.
 - Branch name: `NNN-prNN-short-slug` (example: `001-pr03-db-foundation`). PR title:
   `[NNN PR-N] Summary`. Commits follow Conventional Commits. Merge strategy: squash.
 - Target size ≤ ~400 changed lines, not counting lockfiles, generated migrations/snapshots, copied
-  shadcn/ui components, fonts, and message catalogs. A larger PR MUST be split or carry a written reason.
+  shadcn/ui components, fonts, message catalogs, and end-to-end spec files (`apps/web/e2e/**`). A larger PR
+  MUST be split or carry a written reason in its description; exceeding the target is never a reason to
+  stop work or to leave out tests.
 - The PR MUST: list the task IDs it completes; tick those tasks (`[x]`) in `tasks.md`; include tests
   (principle II); update `CLAUDE.md`, `.env.example`, and docs when commands, environment variables, or
   conventions change; include Arabic and English screenshots for UI changes; contain no unrelated changes.
@@ -337,17 +475,20 @@ verdict is recorded as a PR comment by the orchestrator before merging.
 - This constitution supersedes every other practice document. Order of authority:
   constitution → `docs/roadmap.md` → feature `spec.md` → `plan.md` (with research, data model, contracts)
   → `tasks.md` → `CLAUDE.md` (runtime guidance for agents; it summarises and never overrides).
-- **Amendments**: proposed as a pull request that changes only `.specify/memory/constitution.md` (plus
-  dependent documents), with the reason and a migration plan for existing code and specs. An amendment
-  requires the owner's explicit approval. Agents MUST NOT amend the constitution on their own initiative
+- **Amendments**: made with the `speckit-constitution` skill and proposed as a pull request that changes
+  only `.specify/memory/constitution.md` (plus dependent documents), with the reason and a migration plan
+  for existing code and specs. An amendment requires the owner's explicit approval and takes effect when
+  the owner merges it. Agents MUST NOT amend the constitution on their own initiative
   and MUST NOT weaken a gate to make a PR pass.
 - **Versioning**: semantic. MAJOR — a principle or gate is removed or redefined incompatibly, or a stack
   row changes; MINOR — a principle or section is added or materially expanded; PATCH — clarification
   without change of meaning.
-- **Compliance**: every plan contains a Constitution Check; every review verifies compliance; any accepted
-  deviation is recorded in the plan's Complexity Tracking table with its justification. Unjustified
-  violations of a MUST are CRITICAL findings and block merging.
+- **Compliance**: every plan contains a Constitution Check that confirms compliance with each principle;
+  every review verifies compliance; any accepted deviation is recorded in the plan's Complexity Tracking
+  table with its justification. Unjustified violations of a MUST are CRITICAL findings and block merging.
+- **Consistency**: `CLAUDE.md` and the Spec Kit templates provide runtime guidance and MUST stay consistent
+  with this document.
 - **Periodic review**: the architect re-reads this constitution at the start of every new feature's
   planning and proposes amendments when practice and text have drifted.
 
-**Version**: 1.1.0 | **Ratified**: 2026-11-14 | **Last Amended**: 2026-11-15
+**Version**: 1.2.0 | **Ratified**: 2026-11-14 | **Last Amended**: 2026-11-16

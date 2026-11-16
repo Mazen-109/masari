@@ -7,17 +7,27 @@ FR-010, FR-020, FR-023, FR-038
 
 ```ts
 // apps/web/src/server/email/send.ts
-export type EmailMessage = { to: string; subject: string; text: string; html: string };
+export type EmailTemplateName =
+  'verify-email' | 'account-exists' | 'invitation-pending' | 'reset-password' | 'invitation';
+export type EmailMessage = { template: EmailTemplateName; to: string; subject: string; text: string; html: string };
 export function sendEmail(message: EmailMessage): Promise<void>;   // throws on transport failure
 ```
+
+`template` is the only part of a message that may be logged; callers pass the name of the template that
+produced `subject`/`text`/`html`.
 
 - Transport is chosen by `EMAIL_TRANSPORT` (`transport.ts`):
   - `smtp` — Nodemailer SMTP transport from the `SMTP_*` variables; `from` = `EMAIL_FROM`.
   - `capture` — nothing is sent. Each message is written to
     `<EMAIL_CAPTURE_DIR>/<epoch-ms>-<8 random hex>.json` as
-    `{ "to", "from", "subject", "text", "html", "createdAt" }` (UTF-8), and one line is logged:
-    `log.info('email.captured', { template })`. In `APP_ENV=development` the first URL in `text` is also
-    printed to the terminal so a developer can click it.
+    `{ "template", "to", "from", "subject", "text", "html", "createdAt" }` (UTF-8), and one line is logged:
+    `log.info('email.captured', { template })`.
+  - **Development link printing — the one exception to the logging contract** (`http-and-env.md` §4): only
+    when `APP_ENV=development` **and** the transport is `capture`, `transport.ts` also writes the first URL
+    found in `text` to the terminal so a developer can click it. The URL contains a token, so it is written
+    with `process.stdout.write` as a plain line (`[dev email link] <url>`), not through `log` and not as a
+    JSON log line; no other code may do this. It never runs with `APP_ENV=test` or `production` (where
+    `capture` is rejected anyway); a unit test asserts that nothing is printed when `APP_ENV=test`.
 - Callers log `email.sent` / `email.failed` with the template name only (never the address or content).
 
 ## 2. Template rules

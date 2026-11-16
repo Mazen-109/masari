@@ -251,3 +251,20 @@ returns `fail('internal')`; the administrator revokes and re-invites.
   (validation, forbidden role, cross-college target, rate limit where applicable).
 - Cross-college: for every action taking an id (`userId`, `invitationId`, `divisionId`), an e2e or
   integration test supplies an id from another college and expects `not_found` with no change.
+
+**How e2e tests forge a submission** (`apps/web/e2e/support/forge.ts`, added in PR-23 and extended in
+PR-30). Tests never build a Server Action request by hand: action ids and the request encoding are
+framework internals that change between builds. Instead the browser sends a genuine request from a real
+rendered form, and the test changes only what an attacker could change:
+
+- **Another role's action** — `submitAs(page, storageState, submit)`: open the screen as a user who is
+  allowed to see the form (e.g. the administrator), then, without reloading, replace the browser context's
+  cookies with those of the other user (`context.clearCookies()` + `context.addCookies(…)` from that user's
+  saved storage state) and submit the form. The request carries the real action id with the other user's
+  session. Expect the form's error summary to show the `forbidden` (or `unauthenticated`) message.
+- **A forged field or id** — `setFormField(form, name, value)`: before submitting, set a hidden input's value
+  (another college's id, the actor's own id) or append an extra hidden input (`studentCode`, `role`,
+  `status`) in the DOM through `locator.evaluate`. Expect `not_found` / `forbidden`, or that the extra field
+  was ignored.
+- After every forged submission the test also asserts that nothing changed, through `e2e/support/db.ts`
+  (row values and `countAuditEvents` before and after).

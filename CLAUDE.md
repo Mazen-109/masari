@@ -76,6 +76,23 @@ No Docker (e.g. cloud sessions)? Use the machine's PostgreSQL 16+ as described i
 - **Dependencies**: justify every new runtime dependency in the PR; permissive licences only.
 - **Migrations**: forward-only; never edit a merged migration.
 
+## Product rules (constitution VIII–XII — they bind every module feature)
+
+- **Paid content (Kitabi)**: one access code per student, assigned atomically and only after a confirmed
+  payment; codes encrypted at rest and never logged; watermarked PDFs (name + student code); every payment
+  and code assignment in the audit log, with a receipt; gateway sandbox only until the owner says otherwise.
+- **One shared student profile**: modules read and write the shared profile, never a private copy; data
+  between modules only through a documented contract; a module keeps working when another is missing.
+- **Human review**: plagiarism results, exam analysis, and early-warning alerts inform a person and never
+  penalise automatically; AI-generated drawings and exam diagrams need faculty approval before publishing;
+  automatic grades show which tests passed and failed.
+- **Grounded AI**: Mu'eed answers only from the college's regulations, cites the section, and says it does
+  not know otherwise; drawings are generated as code (Mermaid/SVG); video is composed (FFmpeg); every AI
+  feature has a fallback and a cost estimate.
+- **Arabic in images**: an image-generation model never renders Arabic text; overlay the text in code.
+- **Phased scope**: foundation → Mu'eed, CodeJudge, Kitabi → Mizan (light), CareerMap, Tadreeb → AI layer;
+  do not start a later phase while an earlier one has blocking defects.
+
 ## Never commit secrets
 
 No credentials, tokens, keys, connection strings with real passwords, `.env*` files (except `.env.example`
@@ -88,7 +105,9 @@ the repo or in a diff, stop and report it; it must be rotated, not just removed.
    pull request. Do only that batch; do not start the next one.
 2. Branch from up-to-date `main`: `NNN-prNN-short-slug` (e.g. `001-pr03-db-foundation`).
    PR title: `[NNN PR-N] Summary`. Conventional Commits. Target ≤ ~400 changed lines (generated files,
-   lockfile, copied shadcn components, fonts, and message catalogs excluded).
+   lockfile, copied shadcn components, fonts, message catalogs, and e2e specs under `apps/web/e2e/` excluded).
+   If the batch is larger, do not stop and do not drop tests: finish it and add a **Size note** to the PR
+   description (counted lines and why); the reviewer may ask for a split.
 3. Implement the batch's tasks exactly as specified, with tests in the same PR. Tick the tasks (`[x]`) in
    `tasks.md`. Update `.env.example`, this file, and docs if commands/env/conventions changed.
 4. Before pushing: `pnpm check` and (when the batch touches UI or flows) `pnpm test:e2e`. If Playwright

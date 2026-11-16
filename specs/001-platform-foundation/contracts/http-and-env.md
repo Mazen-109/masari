@@ -67,6 +67,7 @@ list every variable below with a safe placeholder or local-only development valu
 | `DATABASE_URL` | web, db | yes | PostgreSQL URL of the **runtime** login role (e.g. `masari_web`) |
 | `DATABASE_MIGRATION_URL` | db scripts, tests, e2e setup | scripts/tests only | PostgreSQL URL of the **owner** role; MUST NOT be read by `apps/web/src/**` |
 | `BETTER_AUTH_SECRET` | web | yes | ≥ 32 characters |
+| `TRUSTED_PROXY_HOPS` | web | no | Integer 0–5, default `0`: how many reverse proxies in front of the app add the client address to `X-Forwarded-For` (§5). MUST be ≥ 1 when `APP_ENV=production` |
 | `EMAIL_TRANSPORT` | web | yes | `capture` \| `smtp`; `capture` is rejected when `APP_ENV=production` |
 | `EMAIL_FROM` | web | yes | e.g. `Masari <no-reply@example.edu>` |
 | `EMAIL_CAPTURE_DIR` | web, e2e | no | default `.tmp/emails`, resolved against the web app's working directory (`apps/web`) |
@@ -80,6 +81,7 @@ APP_URL=http://localhost:3000
 DATABASE_URL=postgres://masari_web:masari_dev_web@localhost:5432/masari
 DATABASE_MIGRATION_URL=postgres://masari_owner:masari_dev_owner@localhost:5432/masari
 BETTER_AUTH_SECRET=local-development-only-secret-change-me-please
+TRUSTED_PROXY_HOPS=0
 EMAIL_TRANSPORT=capture
 EMAIL_FROM="Masari <no-reply@localhost>"
 ```
@@ -92,8 +94,19 @@ Parsing
   names the invalid variables (names only, never values).
 - `packages/db/src/env.ts` exports `getDbEnv()` (`DATABASE_URL`) and `getAdminDbEnv()`
   (`DATABASE_MIGRATION_URL`, `DATABASE_URL`, optional `APP_URL`), also lazy.
+- **Nothing that needs the environment exists at module scope.** Importing any module of `apps/web/src` or
+  `@masari/db` MUST NOT read a variable, open a connection, or construct the auth instance. The database
+  pool, `getAuthDb()` (`db-api.md` §2), and the auth instance (`getAuth()` in `server/auth/auth.ts`) are
+  lazy, memoised getters created on first call. This is what lets `next build` run with an empty
+  environment while it imports every route module.
+- **Start-up check guard**: `instrumentation.ts` `register()` runs the checks only in the Node.js server
+  runtime and never during a build: it returns immediately unless `process.env.NEXT_RUNTIME === 'nodejs'`
+  and `process.env.NEXT_PHASE !== 'phase-production-build'`. The implementer verifies on the pinned Next.js
+  version whether `register()` is invoked in build workers; the guard stays either way, and PR-9's "build
+  with an empty environment" acceptance check proves it.
 - No other file reads `process.env` (ESLint `no-restricted-properties`/`n/no-process-env` equivalent), except
-  `next.config.ts`, `playwright.config.ts`, and `vitest.config.ts`.
+  `next.config.ts`, `playwright.config.ts`, `vitest.config.ts`, and `instrumentation.ts` (only the two
+  framework variables named above).
 
 ## 4. Logging contract — `apps/web/src/server/log.ts`
 
@@ -109,3 +122,47 @@ One JSON object per line: `{ "level", "time" (ISO), "event", ...fields }`. Field
 codes, and durations only. Forbidden in logs: emails, names, student codes, passwords, tokens, cookies,
 request bodies, full URLs with query strings. `console.*` is forbidden outside `log.ts` and
 `packages/db/scripts/**` (ESLint `no-console`).
+
+The only exception is the development convenience of `emails.md` §1: with `APP_ENV=development` and the
+capture transport, the first link of a captured email is written to the terminal (it contains a token).
+It never happens in `test` or `production`.
+
+## 5. Client network address — `apps/web/src/server/request.ts`
+
+```ts
+/** The client's IP address, or null when it cannot be established from a trusted source. */
+export function getClientIp(): Promise<string | null>;                 // reads the request headers + getEnv()
+/** Pure rule behind it (unit-tested). */
+export function clientIpFromHeader(forwardedFor: string | null, hops: number): string | null;
+```
+
+`X-Forwarded-For` is written by whoever sends the request, so it is trusted only as far as the deployment's
+own proxies vouch for it:
+
+1. `hops = getEnv().TRUSTED_PROXY_HOPS`. When `hops = 0`, the header is ignored and the result is `null`.
+2. Otherwise split the `x-forwarded-for` request header on commas and trim each entry. Take the entry that
+   is `hops` positions from the **right** end (`entries[entries.length - hops]`): entries to its left were
+   supplied by the client and are never used.
+3. If the header is missing, has fewer than `hops` entries, or the chosen entry is not a valid IPv4/IPv6
+   address (`node:net` `isIP`), the result is `null`.
+
+Uses of the result: the per-IP rate-limit key (`server-actions.md` §2 — `null` falls into one shared bucket,
+which is strict, never permissive) and `audit_events.ip` (`NULL` when unknown). The raw header is never
+logged or stored.
+
+Deployment rule (also in `docs/deployment.md`): every proxy counted in `TRUSTED_PROXY_HOPS` MUST append
+(or overwrite with) the address it received the connection from, and the application port MUST NOT be
+reachable except through those proxies. Vercel: `1`. One nginx/Caddy in front of the container: `1`.
+Unit test of `clientIpFromHeader` (`request.test.ts`, table-driven): `hops` 0/1/2 × missing header, one entry, a client-forged
+left-hand entry (ignored), too few entries, a non-IP entry, IPv6, surrounding spaces.
+
+**End-to-end tests and rate limits.** The e2e server runs with `TRUSTED_PROXY_HOPS=1` and no proxy, so the
+address is whatever the test browser sends — the production code path, with no test-only branch in the
+application. `apps/web/e2e/support/fixtures.ts` exports the `test` object every spec imports; it sets
+`extraHTTPHeaders: { 'x-forwarded-for': <address> }` for every browser context and API request context of
+a test, where the address is derived deterministically from the project name, the test id, and the retry
+number, inside `198.18.0.0/15` (reserved for benchmarking, never a real client). Each test therefore has its
+own per-IP buckets, a retried test starts with fresh ones, and tests that assert a per-email limit are not
+disturbed by other tests. No single test may need more requests than a per-IP limit allows (the largest is
+the people-list test with about 25 registrations against a limit of 60). Rate limits are never raised,
+disabled, or bypassed for tests.

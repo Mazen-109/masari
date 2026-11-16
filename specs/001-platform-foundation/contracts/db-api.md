@@ -168,6 +168,7 @@ is created on the first call (`http-and-env.md` §3 "Parsing").
 ## 3. `@masari/db/admin` — `src/admin.ts` (owner connection)
 
 ```ts
+export { getAdminDbEnv } from './env';                                         // lazy; for scripts and e2e support
 export function withDatabaseName(url: string, databaseName: string): string;   // pure helper
 export function runMigrations(migrationUrl: string): Promise<void>;
 /** Creates or updates the login role named in runtimeUrl (password from the URL; NOSUPERUSER NOBYPASSRLS

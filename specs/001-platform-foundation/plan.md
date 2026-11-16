@@ -60,24 +60,32 @@ No `NEEDS CLARIFICATION` remains (see research.md; unverifiable library details 
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-Checked against `.specify/memory/constitution.md` v1.1.0.
+Checked against `.specify/memory/constitution.md` v1.2.0 (re-run on 2026-11-16 after principles VIII–XII
+were added).
 
 | Principle | Gate | How this plan satisfies it | Status |
 |---|---|---|---|
 | I. Code quality | Strict TS; lint/format/typecheck clean; feature-first layout; Zod at boundaries; DB only via `@masari/db`; permissive licences | `tsconfig.base.json` strict; ESLint flat config with `no-restricted-imports` enforcing the layer rules; every action validates with Zod; all dependencies MIT/Apache/ISC/OFL | ✅ |
-| II. Testing | Tests in the same PR; real PostgreSQL; isolation test per tenant table; allow + deny test per permission; ≥ 80% coverage; deterministic | Each batch in tasks.md contains its tests; `packages/db/test/*.int.test.ts` list in contracts/db-api.md §4; permission matrix unit test (44 cells) + RBAC e2e matrix; coverage thresholds in contracts/ci.md §4; emails captured to files, no network | ✅ |
-| III. Security & privacy | RLS enabled+forced with tenant context; safe runtime role; deny-by-default server-side authorisation; auth library; rate limits; no enumeration; no secrets; data minimisation; clean logs; audit; consent; headers/CSP | data-model.md §1–2; `assertSafeRuntimeRole` at start-up; guards + guard-coverage test; Better Auth with closed public endpoints; FR-009 limiter; registration/recovery flows in contracts/server-actions.md §4; `.env.example` placeholders + gitleaks; only name/email/student code/level/division collected; log contract; `audit_events`; consent timestamp; contracts/http-and-env.md §2 | ✅ |
+| II. Testing | Tests in the same PR; real PostgreSQL; isolation test per tenant table; allow + deny test per permission; ≥ 80% coverage; deterministic | Each batch in tasks.md contains its tests; `packages/db/test/*.int.test.ts` list in contracts/db-api.md §4; permission matrix unit test (40 cells) + RBAC e2e matrix — "role permissions" is the one critical path of principle II that this feature delivers; every acceptance scenario maps to an e2e spec or to a manual check in quickstart.md / tasks.md "Requirement coverage"; coverage thresholds in contracts/ci.md §4; emails captured to files, no network | ✅ |
+| III. Security & privacy | RLS enabled+forced with tenant context; safe runtime role; four roles, deny-by-default server-side authorisation; auth library; rate limits; no enumeration; no secrets; data minimisation; clean logs; audit; consent; a student sees what is held about them; headers/CSP | data-model.md §1–2; `assertSafeRuntimeRole` at start-up; guards + guard-coverage test; Better Auth with closed public endpoints; FR-009 limiter with a trusted-proxy rule for the client address (contracts/http-and-env.md §5); registration/recovery flows in contracts/server-actions.md §4; `.env.example` placeholders + gitleaks; only name/email/student code/level/division collected, all of it shown to the user on the profile screen; log contract; `audit_events`; consent timestamp; contracts/http-and-env.md §2. OWASP Top 10 testing before a real college uses it is roadmap feature 009 | ✅ |
 | IV. Arabic-first | `ar` default RTL + `en`; both catalogs in the same PR; logical utilities; LTR isolation; Western digits; bilingual emails | next-intl with `localeDetection: false`; `i18n:check`, `rtl:check`, `react/jsx-no-literals`; format helpers; contracts/emails.md | ✅ |
 | V. Accessibility | WCAG 2.1 AA; axe on every screen; keyboard-complete; labelled controls | contracts/routes.md §7; `a11y.spec.ts` lists grow per batch; keyboard e2e in the shell and form specs | ✅ |
 | VI. Performance | Script budget in CI; server-first; pagination 20; no blocking long work | `perf-budget.spec.ts`; Server Components by default, no client data library; `users.listInTenant` paginated; no long-running work in this feature | ✅ |
 | VII. Simplicity | One app + one database; extra packages/services justified | Two workspace packages, no queue/cache/extra service; no form or state library; items that add structure are justified below | ✅ (see Complexity Tracking) |
+| VIII. Payment & paid-content integrity | Codes, payments, receipts, watermarks | No payment or paid content in this feature. It delivers what Kitabi (004) builds on: the append-only audit log (runtime role cannot update or delete), the four roles, and student identity (name + student code) for watermarks | ✅ (not applicable) |
+| IX. Shared profile | One student profile; documented contracts between modules; modules degrade gracefully; college content is data | `student_profiles` is the first part of the shared profile and the only place level/division live; later features extend it with their own tables keyed by `(tenant_id, user_id)` (data-model.md §3.6). Module placeholders are independent and per-college switchable; divisions, levels, domains, and module switches are data edited by the college | ✅ |
+| X. Human review | No automatic penalties; faculty review of AI output | No automated decision about a student exists here: suspension and role changes are explicit administrator actions, audited | ✅ (not applicable) |
+| XI. Grounded AI | Citations, fallbacks, code-generated drawings | No AI in this feature | ✅ (not applicable) |
+| XII. Phased scope | Follow the spec's priority order | This feature is phase 1 (foundation: accounts, roles and permissions, shared database); modules appear only as "coming soon" placeholders | ✅ |
 | Stack table | Use exactly the fixed stack | Technical Context matches; no deviation | ✅ |
 | Workflow | One PR per batch; gates; review; merge rule | tasks.md is organised as PR-1 … PR-38; contracts/ci.md implements gates 1–8 | ✅ |
 
 **Post-design re-check (after Phase 1)**: no new violations. One documented exception to "every
 college-owned table is under RLS": the auth-library table `users` carries `tenant_id` but is not under RLS
 because sign-in must find a user before a tenant is known. It is recorded in Complexity Tracking with its
-compensating controls and is the only exception.
+compensating controls. One deviation from principle I is recorded there as well: role and database DDL in
+the two owner-only admin functions cannot use bound parameters and uses validated, escaped identifiers
+instead. There are no others.
 
 ## Project Structure
 
@@ -127,7 +135,7 @@ specs/001-platform-foundation/
 │   ├── vitest.config.ts  playwright.config.ts
 │   ├── messages/{ar,en}.json
 │   ├── e2e/
-│   │   ├── support/{global-setup,axe,emails,flows,db,operator,roles}.ts
+│   │   ├── support/{prepare-db,global-setup,fixtures,axe,emails,flows,db,forge,operator,roles}.ts
 │   │   └── {locale,a11y,perf-budget,register,auth,shell,profile,password-reset,
 │   │        health,auth-endpoints,email-confirmation,college-onboarding,invitations,rbac,admin-users,
 │   │        admin-settings,admin-divisions,security-headers}.spec.ts
@@ -146,7 +154,7 @@ specs/001-platform-foundation/
 │       │       ├── (public)/invite/[token]/page.tsx
 │       │       ├── (onboarding)/layout.tsx
 │       │       ├── (onboarding)/onboarding/page.tsx
-│       │       ├── (app)/layout.tsx
+│       │       ├── (app)/layout.tsx  (app)/not-found.tsx
 │       │       ├── (app)/{dashboard,profile}/page.tsx
 │       │       ├── (app)/modules/[moduleKey]/page.tsx
 │       │       └── (app)/admin/{users,invitations,divisions,settings}/page.tsx
@@ -168,7 +176,7 @@ specs/001-platform-foundation/
 │       ├── modules/registry.ts
 │       └── server/
 │           ├── env.ts  log.ts  request.ts  audit.ts  rate-limit.ts
-│           ├── auth/{auth,allowed-paths,permissions,session,action-context}.ts
+│           ├── auth/{auth,allowed-paths,permissions,session,action-context,invitation-lookup}.ts
 │           └── email/{transport,send}.ts + templates/{layout,verify-email,account-exists,
 │                      invitation-pending,reset-password,invitation}.ts
 └── packages/db/                     # @masari/db
@@ -213,7 +221,8 @@ auth, email) and `packages/db` (everything that touches PostgreSQL). Dependency 
    cached `getSessionContext()` (auth library session → fresh user + college rows → status checks).
 3. The page reads data with `withTenant({ tenantId, userId }, tx => repository(tx, …))` and renders.
 4. A form posts to a Server Action: `getActionContext` → Zod → rate limit (public) → rules +
-   repositories in `withTenant` → `recordAudit` → `revalidatePath` → `ActionResult` or `redirect`.
+   repositories in `withTenant`, with `recordAudit(ctx, event, tx)` in the same transaction →
+   `revalidatePath` → `ActionResult` or `redirect`.
 
 ### Implementation latitude (binding rule for the implementer)
 
@@ -237,3 +246,4 @@ auth, email) and `packages/db` (everything that touches PostgreSQL). Dependency 
 | Own rate limiter (one table, ~40 lines) instead of the auth library's | Per-email + per-IP keys (campus NAT) and coverage of server-side auth calls | The library's limiter is IP-only and does not apply to `auth.api` calls |
 | Auth HTTP handler mounted behind an allow-list | Emails must link to the library's verification/reset endpoints | Fully public handler would expose sign-up/sign-in endpoints that bypass college rules, rate limits, and audit |
 | Custom SQL migrations for roles, grants, and policies next to generated ones | Security objects must be explicit and reviewable | ORM-level policy declarations change between ORM releases |
+| **Deviation from principle I ("raw SQL only with parameter binding")**: `ensureRuntimeRole` and `recreateDatabase` in `@masari/db/admin` interpolate a role name, a database name, and a password into DDL | PostgreSQL does not accept bound parameters in `CREATE/ALTER ROLE`, `GRANT`, `CREATE/DROP DATABASE` | There is no parameterised form. Controls (contracts/db-api.md §3): names validated against a strict pattern before any SQL is sent, identifiers through the driver's `escapeIdentifier`, the password through `escapeLiteral`, only these two owner-connection functions, unit-tested; never reachable from the web app |

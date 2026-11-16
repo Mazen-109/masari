@@ -17,7 +17,6 @@
 
 ```ts
 export const PERMISSIONS = [
-  'app.access',
   'profile.academic.manage_own',
   'module.mueed', 'module.codejudge', 'module.mizan', 'module.kitabi', 'module.careermap', 'module.tadreeb',
   'admin.users.manage',
@@ -32,7 +31,6 @@ Matrix (✓ = granted; everything else denied):
 
 | Permission | student | faculty | student_affairs | admin |
 |---|---|---|---|---|
-| `app.access` | ✓ | ✓ | ✓ | ✓ |
 | `profile.academic.manage_own` | ✓ | | | |
 | `module.mueed` | ✓ | | ✓ | |
 | `module.codejudge` | ✓ | ✓ | | |
@@ -44,8 +42,13 @@ Matrix (✓ = granted; everything else denied):
 | `admin.invitations.manage` | | | | ✓ |
 | `admin.settings.manage` | | | | ✓ |
 
+There are ten permissions. The first row of the spec's table (FR-014: home screen, own account, sign out —
+every role) is not a permission: it is what `requireSession` / `getActionContext()` grant to any signed-in
+user, so there is no `app.access` entry. Every permission above is granted to at least one role and denied
+to at least one (constitution II: an allowed-role and a denied-role test per permission).
+
 The `module.*` rows MUST be derived from the module registry (§4), not duplicated by hand.
-Unit test: a table-driven test asserts all 44 cells.
+Unit test: a table-driven test asserts all 40 cells (10 permissions × 4 roles).
 
 Additional rules that are not role-based (`features/admin-users/rules.ts`, unit-tested):
 

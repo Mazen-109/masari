@@ -16,7 +16,7 @@ locale prefix (`/sign-in` means `/ar/sign-in` and `/en/sign-in`).
 | Signed-out request to a signed-in screen | Redirect to `/{locale}/sign-in?next=<locale-less path+query>`. |
 | `next` parameter | Honoured only if it starts with a single `/`, does not start with `//` or `/\`, contains no scheme, and is ≤ 512 chars (`lib/safe-next.ts`); otherwise ignored. |
 | Signed-in request to `/sign-in`, `/register`, `/forgot-password` | Redirect to `/{locale}/dashboard`. |
-| Role lacks the screen's permission, module disabled, or unknown module key | `notFound()` → localized 404 page inside the current shell. |
+| Role lacks the screen's permission, module disabled, or unknown module key | `notFound()` → localized 404 page inside the current shell (`(app)/not-found.tsx`, §5). |
 | Student without academic profile on any `(app)` screen | Redirect to `/{locale}/onboarding`. |
 | Suspended user or suspended college with an existing session | Treated as signed out; redirect to `/{locale}/sign-in?reason=account_suspended` or `?reason=tenant_suspended`. |
 | Metadata | Every page sets a localized `<title>` of the form `<Screen> · مساري` / `<Screen> · Masari`; `robots: noindex`. |
@@ -79,7 +79,8 @@ Query parameters of `/admin/users`: `q` (≤ 100 chars, trimmed), `role` (one of
 | File | Behaviour |
 |---|---|
 | `src/app/[locale]/layout.tsx` | Root layout: `<html lang dir>`, fonts, `NextIntlClientProvider`, base metadata. Validates the locale (`notFound()` otherwise). |
-| `src/app/[locale]/not-found.tsx` | Localized 404 with a link to home. |
+| `src/app/[locale]/not-found.tsx` | Localized 404 with a link to home, for public paths and unknown paths (rendered in the root layout, without the signed-in shell). |
+| `src/app/[locale]/(app)/not-found.tsx` | The same localized 404 content rendered inside the `(app)` layout, so that `notFound()` thrown by an `(app)` page (missing permission, disabled or unknown module) keeps the header and navigation. Added in PR-19. |
 | `src/app/[locale]/error.tsx` | Localized generic error with "try again"; never shows error details. |
 | `src/app/not-found.tsx` (+ whatever root file the pinned next-intl requires) | Fallback 404 for paths without a valid locale. |
 | `src/app/robots.ts` | `Disallow: /` for all user agents. |

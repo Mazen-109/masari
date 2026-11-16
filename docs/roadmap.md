@@ -1,6 +1,6 @@
 # Masari Roadmap
 
-**Status**: v1 · 2026-11-14 · Author: architect (Claude Fable 5.2) · Approver: owner
+**Status**: v1 · 2026-11-14 (aligned with constitution 1.2.0 on 2026-11-16) · Author: architect (Claude Fable 5.2) · Approver: owner
 **Sources**: `docs/masari-spec-en.html` (product spec) · `.specify/memory/constitution.md` (rules)
 
 This document breaks the whole product into ordered features. Each feature becomes one Spec Kit folder
@@ -10,7 +10,9 @@ batches (one batch = one pull request; Opus 5.5 implements, Fable 5.2 reviews).
 - **Feature numbers** below are the planned Spec Kit numbers. Only `001` exists today; later numbers are
   confirmed when each feature is specified.
 - **MVP** = the release used for the pilot at the owner's college and for the graduation demo. It follows
-  the product spec's scope priorities (§10): foundation → Mu'eed, CodeJudge, Kitabi → the rest.
+  the product spec's scope priorities (§10; constitution XII): foundation → Mu'eed, CodeJudge, Kitabi → the
+  rest. M0 is phase 1, M1–M2 phase 2, M3 phase 3, M4–M5 phase 4; a release does not start while an earlier
+  one has blocking defects.
 - **MVP cut** = the smallest slice of that feature that is acceptable in the release it belongs to;
   everything listed under "later" is explicitly out of that slice.
 
@@ -22,7 +24,7 @@ batches (one batch = one pull request; Opus 5.5 implements, Fable 5.2 reviews).
 | 002 | Academic catalog & student roster | Core (owned by Mu'eed) | M0 | ✅ MVP | 001 |
 | 003 | Mu'eed — regulations assistant (RAG) + AI gateway | Mu'eed | M1 | ✅ MVP | 001, 002 |
 | 004 | Kitabi — textbooks & access codes | Kitabi | M1 | ✅ MVP | 001, 002 |
-| 005 | CodeJudge — assignments & automatic grading | CodeJudge | M1 | ✅ MVP | 001, 002 |
+| 005 | CodeJudge — assignments & automatic grading | CodeJudge | M1 | ✅ MVP | 001, 002, 003 (AI gateway) |
 | 006 | CodeJudge — similarity (plagiarism) detection | CodeJudge | M1 | ✅ MVP | 005 |
 | 007 | Mu'eed — timetable generator | Mu'eed | M2 | ✅ MVP | 002 |
 | 008 | Mu'eed — Student Affairs dashboard | Mu'eed | M2 | ✅ MVP | 003, 007 |
@@ -48,6 +50,7 @@ Releases: **M0** foundation · **M1** demo core · **M2** MVP complete (pilot + 
 
 ```text
 001 ─► 002 ─┬─► 003 ─┬─► 008 ◄── 007 ◄── 002
+            │        ├─► 005 (AI gateway for feedback hints)
             │        ├─► 010 ─► 017, 021
             │        ├─► 011 ─► 012 ─► 014
             │        └─► 013, 014, 015 ─► 020, 022
@@ -280,13 +283,16 @@ final evaluation form; admin overview. *Later*: company accounts, document uploa
 
 **Scope.** A student asks about a concept and receives an illustration or flowchart. To avoid scientific
 errors and broken Arabic in generated images (product spec §11), the model generates diagram *code*
-(Mermaid or constrained SVG) that is rendered by the platform with Arabic labels added in code; drawings
-intended for a whole course go through a faculty review button before publishing.
+(Mermaid or constrained SVG) that is rendered by the platform with Arabic labels added in code. A drawing
+is published to students (a course, a group, or any other student) only after a faculty member approves it
+with the review button (constitution X). Whether the student who asked may see their own drawing before
+review, clearly marked as unreviewed, is open question 5 below; until it is answered, 013 is specified with
+review first.
 
 **Depends on.** 003.
 
 **MVP cut.** Mermaid flowcharts/sequence/mind-map diagrams with Arabic labels; sanitised rendering;
-per-student history; faculty review queue for course-published drawings.
+per-student history; faculty review queue with approve/reject before a drawing is published.
 
 ### 014 — AI layer: college & internship posters (candidate)
 
@@ -317,10 +323,10 @@ Specified one at a time after the candidates, in this order unless the owner re-
 |---|---|---|---|
 | 016 | Study planner | Daily plan from timetable and exam dates; re-plans when the student falls behind | 007 |
 | 017 | Question bank from the book | Review questions per chapter distributed across Bloom's levels | 004, 010 |
-| 018 | Early warning | Alerts the academic advisor when grades drop or submissions stop | 005 |
+| 018 | Early warning | Alerts the academic advisor when grades drop or submissions stop; no automatic consequence for the student | 005 |
 | 019 | Elective advisor | Suggests electives from level, interests, and career goals | 002, 011 |
 | 020 | Audio summaries | Each chapter as a short audio file in Egyptian Arabic | 004, 015 |
-| 021 | Revision infographics & exam diagrams | One-page chapter summary; diagrams for exam questions on request | 013, 010 |
+| 021 | Revision infographics & exam diagrams | One-page chapter summary; diagrams for exam questions at a faculty member's request, generated as code and approved by faculty before students see them | 013, 010 |
 | 022 | Welcome & revision videos | Yearly first-year welcome video; pre-exam course revision video | 015 |
 
 ### 023 — Multi-university operations & commercial packaging
@@ -383,3 +389,7 @@ CareerMap → Tadreeb (required skills, via profile) · profile → Kitabi (the 
 3. **Which programming languages do the pilot courses use?** — 005 assumes Python and C++.
 4. **Budget for paid services** (LLM usage, a small VM for the code sandbox) — affects model tier in 003 and
    hosting in 005.
+5. **Concept drawings a student asks for (013)**: the constitution (X) requires faculty review before a
+   drawing is published to students, while the product spec says the student "asks about a concept and gets
+   an illustration". May the asking student see their own drawing immediately, marked "not yet reviewed",
+   or must every drawing wait for a faculty member? Needed before specifying 013.
