@@ -11,7 +11,14 @@ export type {
   Locale,
   ModuleKey,
   Role,
+  Tenant,
+  TenantPublic,
   TenantStatus,
   UserStatus,
 } from './constants';
 export { closePool } from './client';
+export { withTenant } from './context';
+export type { TenantContext, Tx } from './context';
+export { assertSafeRuntimeRole, ping } from './safety';
+export * as tenants from './repositories/tenants';
+export type { TenantSettingsPatch } from './repositories/tenants';

@@ -65,7 +65,7 @@ describe('escaping', () => {
 
   it('builds CREATE ROLE with every attribute for a new role', () => {
     expect(runtimeRoleSql('masari_web', "pa'ss", undefined)).toBe(
-      `CREATE ROLE "masari_web" WITH LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE INHERIT PASSWORD 'pa''ss'`,
+      `CREATE ROLE "masari_web" WITH LOGIN NOSUPERUSER NOBYPASSRLS NOREPLICATION NOCREATEDB NOCREATEROLE INHERIT PASSWORD 'pa''ss'`,
     );
   });
 
@@ -73,6 +73,7 @@ describe('escaping', () => {
     const safe = {
       rolsuper: false,
       rolbypassrls: false,
+      rolreplication: false,
       rolcreatedb: false,
       rolcreaterole: false,
       rolinherit: true,
@@ -84,6 +85,9 @@ describe('escaping', () => {
     expect(
       runtimeRoleSql('masari_web', 'pw', { ...safe, rolbypassrls: true, rolcanlogin: false }),
     ).toBe(`ALTER ROLE "masari_web" WITH LOGIN NOBYPASSRLS PASSWORD 'pw'`);
+    expect(runtimeRoleSql('masari_web', 'pw', { ...safe, rolreplication: true })).toBe(
+      `ALTER ROLE "masari_web" WITH NOREPLICATION PASSWORD 'pw'`,
+    );
   });
 
   it('refuses an invalid role name before building any SQL', () => {
@@ -128,6 +132,12 @@ describe('validation happens before any SQL is sent', () => {
     await expect(
       ensureRuntimeRole(UNREACHABLE_OWNER, 'postgres://Bad-Role:pw@127.0.0.1:1/masari'),
     ).rejects.toThrow('Invalid role name');
+  });
+
+  it('ensureRuntimeRole refuses a runtime role equal to the owner role', async () => {
+    await expect(
+      ensureRuntimeRole(UNREACHABLE_OWNER, 'postgres://owner:other-pw@127.0.0.1:1/masari'),
+    ).rejects.toThrow('name the same role');
   });
 
   it('ensureRuntimeRole refuses an invalid database name', async () => {

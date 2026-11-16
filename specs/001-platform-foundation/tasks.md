@@ -137,10 +137,10 @@ permissions. **No user-story batch may start before PR-14 is merged.**
 
 ### PR-4 — Tenant context, safety checks, tenants repository · branch `001-pr04-tenant-context`
 
-- [ ] T018 Create `packages/db/src/context.ts` (`Tx`, `withTenant`; uuid validation; transaction-local `set_config` of `app.tenant_id` and `app.user_id`) and export from `packages/db/src/index.ts` (FR-017)
-- [ ] T019 [P] Create `packages/db/src/safety.ts` (`ping`, `assertSafeRuntimeRole`) and export from `packages/db/src/index.ts`
-- [ ] T020 Create `packages/db/src/repositories/tenants.ts` (`listActivePublic`, `findBySlug`, `findById`, `updateSettings` — contracts/db-api.md §1.6) and export namespace `tenants` (FR-002, FR-032)
-- [ ] T021 Create `packages/db/test/context.int.test.ts`, `packages/db/test/safety.int.test.ts`, `packages/db/test/tenants.int.test.ts` covering every statement listed for them in contracts/db-api.md §4
+- [x] T018 Create `packages/db/src/context.ts` (`Tx`, `withTenant`; uuid validation; transaction-local `set_config` of `app.tenant_id` and `app.user_id`) and export from `packages/db/src/index.ts` (FR-017)
+- [x] T019 [P] Create `packages/db/src/safety.ts` (`ping`, `assertSafeRuntimeRole`) and export from `packages/db/src/index.ts`
+- [x] T020 Create `packages/db/src/repositories/tenants.ts` (`listActivePublic`, `findBySlug`, `findById`, `updateSettings` — contracts/db-api.md §1.6) and export namespace `tenants` (FR-002, FR-032)
+- [x] T021 Create `packages/db/test/context.int.test.ts`, `packages/db/test/safety.int.test.ts`, `packages/db/test/tenants.int.test.ts` covering every statement listed for them in contracts/db-api.md §4
 
 **Accept**: a query issued on the same pooled connection after `withTenant` returns sees an empty `app.tenant_id` · `assertSafeRuntimeRole()` throws when connected as the owner · runtime role cannot `INSERT`/`DELETE` on `tenants` nor update `slug`/`status` (tests) · `updateSettings` for college A leaves college B unchanged (test)
 

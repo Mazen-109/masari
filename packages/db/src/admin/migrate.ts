@@ -44,6 +44,7 @@ export async function runMigrations(migrationUrl: string): Promise<void> {
 interface RoleAttributes {
   rolsuper: boolean;
   rolbypassrls: boolean;
+  rolreplication: boolean;
   rolcreatedb: boolean;
   rolcreaterole: boolean;
   rolinherit: boolean;
@@ -54,6 +55,7 @@ const REQUIRED_ATTRIBUTES: ReadonlyArray<[keyof RoleAttributes, boolean, string]
   ['rolcanlogin', true, 'LOGIN'],
   ['rolsuper', false, 'NOSUPERUSER'],
   ['rolbypassrls', false, 'NOBYPASSRLS'],
+  ['rolreplication', false, 'NOREPLICATION'],
   ['rolcreatedb', false, 'NOCREATEDB'],
   ['rolcreaterole', false, 'NOCREATEROLE'],
   ['rolinherit', true, 'INHERIT'],
@@ -61,8 +63,8 @@ const REQUIRED_ATTRIBUTES: ReadonlyArray<[keyof RoleAttributes, boolean, string]
 
 /**
  * Role DDL for the runtime login role. A new role gets every attribute explicitly. An existing role gets its
- * password plus only the attributes that differ, because changing SUPERUSER or BYPASSRLS — even to the value
- * it already has — needs superuser rights that a hosted owner role does not have.
+ * password plus only the attributes that differ, because changing SUPERUSER, BYPASSRLS, or REPLICATION — even
+ * to the value it already has — needs rights that a hosted owner role may not have.
  */
 export function runtimeRoleSql(
   role: string,
@@ -83,13 +85,20 @@ export function runtimeRoleSql(
 
 /**
  * Creates or updates the login role named in runtimeUrl (password from the URL; NOSUPERUSER NOBYPASSRLS
- * NOCREATEDB NOCREATEROLE INHERIT), grants it CONNECT and membership of masari_app. Idempotent.
+ * NOREPLICATION NOCREATEDB NOCREATEROLE INHERIT), grants it CONNECT and membership of masari_app. Idempotent.
+ * Refuses, before any SQL is sent, a runtime role equal to the owner role of migrationUrl: that would
+ * strip the owner's own attributes and leave the web app running as the owner of every table.
  */
 export async function ensureRuntimeRole(migrationUrl: string, runtimeUrl: string): Promise<void> {
   const target = connectionTarget(runtimeUrl);
+  if (decodeURIComponent(new URL(migrationUrl).username) === target.role) {
+    throw new Error(
+      'DATABASE_URL and DATABASE_MIGRATION_URL name the same role; the runtime role must be a separate role',
+    );
+  }
   await withClient(migrationUrl, async (client) => {
     const existing = await client.query<RoleAttributes>(
-      `SELECT rolsuper, rolbypassrls, rolcreatedb, rolcreaterole, rolinherit, rolcanlogin
+      `SELECT rolsuper, rolbypassrls, rolreplication, rolcreatedb, rolcreaterole, rolinherit, rolcanlogin
          FROM pg_roles WHERE rolname = $1`,
       [target.role],
     );

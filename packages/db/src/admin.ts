@@ -4,3 +4,4 @@ export { getAdminDbEnv } from './env';
 export { recreateDatabase, withDatabaseName } from './admin/database';
 export { applyMigrations, ensureRuntimeRole, runMigrations } from './admin/migrate';
 export { connectionTarget } from './admin/identifiers';
+export { failureReason } from './admin/error-reason';
