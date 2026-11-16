@@ -1,0 +1,136 @@
+{
+  "id": "e41f8b6d-0a27-4c39-a6d3-5f8e9b1c7a03",
+  "prevId": "9c2e47a8-3d15-4f6b-8b0e-71a5d2c4e902",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.tenants": {
+      "name": "tenants",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_ar": {
+          "name": "name_ar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_en": {
+          "name": "name_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "allowed_email_domains": {
+          "name": "allowed_email_domains",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "levels_count": {
+          "name": "levels_count",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 4
+        },
+        "enabled_modules": {
+          "name": "enabled_modules",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "ARRAY['mueed','codejudge','mizan','kitabi','careermap','tadreeb']::text[]"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "tenants_slug_unique": {
+          "name": "tenants_slug_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "slug"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "tenants_slug_check": {
+          "name": "tenants_slug_check",
+          "value": "slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND char_length(slug) BETWEEN 3 AND 40"
+        },
+        "tenants_name_ar_check": {
+          "name": "tenants_name_ar_check",
+          "value": "char_length(name_ar) BETWEEN 1 AND 120"
+        },
+        "tenants_name_en_check": {
+          "name": "tenants_name_en_check",
+          "value": "char_length(name_en) BETWEEN 1 AND 120"
+        },
+        "tenants_status_check": {
+          "name": "tenants_status_check",
+          "value": "status IN ('active','suspended')"
+        },
+        "tenants_allowed_email_domains_check": {
+          "name": "tenants_allowed_email_domains_check",
+          "value": "cardinality(allowed_email_domains) <= 20"
+        },
+        "tenants_levels_count_check": {
+          "name": "tenants_levels_count_check",
+          "value": "levels_count BETWEEN 1 AND 7"
+        },
+        "tenants_enabled_modules_check": {
+          "name": "tenants_enabled_modules_check",
+          "value": "enabled_modules <@ ARRAY['mueed','codejudge','mizan','kitabi','careermap','tadreeb']::text[]"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

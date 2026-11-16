@@ -10,11 +10,22 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --coverage"
+    "test": "dotenv -e ../../.env -- vitest run --coverage",
+    "generate": "drizzle-kit generate",
+    "migrate": "dotenv -e ../../.env -- tsx scripts/migrate.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.0",
+    "pg": "^8.16.0",
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.0",
     "@vitest/coverage-v8": "^4.0.0",
+    "dotenv-cli": "^8.0.0",
+    "drizzle-kit": "^0.31.0",
+    "tsx": "^4.19.0",
     "typescript": "^5.9.0",
     "vitest": "^4.0.0"
   }

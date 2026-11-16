@@ -1,0 +1,20 @@
+CREATE TABLE "tenants" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"slug" text NOT NULL,
+	"name_ar" text NOT NULL,
+	"name_en" text NOT NULL,
+	"status" text DEFAULT 'active' NOT NULL,
+	"allowed_email_domains" text[] DEFAULT '{}'::text[] NOT NULL,
+	"levels_count" smallint DEFAULT 4 NOT NULL,
+	"enabled_modules" text[] DEFAULT ARRAY['mueed','codejudge','mizan','kitabi','careermap','tadreeb']::text[] NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "tenants_slug_unique" UNIQUE("slug"),
+	CONSTRAINT "tenants_slug_check" CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND char_length(slug) BETWEEN 3 AND 40),
+	CONSTRAINT "tenants_name_ar_check" CHECK (char_length(name_ar) BETWEEN 1 AND 120),
+	CONSTRAINT "tenants_name_en_check" CHECK (char_length(name_en) BETWEEN 1 AND 120),
+	CONSTRAINT "tenants_status_check" CHECK (status IN ('active','suspended')),
+	CONSTRAINT "tenants_allowed_email_domains_check" CHECK (cardinality(allowed_email_domains) <= 20),
+	CONSTRAINT "tenants_levels_count_check" CHECK (levels_count BETWEEN 1 AND 7),
+	CONSTRAINT "tenants_enabled_modules_check" CHECK (enabled_modules <@ ARRAY['mueed','codejudge','mizan','kitabi','careermap','tadreeb']::text[])
+);
