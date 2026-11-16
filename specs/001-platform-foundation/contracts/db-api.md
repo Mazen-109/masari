@@ -56,7 +56,13 @@ export function closePool(): Promise<void>;               // tests and scripts
 ```ts
 export function hitRateLimit(key: string, opts: { limit: number; windowSeconds: number }):
   Promise<{ allowed: boolean; retryAfterSeconds: number }>;
+/** Deletes counters whose window started more than olderThanSeconds ago (default 86 400 — every window in
+ *  this feature is ≤ 3 600 s); returns the number of rows removed. */
+export function purgeExpiredRateLimits(olderThanSeconds?: number): Promise<number>;
 ```
+
+Cleanup: `hitRateLimit` calls `purgeExpiredRateLimits()` on roughly 1 in 100 calls, after its own statement,
+ignoring any error from the purge (best effort; the table stays bounded without a scheduler).
 
 ### 1.5 Tokens (`src/tokens.ts`)
 
@@ -92,6 +98,9 @@ setStatus(tenantId: string, userId: string, status: UserStatus): Promise<boolean
 setName(userId: string, name: string): Promise<void>
 setLocale(userId: string, locale: Locale): Promise<void>
 activateInvited(tenantId: string, userId: string, role: Role): Promise<void>  // role + email_verified = true
+deleteJustCreated(tenantId: string, userId: string): Promise<boolean>
+  // compensation only (server-actions.md §4.7 step 6): deletes the user (cascade: accounts, sessions) when it
+  // belongs to tenantId AND created_at > now() - interval '10 minutes'; false when nothing matched
 ```
 
 `UserSummary = { id, tenantId, name, email, emailVerified, role, status, locale, createdAt }`.
@@ -149,9 +158,12 @@ record(tx: Tx, event: { actorUserId: string | null; action: string; targetType?:
 ## 2. `@masari/db/auth` — `src/auth.ts`
 
 ```ts
-export const authDb;       // Drizzle instance on the runtime pool, for the Better Auth Drizzle adapter only
-export const authSchema;   // { users, sessions, accounts, verifications }
+export function getAuthDb();   // lazy, memoised Drizzle instance on the runtime pool — Better Auth Drizzle adapter only
+export const authSchema;       // { users, sessions, accounts, verifications } (table definitions; no connection)
 ```
+
+Importing this entry point (or any other) MUST NOT read environment variables or open a connection; the pool
+is created on the first call (`http-and-env.md` §3 "Parsing").
 
 ## 3. `@masari/db/admin` — `src/admin.ts` (owner connection)
 
@@ -164,13 +176,23 @@ export function ensureRuntimeRole(migrationUrl: string, runtimeUrl: string): Pro
 /** DROP DATABASE IF EXISTS … WITH (FORCE); CREATE DATABASE …; runMigrations; ensureRuntimeRole.
  *  Refuses names that do not match /^masari_(test|e2e)[a-z0-9_]*$/. */
 export function recreateDatabase(migrationUrl: string, runtimeUrl: string, databaseName: string): Promise<void>;
+// Escaping exception: role and database DDL (CREATE/ALTER ROLE … PASSWORD, GRANT, DROP/CREATE DATABASE) cannot
+// use bound parameters. These two functions are the only place where values are interpolated into SQL text:
+// identifiers through pg's escapeIdentifier, the password through escapeLiteral, after validating role and
+// database names against /^[a-z_][a-z0-9_]{0,62}$/ (the database name also against the guard above); a name
+// that fails validation throws before any SQL is sent (unit-tested).
 
 export function createTenant(migrationUrl: string, input: { slug: string; nameAr: string; nameEn: string }):
   Promise<{ ok: true; tenantId: string } | { ok: false; reason: 'slug_taken' }>;       // + default division GEN
 export function createAdminInvitation(migrationUrl: string, tenantId: string, email: string):
   Promise<{ ok: true; token: string } | { ok: false; reason: 'pending_exists' | 'email_has_account' }>;  // + audit invitation.created (actor NULL)
+/** createTenant + createAdminInvitation in ONE transaction (used by `pnpm tenant:create` and the e2e operator
+ *  helper): on any failure nothing is created. */
+export function createTenantWithAdmin(migrationUrl: string,
+  input: { slug: string; nameAr: string; nameEn: string; adminEmail: string }):
+  Promise<{ ok: true; tenantId: string; token: string } | { ok: false; reason: 'slug_taken' | 'email_has_account' }>;
 export function setTenantStatus(migrationUrl: string, slug: string, status: TenantStatus):
-  Promise<'updated' | 'not_found'>;                                                     // suspending deletes the college's sessions
+  Promise<'updated' | 'not_found'>;                                                     // changes status only; sessions are NOT deleted (cli.md §5)
 export function seedDemo(migrationUrl: string): Promise<{ tenantId: string; adminInvitationToken: string | null }>;
 
 // Test support (src/admin/test-support.ts) — used only by packages/db/test and apps/web/e2e
@@ -191,12 +213,12 @@ All `admin` functions that write tenant-scoped rows set the tenant context exact
 | `tenants.int.test.ts` | Public listing hides suspended colleges; `updateSettings` changes only the current college; runtime role cannot insert/delete colleges nor update `slug`/`status`. |
 | `rls-meta.int.test.ts` | Every `public` table is classified; every tenant-scoped table has `tenant_id NOT NULL`, RLS enabled + forced, and a `tenant_isolation` policy; the runtime role owns nothing and has no privileges beyond `data-model.md` §1. |
 | `divisions.int.test.ts` | CRUD; duplicate code per college refused, same code in two colleges allowed; college A cannot read/update college B's divisions (by id). |
-| `audit.int.test.ts` | Insert + read within the college; `UPDATE`/`DELETE` denied; cross-college invisible. |
-| `rate-limit.int.test.ts` | Counts, refuses over the limit with a positive `retryAfterSeconds`, resets after the window (window passed as 1 s), concurrent hits are atomic. |
-| `users.int.test.ts` | Tenant filter on every scoped function (cross-college `setRole`/`setStatus`/`findInTenant` → null/false); search escapes `%` and `_`; pagination and totals; `activateInvited`. |
+| `audit.int.test.ts` | Insert + read within the college; `UPDATE`/`DELETE` denied; cross-college invisible. PR-5 uses `actorUserId: null` only (no `users` table yet); from PR-12: a real user as actor is stored, an unknown actor id is rejected by the FK. |
+| `rate-limit.int.test.ts` | Counts, refuses over the limit with a positive `retryAfterSeconds`, resets after the window (window passed as 1 s), concurrent hits are atomic; `purgeExpiredRateLimits` removes only counters older than the given age. |
+| `users.int.test.ts` | Tenant filter on every scoped function (cross-college `setRole`/`setStatus`/`findInTenant` → null/false); search escapes `%` and `_`; pagination and totals; `activateInvited`; `deleteJustCreated` removes a fresh user of that college with its accounts/sessions and refuses another college's user and a user older than 10 minutes. |
 | `sessions.int.test.ts` | `revokeAllForUser` deletes only that user's sessions. |
 | `student-profiles.int.test.ts` | Unique code per college (and concurrent creates → exactly one wins); same code in two colleges; division from another college → `invalid_division`; cross-college invisibility; `maxLevelInUse`. |
 | `invitations.int.test.ts` | One pending per email; expired pending replaced; token lookup works only with the matching hash and returns nothing for other tokens; concurrent `claim` → exactly one succeeds; `release`; `revoke` states; cross-college invisibility. |
-| `auth-schema.int.test.ts` | Defaults `student`/`active`/`ar`; upper-case email, unknown role, and missing tenant rejected; deleting a user cascades to sessions and accounts. |
+| `auth-schema.int.test.ts` | Defaults `student`/`active`/`ar`; upper-case email, unknown role, and missing tenant rejected; deleting a user cascades to sessions and accounts and sets `audit_events.actor_user_id` to NULL. |
 | `cli.int.test.ts` | `tenant-create` and `tenant-set-status` scripts: outputs and exit codes of `cli.md` §4–5; nothing changes on failure. |
-| `admin.int.test.ts` | `createTenant` defaults + `GEN` division; duplicate slug; `createAdminInvitation`; `setTenantStatus` deletes sessions; `seedDemo` is idempotent. |
+| `admin.int.test.ts` | `createTenant` defaults + `GEN` division; duplicate slug; `createAdminInvitation`; `createTenantWithAdmin` is atomic (`email_has_account` → no college, no division); `setTenantStatus` changes the status and leaves session rows in place; `seedDemo` is idempotent. |

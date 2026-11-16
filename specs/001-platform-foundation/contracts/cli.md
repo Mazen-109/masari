@@ -16,7 +16,7 @@ in the environment when there is no `.env` (CI, production).
 | `pnpm format` / `pnpm format:check` | `prettier --write .` / `prettier --check .` | |
 | `pnpm typecheck` | `pnpm -r typecheck` | each package: `tsc --noEmit` |
 | `pnpm test` | `pnpm -r test` | each package: `vitest run --coverage`; needs PostgreSQL for `@masari/db` |
-| `pnpm test:e2e` | `pnpm --filter @masari/web test:e2e` | `next build` then `playwright test`; needs PostgreSQL |
+| `pnpm test:e2e` | `pnpm --filter @masari/web test:e2e` | `next build` → prepare database `masari_e2e` (`ci.md` §3) → `playwright test`; needs PostgreSQL |
 | `pnpm i18n:check` | `node scripts/check-i18n.mjs` | exit 1 on any difference between `ar.json` and `en.json` (keys, empty values, ICU arguments) |
 | `pnpm rtl:check` | `node scripts/check-rtl.mjs` | exit 1 on physical-direction utilities in `apps/web/src/**/*.{ts,tsx,css}` |
 | `pnpm check` | `format:check` → `lint` → `typecheck` → `i18n:check` → `rtl:check` → `test` | local pre-PR gate |
@@ -27,13 +27,19 @@ in the environment when there is no `.env` (CI, production).
 | `pnpm tenant:create` | `pnpm --filter @masari/db tenant:create` | see §4 |
 | `pnpm tenant:set-status` | `pnpm --filter @masari/db tenant:set-status` | see §5 |
 
-`scripts/check-rtl.mjs` forbidden patterns (class names, with optional variant prefixes and leading `-`):
-`ml-*`, `mr-*`, `pl-*`, `pr-*`, `left-*`, `right-*`, `text-left`, `text-right`, `float-left`, `float-right`,
-`clear-left`, `clear-right`, `rounded-l*`, `rounded-r*`, `rounded-tl*`, `rounded-tr*`, `rounded-bl*`,
-`rounded-br*`, `border-l*`, `border-r*`, `scroll-ml-*`, `scroll-mr-*`, `scroll-pl-*`, `scroll-pr-*`,
-`origin-left`, `origin-right`, and CSS declarations `margin-left|right`, `padding-left|right`, `left:`,
-`right:`, `text-align: left|right`. A line containing the comment marker `rtl-ok:` followed by a reason is
-exempt. Output: `file:line: <match> → use <logical equivalent>`.
+`scripts/check-rtl.mjs` forbidden patterns. Matching is per class token (text delimited by whitespace,
+quotes, or backticks) after stripping variant prefixes (`md:`, `hover:`, …) and a leading `!` or `-`; the
+whole remaining token must match one of:
+
+- `^(ml|mr|pl|pr|left|right|scroll-ml|scroll-mr|scroll-pl|scroll-pr)-.+$`
+- `^(text|float|clear|origin)-(left|right)$`
+- `^rounded-(l|r|tl|tr|bl|br)(-.+)?$` and `^border-(l|r)(-.+)?$` — the side must be followed by `-` or the
+  end of the token, so `rounded-l-lg`, `rounded-tl`, `border-r`, `border-l-2` are flagged while `rounded-lg`,
+  `border-ring`, `border-red-500` are not. `-ml-2` and `md:pl-4` are flagged (prefix stripping).
+
+Also forbidden: CSS declarations `margin-left|right`, `padding-left|right`, `left:`, `right:`,
+`text-align: left|right`. A line containing the comment marker `rtl-ok:` followed by a reason is exempt.
+Output: `file:line: <match> → use <logical equivalent>`.
 
 ## 2. `pnpm db:migrate` — `packages/db/scripts/migrate.ts`
 
@@ -64,8 +70,9 @@ pnpm tenant:create --slug <slug> --name-ar "<Arabic name>" --name-en "<English n
 | Slug already used | 1 | `A college with slug "<slug>" already exists. Nothing was changed.` |
 | Email already has an account | 1 | `This email already has an account. Nothing was changed.` (the college is not created) |
 
-Creation of the college, its `GEN` division, and the invitation happens in one transaction. The invitation
-link is printed once and never stored in plain form.
+Creation of the college, its `GEN` division, and the invitation happens in one transaction: the script calls
+`createTenantWithAdmin` (`db-api.md` §3), not `createTenant` + `createAdminInvitation` separately. The
+invitation link is printed once and never stored in plain form.
 
 ## 5. `pnpm tenant:set-status` — `packages/db/scripts/tenant-set-status.ts` (FR-018, FR-019)
 
@@ -74,7 +81,9 @@ pnpm tenant:set-status --slug <slug> --status active|suspended
 ```
 
 Exit 0 with `College <slug> is now <status>`; exit 1 with `College not found`; exit 2 on invalid arguments.
-Suspending also deletes all sessions of the college's users.
+Suspending does **not** delete sessions: every request re-checks the college status (`permissions.md` §3),
+so existing sessions are refused with the "college suspended" reason while the college is suspended and work
+again after reactivation (until they expire normally).
 
 ## 6. Argument parsing
 
