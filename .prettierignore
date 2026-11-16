@@ -1,0 +1,12 @@
+pnpm-lock.yaml
+.next
+coverage
+packages/db/migrations
+.specify
+.claude
+docs/*.html
+docs/*.pdf
+# Spec Kit and governance documents are maintained by the architect, not reformatted by tooling
+specs
+docs/*.md
+CLAUDE.md
