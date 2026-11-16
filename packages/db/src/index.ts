@@ -14,3 +14,4 @@ export type {
   TenantStatus,
   UserStatus,
 } from './constants';
+export { closePool } from './client';

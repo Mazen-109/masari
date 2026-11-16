@@ -354,15 +354,15 @@ here, and from then on versions change only through reviewed PRs (Dependabot or 
 | tailwindcss | 4 | 4.3.5 (+ @tailwindcss/postcss 4.3.5) |
 | next-intl | 4 | |
 | better-auth | 1 | |
-| drizzle-orm / drizzle-kit | latest stable pair | |
-| pg | 8 | |
-| zod | 4 | |
+| drizzle-orm / drizzle-kit | latest stable pair | 0.45.4 / 0.31.11 |
+| pg | 8 | 8.23.1 (+ @types/pg 8.23.1) |
+| zod | 4 | 4.6.7 |
 | nodemailer | latest stable | |
 | vitest / @vitest/coverage-v8 | latest stable (≥ 3) | 4.1.12 / 4.1.12 |
 | @playwright/test / @axe-core/playwright | 1 / 4 | |
 | eslint / typescript-eslint / eslint-config-next | latest supported by eslint-config-next 16 | 9.39.5 (+ @eslint/js 9.39.5) / 8.73.0 / 16.4.6 |
 | prettier / prettier-plugin-tailwindcss | 3 / latest | 3.10.1 / 0.7.4 |
-| tsx / dotenv-cli | latest stable | |
+| tsx / dotenv-cli | latest stable | 4.23.15 / 8.0.0 |
 | @fontsource/ibm-plex-sans-arabic / lucide-react | latest stable | |
 
 If a newer major of a "binding" package is already stable at T001, stay on the major listed here and

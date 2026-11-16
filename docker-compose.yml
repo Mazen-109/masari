@@ -1,0 +1,22 @@
+# Local PostgreSQL 16 for development (contracts/cli.md: `pnpm db:up` / `pnpm db:down`).
+# The owner password is a documented, local-only development value; the port is published on the
+# loopback interface only so the database is never reachable from the network.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: masari_owner
+      POSTGRES_PASSWORD: masari_dev_owner
+      POSTGRES_DB: masari
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - masari-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U masari_owner -d masari']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  masari-pgdata:
