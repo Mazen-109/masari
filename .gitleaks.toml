@@ -1,0 +1,26 @@
+# Masari — gitleaks configuration (contracts/ci.md §6). Requires gitleaks ≥ 8.25 ([[allowlists]]).
+title = "Masari gitleaks config"
+
+# Keep every built-in rule.
+[extend]
+useDefault = true
+
+# The only exception: the documented, local-only throwaway values (local PostgreSQL passwords and the
+# local/CI auth secrets) in the files that are meant to contain them. Both conditions must hold: the file is
+# one of the paths below AND the finding contains one of these exact strings. Never add a real credential.
+[[allowlists]]
+description = "Documented local-only development and CI values"
+condition = "AND"
+regexTarget = "match"
+paths = [
+  '''^\.env\.example$''',
+  '''^docker-compose\.yml$''',
+  '''^specs/[^/]+/contracts/[^/]+\.md$''',
+  '''^\.github/workflows/ci\.yml$''',
+]
+regexes = [
+  '''masari_dev_owner''',
+  '''masari_dev_web''',
+  '''local-development-only-secret-change-me-please''',
+  '''ci-only-secret-not-used-anywhere-else-000000''',
+]

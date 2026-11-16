@@ -110,11 +110,11 @@ previous batch is merged.
 
 ### PR-2 — CI pipeline and repository hygiene · branch `001-pr02-ci`
 
-- [ ] T008 Create `.github/workflows/ci.yml` with jobs `quality`, `test`, `build`, `secrets`, `audit` exactly as contracts/ci.md §1–2 (PostgreSQL service and job environment already declared for `test`; the `e2e` job comes in PR-10) (FR-046)
-- [ ] T009 [P] Create `.gitleaks.toml` per contracts/ci.md §6
-- [ ] T010 [P] Create `.github/pull_request_template.md` with the sections in contracts/ci.md §6
-- [ ] T011 [P] Create `.github/dependabot.yml` per contracts/ci.md §6
-- [ ] T012 [P] Create `docs/repo-settings.md` (owner checklist per contracts/ci.md §6: required checks `quality`, `test`, `build`, `secrets`, `audit` now; `e2e` to be added as required **only after PR-10 is merged**; what to do when `audit` fails on an upstream advisory — contracts/ci.md §2)
+- [x] T008 Create `.github/workflows/ci.yml` with jobs `quality`, `test`, `build`, `secrets`, `audit` exactly as contracts/ci.md §1–2 (PostgreSQL service and job environment already declared for `test`; the `e2e` job comes in PR-10) (FR-046)
+- [x] T009 [P] Create `.gitleaks.toml` per contracts/ci.md §6
+- [x] T010 [P] Create `.github/pull_request_template.md` with the sections in contracts/ci.md §6
+- [x] T011 [P] Create `.github/dependabot.yml` per contracts/ci.md §6
+- [x] T012 [P] Create `docs/repo-settings.md` (owner checklist per contracts/ci.md §6: required checks `quality`, `test`, `build`, `secrets`, `audit` now; `e2e` to be added as required **only after PR-10 is merged**; what to do when `audit` fails on an upstream advisory — contracts/ci.md §2)
 
 **Accept**: all five jobs run and pass on this PR · `build` job has no application env vars · workflow has `permissions: contents: read`, concurrency cancel, 15-minute timeouts · no `continue-on-error`
 
