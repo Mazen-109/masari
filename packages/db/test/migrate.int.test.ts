@@ -84,7 +84,7 @@ describe('ensureRuntimeRole', () => {
 
   async function attributes() {
     const result = await ownerQuery(
-      `SELECT rolsuper, rolbypassrls, rolcreatedb, rolcreaterole, rolinherit, rolcanlogin,
+      `SELECT rolsuper, rolbypassrls, rolreplication, rolcreatedb, rolcreaterole, rolinherit, rolcanlogin,
               pg_has_role(rolname, 'masari_app', 'MEMBER') AS member,
               has_database_privilege(rolname, current_database(), 'CONNECT') AS connect
          FROM pg_roles WHERE rolname = $1`,
@@ -96,6 +96,7 @@ describe('ensureRuntimeRole', () => {
   const SAFE = {
     rolsuper: false,
     rolbypassrls: false,
+    rolreplication: false,
     rolcreatedb: false,
     rolcreaterole: false,
     rolinherit: true,
@@ -112,7 +113,7 @@ describe('ensureRuntimeRole', () => {
 
   it('repairs unsafe attributes of an existing role and is idempotent', async () => {
     await ensureRuntimeRole(env().DATABASE_MIGRATION_URL, runtimeUrl());
-    await ownerQuery(`ALTER ROLE ${SCRATCH_ROLE} BYPASSRLS CREATEDB NOINHERIT`);
+    await ownerQuery(`ALTER ROLE ${SCRATCH_ROLE} BYPASSRLS REPLICATION CREATEDB NOINHERIT`);
     await ensureRuntimeRole(env().DATABASE_MIGRATION_URL, runtimeUrl());
     await ensureRuntimeRole(env().DATABASE_MIGRATION_URL, runtimeUrl());
     expect(await attributes()).toEqual(SAFE);

@@ -46,7 +46,8 @@ export function withInvitationToken<T>(tokenHash: string, fn: (tx: Tx) => Promis
 
 ```ts
 export function ping(): Promise<void>;                    // SELECT 1; throws on failure
-/** Throws if the connected role is superuser or has BYPASSRLS. */
+/** Throws if the connected role is superuser, has BYPASSRLS or REPLICATION, or owns (directly or by
+ *  inheritance) a table in schema public — a table owner bypasses the non-forced RLS of `tenants`. */
 export function assertSafeRuntimeRole(): Promise<void>;
 export function closePool(): Promise<void>;               // tests and scripts
 ```
@@ -172,7 +173,8 @@ export { getAdminDbEnv } from './env';                                         /
 export function withDatabaseName(url: string, databaseName: string): string;   // pure helper
 export function runMigrations(migrationUrl: string): Promise<void>;
 /** Creates or updates the login role named in runtimeUrl (password from the URL; NOSUPERUSER NOBYPASSRLS
- *  NOCREATEDB NOCREATEROLE INHERIT), grants it CONNECT and membership of masari_app. Idempotent. */
+ *  NOREPLICATION NOCREATEDB NOCREATEROLE INHERIT), grants it CONNECT and membership of masari_app. Idempotent.
+ *  Throws before any SQL when the runtime role equals the role of migrationUrl. */
 export function ensureRuntimeRole(migrationUrl: string, runtimeUrl: string): Promise<void>;
 /** DROP DATABASE IF EXISTS … WITH (FORCE); CREATE DATABASE …; runMigrations; ensureRuntimeRole.
  *  Refuses names that do not match /^masari_(test|e2e)[a-z0-9_]*$/. */

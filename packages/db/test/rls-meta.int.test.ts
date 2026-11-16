@@ -143,6 +143,53 @@ describe('runtime role privileges', () => {
     expect(await columnPrivileges(runtimeRoleName())).toEqual([]);
   });
 
+  it('gives the login role exactly the effective table privileges of data-model.md §1', async () => {
+    // Asked as the login role itself, so inherited grants, PUBLIC grants, and ownership all count.
+    const result = await runtimeQuery<{ entry: string }>(
+      `SELECT c.relname || ':' || p.privilege AS entry
+         FROM pg_class c
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+         CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES',
+                                 'TRIGGER']) AS p(privilege)
+        WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
+          AND has_table_privilege(c.oid, p.privilege)`,
+    );
+    expect(result.rows.map((row) => row.entry).sort()).toEqual(expectedTablePrivileges());
+  });
+
+  it('gives the login role exactly the effective column privileges of data-model.md §1', async () => {
+    const columns = await runtimeQuery<{ table: string; column: string }>(
+      `SELECT c.relname AS "table", att.attname AS "column"
+         FROM pg_attribute att
+         JOIN pg_class c ON c.oid = att.attrelid
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND att.attnum > 0 AND NOT att.attisdropped`,
+    );
+    const actual = await runtimeQuery<{ entry: string }>(
+      `SELECT c.relname || '.' || att.attname || ':' || p.privilege AS entry
+         FROM pg_attribute att
+         JOIN pg_class c ON c.oid = att.attrelid
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+         CROSS JOIN unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'REFERENCES']) AS p(privilege)
+        WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND att.attnum > 0 AND NOT att.attisdropped
+          AND has_column_privilege(c.oid, att.attnum, p.privilege)`,
+    );
+    // A table-level privilege covers every column; column grants add to it.
+    const expected = new Set<string>();
+    for (const { table, column } of columns.rows) {
+      const entry = TABLE_CLASSIFICATION[table];
+      for (const privilege of ['SELECT', 'INSERT', 'UPDATE'] as const) {
+        if (
+          entry?.privileges.includes(privilege) ||
+          entry?.columnPrivileges?.[privilege]?.includes(column)
+        ) {
+          expected.add(`${table}.${column}:${privilege}`);
+        }
+      }
+    }
+    expect(actual.rows.map((row) => row.entry).sort()).toEqual([...expected].sort());
+  });
+
   it('lets neither runtime role own any object', async () => {
     const result = await ownerQuery<{ owned: number }>(
       `SELECT ((SELECT count(*) FROM pg_class WHERE relowner = ANY ($1::regrole[]))
@@ -157,7 +204,7 @@ describe('runtime role privileges', () => {
 
   it('makes the login role a safe member of masari_app', async () => {
     const result = await ownerQuery(
-      `SELECT r.rolsuper, r.rolbypassrls, r.rolcreatedb, r.rolcreaterole, r.rolinherit, r.rolcanlogin,
+      `SELECT r.rolsuper, r.rolbypassrls, r.rolreplication, r.rolcreatedb, r.rolcreaterole, r.rolinherit, r.rolcanlogin,
               pg_has_role(r.rolname, $2, 'MEMBER') AS member
          FROM pg_roles r WHERE r.rolname = $1`,
       [runtimeRoleName(), APP_GROUP_ROLE],
@@ -166,6 +213,7 @@ describe('runtime role privileges', () => {
       {
         rolsuper: false,
         rolbypassrls: false,
+        rolreplication: false,
         rolcreatedb: false,
         rolcreaterole: false,
         rolinherit: true,

@@ -85,6 +85,22 @@ export async function makeTenant(
   return row;
 }
 
+/**
+ * Awaits a promise that must fail and returns its PostgreSQL error code (SQLSTATE). Drizzle wraps driver
+ * errors in DrizzleQueryError with the pg error as `cause`; raw pg errors carry `code` themselves.
+ */
+export async function pgErrorCode(promise: Promise<unknown>): Promise<string> {
+  const error: unknown = await promise.then(
+    () => undefined,
+    (reason: unknown) => reason,
+  );
+  for (let current = error; typeof current === 'object' && current !== null;) {
+    if ('code' in current && typeof current.code === 'string') return current.code;
+    current = 'cause' in current ? current.cause : undefined;
+  }
+  throw new Error('Expected a PostgreSQL error, but the promise resolved or failed without a code');
+}
+
 /** Closes both pools; call from afterAll in every integration test file. */
 export async function closeTestPools(): Promise<void> {
   const owner = ownerPool;

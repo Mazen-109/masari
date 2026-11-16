@@ -1,13 +1,12 @@
 // `pnpm db:migrate` (contracts/cli.md §2): applies pending migrations with the owner connection, then
 // creates/updates the runtime login role named in DATABASE_URL. Idempotent.
-import { applyMigrations, connectionTarget, ensureRuntimeRole, getAdminDbEnv } from '../src/admin';
-
-/** One line, without connection strings (they may contain passwords). */
-function reason(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  const firstLine = message.split('\n')[0] ?? '';
-  return firstLine.replace(/[a-z][a-z0-9+.-]*:\/\/\S+/gi, '<url>');
-}
+import {
+  applyMigrations,
+  connectionTarget,
+  ensureRuntimeRole,
+  failureReason,
+  getAdminDbEnv,
+} from '../src/admin';
 
 async function main(): Promise<void> {
   const env = getAdminDbEnv();
@@ -18,6 +17,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error(`Migration failed: ${reason(error)}`);
+  console.error(`Migration failed: ${failureReason(error)}`);
   process.exitCode = 1;
 });
