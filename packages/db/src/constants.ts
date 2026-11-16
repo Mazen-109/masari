@@ -35,3 +35,29 @@ export interface Tenant {
 
 /** What the public college picker needs — nothing else. */
 export type TenantPublic = Pick<Tenant, 'id' | 'slug' | 'nameAr' | 'nameEn'>;
+
+/** A specialisation track of a college (data-model.md §3.5). `code` is immutable after creation. */
+export interface Division {
+  id: string;
+  tenantId: string;
+  code: string;
+  nameAr: string;
+  nameEn: string;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * One audit-log entry (data-model.md §3.8). `actorUserId` null = system/operator. Metadata holds IDs and
+ * enumerations only — never emails, names, tokens, or passwords.
+ */
+export interface AuditEventInput {
+  actorUserId: string | null;
+  action: string;
+  targetType?: string;
+  targetId?: string;
+  metadata?: Record<string, unknown>;
+  ip?: string | null;
+}

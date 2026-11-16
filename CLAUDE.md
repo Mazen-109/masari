@@ -58,6 +58,9 @@ No Docker (e.g. cloud sessions)? Use the machine's PostgreSQL 16+ as described i
 - **Tenant safety**: all college-owned data is read/written only via `@masari/db` repositories inside
   `withTenant({ tenantId, userId }, tx => …)`. Every new tenant-scoped table ships with `tenant_id`, an RLS
   policy, grants, a table-classification entry, and a cross-tenant isolation test — in the same PR.
+  A transaction is one connection: never run queries on a `tx` in parallel (no `Promise.all` over `tx`
+  calls — await them one by one), and never let the `tx` or an un-awaited query escape the `withTenant`
+  callback (no storing it, no returning it, no fire-and-forget).
 - **Authorisation**: every page under `(app)` and every server action starts with `requireSession()` /
   `requirePermission()`; never rely on hidden links or on `proxy.ts`.
 - **Server actions**: `guard → Zod validate → rate-limit (if public) → repository calls → audit → return

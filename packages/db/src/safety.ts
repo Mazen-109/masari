@@ -19,13 +19,14 @@ interface RoleSafetyRow {
 
 type Query = (text: string) => Promise<{ rows: RoleSafetyRow[] }>;
 
-// A table owner is not subject to non-forced RLS (the `tenants` registry), so owning — or inheriting the
-// privileges of a role that owns — a public table is as unsafe as BYPASSRLS. pg_has_role(…, 'USAGE') is
-// true for every role when the current role is a superuser.
+// A table owner is not subject to non-forced RLS (the `tenants` registry), so owning a public table — or
+// being a member of a role that owns one — is as unsafe as BYPASSRLS. 'MEMBER' (not 'USAGE') also catches a
+// membership granted WITH INHERIT FALSE: such a member can still SET ROLE to the owner and act as it.
+// pg_has_role(…, 'MEMBER') is true for every role when the current role is a superuser.
 const ROLE_SAFETY_SQL = `
   SELECT r.rolsuper AS superuser, r.rolbypassrls AS bypassrls, r.rolreplication AS replication,
          EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-                  WHERE n.nspname = 'public' AND pg_has_role(r.oid, c.relowner, 'USAGE')) AS owns_tables
+                  WHERE n.nspname = 'public' AND pg_has_role(r.oid, c.relowner, 'MEMBER')) AS owns_tables
     FROM pg_roles r
    WHERE r.rolname = current_user`;
 

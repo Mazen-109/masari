@@ -15,8 +15,8 @@ export type TenantSettingsPatch = Partial<
 >;
 
 /** Active colleges for the public picker, ordered by Arabic name. */
-export function listActivePublic(): Promise<TenantPublic[]> {
-  return getDb()
+export async function listActivePublic(): Promise<TenantPublic[]> {
+  return await getDb()
     .select({ id: tenants.id, slug: tenants.slug, nameAr: tenants.nameAr, nameEn: tenants.nameEn })
     .from(tenants)
     .where(eq(tenants.status, 'active'))
