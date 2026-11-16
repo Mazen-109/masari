@@ -347,26 +347,29 @@ here, and from then on versions change only through reviewed PRs (Dependabot or 
 
 | Package | Major (binding) | Exact version (T001 fills) |
 |---|---|---|
-| node (`.nvmrc`) | 24 (min 22) | |
-| pnpm | 10 | |
-| typescript | 5 (≥ 5.9) or the major required by the pinned Next.js | |
-| next / react / react-dom | 16 / 19 / 19 | |
-| tailwindcss | 4 | |
+| node (`.nvmrc`) | 24 (min 22) | `.nvmrc` = `24` (latest 24.x LTS); PR-1 verified locally on 22.23.4 |
+| pnpm | 10 | 10.28.0 (`packageManager`) |
+| typescript | 5 (≥ 5.9) or the major required by the pinned Next.js | 5.9.3 |
+| next / react / react-dom | 16 / 19 / 19 | 16.4.6 / 19.3.1 / 19.3.1 (@types/react, @types/react-dom 19.3.0; @types/node 24.19.2) |
+| tailwindcss | 4 | 4.3.5 (+ @tailwindcss/postcss 4.3.5) |
 | next-intl | 4 | |
 | better-auth | 1 | |
 | drizzle-orm / drizzle-kit | latest stable pair | |
 | pg | 8 | |
 | zod | 4 | |
 | nodemailer | latest stable | |
-| vitest / @vitest/coverage-v8 | latest stable (≥ 3) | |
+| vitest / @vitest/coverage-v8 | latest stable (≥ 3) | 4.1.12 / 4.1.12 |
 | @playwright/test / @axe-core/playwright | 1 / 4 | |
-| eslint / typescript-eslint / eslint-config-next | latest supported by eslint-config-next 16 | |
-| prettier / prettier-plugin-tailwindcss | 3 / latest | |
+| eslint / typescript-eslint / eslint-config-next | latest supported by eslint-config-next 16 | 9.39.5 (+ @eslint/js 9.39.5) / 8.73.0 / 16.4.6 |
+| prettier / prettier-plugin-tailwindcss | 3 / latest | 3.10.1 / 0.7.4 |
 | tsx / dotenv-cli | latest stable | |
 | @fontsource/ibm-plex-sans-arabic / lucide-react | latest stable | |
 
 If a newer major of a "binding" package is already stable at T001, stay on the major listed here and
 mention it in the PR; upgrading a major is a separate, reviewed decision.
+
+Rows left empty are filled by the batch that first installs the package (exact versions then come from
+`pnpm-lock.yaml`).
 
 ## 25. Summary of decisions the owner should know
 
