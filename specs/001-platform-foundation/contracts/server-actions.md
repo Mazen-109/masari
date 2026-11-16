@@ -45,6 +45,13 @@ export const fail: (code: ErrorCode, extra?: {...}) => ActionResult<never>;
   feature's `schemas.ts` (first error per field → `fieldErrors`, code `validation`) → (3) rate limit (public
   actions) → (4) business rules + repository calls inside `withTenant` → (5) audit → (6) `revalidatePath`
   for affected screens → (7) result/redirect.
+- **Audit and transactions**: when the change is made through `tx` repositories, the audit event is written
+  in the **same** `withTenant` transaction (`recordAudit(ctx, event, tx)` → `audit.record(tx, …)`), so the
+  change and its audit row commit or roll back together. Only when the change is not a `withTenant`
+  transaction (auth-library calls; `users` / `sessions` functions that use the pool) is the audit written
+  right after the change succeeds with `recordAudit(ctx, event)`, which opens its own transaction.
+- `auth.api.*` in this document means `getAuth().api.*`: `server/auth/auth.ts` exports a lazy, memoised
+  `getAuth()` and creates no auth instance at module scope (`http-and-env.md` §3 "Parsing").
 - Unknown exceptions are caught, logged with `log.error(event, { errorName })` (no personal data), and
   returned as `fail('internal')`. Redirect/not-found signals thrown by Next.js are re-thrown.
 - Error and field codes are translated in the UI from the `errors` message namespace; actions never return
@@ -59,7 +66,9 @@ export const fail: (code: ErrorCode, extra?: {...}) => ActionResult<never>;
 
 `enforceRateLimit(rules: { key: string; limit: number; windowSeconds: number }[])` calls
 `hitRateLimit` for each rule and returns the first refusal as `fail('rate_limited', { retryAfterSeconds })`.
-Keys are `"<purpose>:<kind>:<sha256 hex of value>"`.
+Keys are `"<purpose>:<kind>:<sha256 hex of value>"`. The per-IP value is `getClientIp()` as defined in
+`http-and-env.md` §5 (never the raw first `x-forwarded-for` entry); when it is `null`, the per-IP rule is
+still applied, on the shared value `unknown`.
 
 | Purpose | Per email | Per IP |
 |---|---|---|
@@ -130,7 +139,9 @@ Fields: `email`, `password`, `next` (optional).
 3. `auth.api.signInEmail`. Library error "email not verified" → `fail('email_not_verified')`; any other
    failure → `fail('invalid_credentials')`.
 4. Load the user and college. User `suspended` → revoke the user's sessions, clear the cookie, return
-   `fail('account_suspended')`. College `suspended` → same, `fail('tenant_suspended')`.
+   `fail('account_suspended')`. College `suspended` → end only the session just created (`auth.api.signOut`,
+   which also clears the cookie) and return `fail('tenant_suspended')`; the user's other sessions are left in
+   place (they are refused on every request while the college is suspended — `cli.md` §5).
 5. Audit `auth.sign_in`.
 6. `redirect(safeNext(next) ? '/{user.locale}' + next : '/{user.locale}/dashboard')`.
 
@@ -142,8 +153,8 @@ Requires a session (otherwise just redirect). Audit `auth.sign_out` → `auth.ap
 ### 4.5 `requestPasswordResetAction` (form) — FR-005, FR-009, FR-010
 
 Fields: `email`. Validate → rate limit `reset-request` → ask the auth library to send the reset email
-(redirect target `/{locale}/reset-password`) → if the user exists, audit `auth.password_reset_requested` →
-always `ok(undefined)`.
+(redirect target `/{locale}/reset-password`) → if the user exists (`users.findByEmail(email)`, which also
+gives the college for the audit), audit `auth.password_reset_requested` → always `ok(undefined)`.
 
 ### 4.6 `resetPasswordAction` (form) — FR-007, FR-010
 
@@ -151,20 +162,43 @@ Fields: `token`, `password` (new). Validate → `auth.api.resetPassword`; invali
 `fail('token_invalid')`. On success all sessions of the account are revoked (library option; verified by an
 e2e test), audit `auth.password_reset`, `redirect('/{locale}/sign-in?reset=1')`.
 
+Source of the audit's user and college: `auth.api.resetPassword` does not return the user, so the event is
+written by the auth instance's `emailAndPassword.onPasswordReset` hook in `server/auth/auth.ts` (called by
+the library with the user after a successful reset; added in PR-24):
+`recordAudit({ tenantId: user.tenantId, userId: user.id }, { action: 'auth.password_reset', … })`. If the
+pinned version has no such hook, obtain the user in another documented way and record a Spec deviation; the
+action never decodes or looks up the token itself.
+
 ### 4.7 `acceptInvitationAction` (form) — FR-009, FR-011, FR-020, FR-021
 
 Fields: `token`, `name`, `password` (new), `consent`.
 
+All database calls are the `db-api.md` §1 functions, in the context named for each step.
+
 1. Validate. 2. Rate limit `invite-accept` (IP).
-3. `invitations.findUsableByToken(token)` (pending, not expired, college active) → else
-   `fail('token_invalid')`.
-4. If a user with the invitation's email exists → `fail('token_invalid')`.
-5. Claim: `invitations.claim(id)`; no row → `fail('token_invalid')`.
-6. Create the account through the auth library with the invitation's email and `tenantId`, `locale`,
-   `privacyConsentAt = now`; then `users.activateInvited(tenantId, userId, role)` (sets role and
-   `email_verified = true`); then `invitations.setAcceptedUser(id, userId)`. On any failure in this step:
-   `invitations.release(id)` and return `fail('internal')`. No confirmation email is sent.
-7. Audit `invitation.accepted` `{ role }`.
+3. Look up — `findUsableInvitation(token)` in `apps/web/src/server/auth/invitation-lookup.ts`, shared with the
+   `/invite/[token]` page (which shows the form only for a non-null result):
+   1. `tokenHash = hashInvitationToken(token)`;
+   2. `inv = withInvitationToken(tokenHash, tx => invitations.findByTokenHash(tx, tokenHash))` — anonymous
+      context, RLS policy `invitation_token_lookup`;
+   3. `tenant = tenants.findById(inv.tenantId)` — global table, no tenant context;
+   4. result `{ invitation: inv, tenant }` only when `inv` exists, `inv.status = 'pending'`,
+      `inv.expiresAt > now`, and `tenant.status = 'active'` (the college-active check happens here, in the
+      web layer); otherwise `null` → `fail('token_invalid')`.
+4. If `users.findByEmail(inv.email)` returns a user → `fail('token_invalid')`.
+5. Claim: `withTenant({ tenantId: inv.tenantId, userId: null }, tx => invitations.claim(tx, inv.id))`;
+   `null` → `fail('token_invalid')`.
+6. Create the account: `auth.api.signUpEmail` (the library's own connection, outside any transaction) with
+   the invitation's email and `tenantId`, `locale`, `privacyConsentAt = now`; then
+   `users.activateInvited(inv.tenantId, userId, inv.role)` (sets role and `email_verified = true`); then, in
+   one `withTenant({ tenantId: inv.tenantId, userId }, tx => …)` transaction,
+   `invitations.setAcceptedUser(tx, inv.id, userId)` and the audit of step 7. No confirmation email is sent.
+   On any failure in this step, compensate in this order and return `fail('internal')`:
+   (a) if the account was created (id from the library's result, else `users.findByEmail(inv.email)`),
+   `users.deleteJustCreated(inv.tenantId, userId)` — otherwise step 4 would make the invitation unusable
+   forever; (b) `withTenant({ tenantId: inv.tenantId, userId: null }, tx => invitations.release(tx, inv.id))`.
+   A failing compensation is logged as `invitation.accept_compensation_failed` (ids only).
+7. Audit `invitation.accepted` `{ role }` — `recordAudit(…, tx)` in the transaction of step 6.
 8. `redirect('/{locale}/sign-in?invited=1')`.
 
 ## 5. Signed-in actions
