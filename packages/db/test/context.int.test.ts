@@ -14,9 +14,9 @@ import {
 // contracts/db-api.md §4: settings are transaction-local (no leak to the next query on the same connection);
 // without context, tenant-scoped tables return zero rows and reject inserts; an invalid uuid is rejected.
 //
-// No tenant-scoped table exists yet (divisions arrive in PR-5), so this file builds a probe table with the
-// standard tenant policy of data-model.md §2 in its own schema. It lives outside `public`, so the
-// classification meta-test never sees it.
+// This file builds its own probe table with the standard tenant policy of data-model.md §2, so the tests do
+// not depend on the columns and grants of any product table. It lives in its own schema outside `public`,
+// so the classification meta-test never sees it.
 
 const PROBE = 'ctx_probe.notes';
 

@@ -73,9 +73,12 @@ Every unknown in the plan's Technical Context is resolved here. Format per item:
   `pnpm tenant:*`, and tests) runs migrations. `DATABASE_URL` (runtime login role, e.g. `masari_web`) is
   what the web app uses. A `NOLOGIN` group role `masari_app` is created by the first migration and receives
   every table grant explicitly; `pnpm db:migrate` then idempotently creates/updates the runtime login role
-  named in `DATABASE_URL` (`NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE INHERIT`, password from the URL)
-  and grants it membership of `masari_app`. At start-up the web app calls `assertSafeRuntimeRole()` and
-  refuses to run if its role is superuser or has `BYPASSRLS`. Tables come from Drizzle schema via
+  named in `DATABASE_URL` (`NOSUPERUSER NOBYPASSRLS NOREPLICATION NOCREATEDB NOCREATEROLE INHERIT`, password
+  from the URL) and grants it membership of `masari_app`. At start-up the web app calls
+  `assertSafeRuntimeRole()` and refuses to run if its role is superuser, has `BYPASSRLS` or `REPLICATION`, or
+  owns a table in schema `public` — directly or as a member of a role that owns one (any membership, even one
+  granted `WITH INHERIT FALSE`, because the member can `SET ROLE` to the owner) — since a table owner is not
+  subject to the non-forced RLS of `tenants`. Tables come from Drizzle schema via
   `drizzle-kit generate`; functions, roles, grants, RLS, and policies are hand-written **custom SQL
   migrations** (`drizzle-kit generate --custom`). A meta-test fails when any table lacks a classification or
   a tenant-scoped table lacks RLS/policy.
