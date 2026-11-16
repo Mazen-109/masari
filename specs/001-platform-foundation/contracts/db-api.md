@@ -46,8 +46,10 @@ export function withInvitationToken<T>(tokenHash: string, fn: (tx: Tx) => Promis
 
 ```ts
 export function ping(): Promise<void>;                    // SELECT 1; throws on failure
-/** Throws if the connected role is superuser, has BYPASSRLS or REPLICATION, or owns (directly or by
- *  inheritance) a table in schema public — a table owner bypasses the non-forced RLS of `tenants`. */
+/** Throws if the connected role is superuser, has BYPASSRLS or REPLICATION, or owns a table in schema
+ *  public directly or through any role membership — inherited or not, including a membership granted
+ *  WITH INHERIT FALSE (the member can still SET ROLE to the owner). A table owner bypasses the non-forced
+ *  RLS of `tenants`. */
 export function assertSafeRuntimeRole(): Promise<void>;
 export function closePool(): Promise<void>;               // tests and scripts
 ```

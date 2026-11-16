@@ -59,6 +59,14 @@ describe('parseAdminDbEnv', () => {
       parseAdminDbEnv({ DATABASE_MIGRATION_URL: OWNER, DATABASE_URL: RUNTIME, APP_URL: 'ftp://x' }),
     ).toThrow('APP_URL');
   });
+
+  it('accepts an optional APP_ENV and rejects unknown values', () => {
+    const base = { DATABASE_MIGRATION_URL: OWNER, DATABASE_URL: RUNTIME };
+    expect(parseAdminDbEnv({ ...base, APP_ENV: 'production' }).APP_ENV).toBe('production');
+    expect(() => parseAdminDbEnv({ ...base, APP_ENV: 'staging' })).toThrow(
+      'Invalid database admin environment variables: APP_ENV',
+    );
+  });
 });
 
 describe('lazy getters', () => {

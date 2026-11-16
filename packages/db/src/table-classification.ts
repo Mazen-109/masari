@@ -36,6 +36,12 @@ export const TABLE_CLASSIFICATION: Readonly<Record<string, TableClassification>>
       ],
     },
   },
+  rate_limit_counters: {
+    scope: 'global',
+    rls: 'none',
+    policies: [],
+    privileges: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+  },
   divisions: {
     scope: 'tenant',
     rls: 'forced',

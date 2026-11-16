@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "dotenv -e ../../.env -- vitest run --coverage",
     "generate": "drizzle-kit generate",
-    "migrate": "dotenv -e ../../.env -- tsx scripts/migrate.ts"
+    "migrate": "dotenv -e ../../.env -- tsx scripts/migrate.ts",
+    "seed": "dotenv -e ../../.env -- tsx scripts/seed.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.0",

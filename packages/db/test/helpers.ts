@@ -24,6 +24,31 @@ export function ownerQuery<T extends pg.QueryResultRow = pg.QueryResultRow>(
   return getOwnerPool().query<T>(text, params);
 }
 
+/**
+ * Runs a query as the owner inside a transaction that sets app.tenant_id first. Tenant-scoped tables have
+ * forced RLS, so on a non-superuser owner an arrangement query without the context would silently match
+ * zero rows; callers should still assert rowCount.
+ */
+export async function ownerTenantQuery<T extends pg.QueryResultRow = pg.QueryResultRow>(
+  tenantId: string,
+  text: string,
+  params: unknown[] = [],
+): Promise<pg.QueryResult<T>> {
+  const client = await getOwnerPool().connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
+    const result = await client.query<T>(text, params);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 /** Runs a query as the runtime role (DATABASE_URL), exactly as the web app would. */
 export function runtimeQuery<T extends pg.QueryResultRow = pg.QueryResultRow>(
   text: string,
