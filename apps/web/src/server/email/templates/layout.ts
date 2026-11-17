@@ -66,17 +66,29 @@ function assertHttpUrl(url: string): void {
   }
 }
 
-/** Subjects are one header line: `"<Arabic> | <English>"`. */
+/** Subjects are one header line: `"<Arabic> | <English>"` (`\s` does not cover NEL, U+0085). */
 function oneLine(value: string): string {
-  return value.replace(/\s+/g, ' ').trim();
+  return value.replace(/[\s\u0085]+/g, ' ').trim();
+}
+
+// LRE/RLE/PDF/LRO/RLO (U+202A–202E), LRI/RLI/FSI/PDI (U+2066–2069), LRM/RLM (U+200E/200F).
+const BIDI_CONTROLS = /[‎‏‪-‮⁦-⁩]/g;
+
+/**
+ * A user- or operator-supplied value (person or college name) ready to interpolate: direction-control
+ * characters are removed, since HTML escaping does not neutralise them and they could reorder the
+ * surrounding sentence (or a link) in a mixed Arabic/English email.
+ */
+export function plainValue(value: string): string {
+  return value.replace(BIDI_CONTROLS, '');
 }
 
 function footer(lang: 'ar' | 'en', collegeName: BilingualEmail['collegeName']): string {
   if (lang === 'ar') {
-    const college = collegeName?.ar ?? 'كليتك';
+    const college = collegeName === undefined ? 'كليتك' : plainValue(collegeName.ar);
     return `أُرسلت هذه الرسالة من مساري نيابةً عن ${college}. إذا لم تكن تتوقعها فيمكنك تجاهلها.`;
   }
-  const college = collegeName?.en ?? 'your college';
+  const college = collegeName === undefined ? 'your college' : plainValue(collegeName.en);
   return `This email was sent by Masari on behalf of ${college}. If you were not expecting it, you can ignore it.`;
 }
 

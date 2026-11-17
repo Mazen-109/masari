@@ -1,7 +1,9 @@
-import { renderEmail, type RenderedEmail } from './layout';
+import { plainValue, renderEmail, type RenderedEmail } from './layout';
 
 /** Password-reset link (contracts/emails.md §3). */
-export function resetPassword({ name, url }: { name: string; url: string }): RenderedEmail {
+export function resetPassword(input: { name: string; url: string }): RenderedEmail {
+  const name = plainValue(input.name);
+  const { url } = input;
   return renderEmail({
     subject: {
       ar: 'إعادة تعيين كلمة المرور في مساري',

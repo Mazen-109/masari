@@ -69,6 +69,8 @@ export function createCaptureTransport({
       await writeFile(path.join(dir, name), JSON.stringify(file, null, 2), {
         encoding: 'utf8',
         flag: 'wx',
+        // Captured messages hold addresses and tokens: readable by the server's user only.
+        mode: 0o600,
       });
       log.info('email.captured', { template: message.template });
       if (printLinks) {
@@ -83,8 +85,16 @@ export type SmtpOptions = {
   host: string;
   port: number;
   secure: boolean;
+  /** Refuse to continue in plain text when the server does not upgrade with STARTTLS. */
+  requireTLS: boolean;
   auth: { user: string; pass: string };
+  connectionTimeout: number;
+  greetingTimeout: number;
+  socketTimeout: number;
 };
+
+/** A stuck SMTP server must not hold a server action for minutes (Nodemailer waits up to 10 min). */
+export const SMTP_TIMEOUT_MS = 15_000;
 
 type SmtpMail = { from: string; to: string; subject: string; text: string; html: string };
 
@@ -111,7 +121,13 @@ export function createSmtpTransport(
     host,
     port: env.SMTP_PORT,
     secure: env.SMTP_SECURE,
+    // SMTP_SECURE=false means STARTTLS (contracts/http-and-env.md §3), never a plaintext fallback that
+    // would expose the credentials and the tokens in the body to anyone stripping STARTTLS from EHLO.
+    requireTLS: !env.SMTP_SECURE,
     auth: { user, pass },
+    connectionTimeout: SMTP_TIMEOUT_MS,
+    greetingTimeout: SMTP_TIMEOUT_MS,
+    socketTimeout: SMTP_TIMEOUT_MS,
   });
   return {
     async deliver(message) {

@@ -1,6 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { CapturedEmailFile } from '../../src/server/email/transport';
 import { E2E_BASE_URL, E2E_EMAIL_CAPTURE_DIR } from './constants';
 
 // Reads the messages the e2e server captured (contracts/emails.md §4). The server runs with
@@ -12,16 +13,8 @@ const CAPTURE_DIR = path.resolve(WEB_ROOT, E2E_EMAIL_CAPTURE_DIR);
 const WAIT_MS = 10_000;
 const POLL_MS = 200;
 
-/** One captured message: the JSON file written by `src/server/email/transport.ts`. */
-export type CapturedEmail = {
-  template: string;
-  to: string;
-  from: string;
-  subject: string;
-  text: string;
-  html: string;
-  createdAt: string;
-};
+/** One captured message: the JSON file written by `src/server/email/transport.ts` (same type). */
+export type CapturedEmail = CapturedEmailFile;
 
 async function readAll(): Promise<CapturedEmail[]> {
   let names: string[];

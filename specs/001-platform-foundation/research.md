@@ -360,7 +360,7 @@ here, and from then on versions change only through reviewed PRs (Dependabot or 
 | drizzle-orm / drizzle-kit | latest stable pair | 0.45.4 / 0.31.11 |
 | pg | 8 | 8.23.1 (+ @types/pg 8.23.1; also a `@masari/web` dependency since PR-9 so Next.js can keep it external — never imported by `apps/web/src`) |
 | zod | 4 | 4.6.7 (`@masari/db`; `@masari/web` since PR-9) |
-| nodemailer | latest stable | 10.6.0 (+ @types/nodemailer 8.0.2; `@masari/web`, PR-11) |
+| nodemailer | latest stable | 10.6.0 (ships own types; `@masari/web`, PR-11) |
 | vitest / @vitest/coverage-v8 | latest stable (≥ 3) | 4.1.12 / 4.1.12 |
 | @playwright/test / @axe-core/playwright | 1 / 4 | 1.63.0 (exact pin: matches the Chromium build CI installs) / 4.14.0 |
 | eslint / typescript-eslint / eslint-config-next | latest supported by eslint-config-next 16 | 9.39.5 (+ @eslint/js 9.39.5) / 8.73.0 / 16.4.6 |

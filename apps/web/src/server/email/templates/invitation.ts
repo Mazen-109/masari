@@ -1,23 +1,21 @@
 import type { Role } from '@masari/db';
 import ar from '../../../../messages/ar.json';
 import en from '../../../../messages/en.json';
-import { renderEmail, type RenderedEmail } from './layout';
+import { plainValue, renderEmail, type RenderedEmail } from './layout';
 
 /**
  * Invitation to join a college (contracts/emails.md §3). Role labels come from the message catalogs
  * (`common.roles`, contracts/permissions.md §1), so the email and the screens never disagree.
  */
-export function invitation({
-  collegeNameAr,
-  collegeNameEn,
-  role,
-  url,
-}: {
+export function invitation(input: {
   collegeNameAr: string;
   collegeNameEn: string;
   role: Role;
   url: string;
 }): RenderedEmail {
+  const collegeNameAr = plainValue(input.collegeNameAr);
+  const collegeNameEn = plainValue(input.collegeNameEn);
+  const { role, url } = input;
   return renderEmail({
     subject: {
       ar: `دعوة للانضمام إلى ${collegeNameAr} على مساري`,

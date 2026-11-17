@@ -1,16 +1,15 @@
-import { renderEmail, type RenderedEmail } from './layout';
+import { plainValue, renderEmail, type RenderedEmail } from './layout';
 
 /**
  * Sent when someone registers with an address that has a pending invitation (contracts/emails.md §3).
  * It contains no link: the invitation token is stored only as a hash and cannot be recovered.
  */
-export function invitationPending({
-  collegeNameAr,
-  collegeNameEn,
-}: {
+export function invitationPending(input: {
   collegeNameAr: string;
   collegeNameEn: string;
 }): RenderedEmail {
+  const collegeNameAr = plainValue(input.collegeNameAr);
+  const collegeNameEn = plainValue(input.collegeNameEn);
   return renderEmail({
     subject: {
       ar: 'لديك دعوة للانضمام إلى مساري',

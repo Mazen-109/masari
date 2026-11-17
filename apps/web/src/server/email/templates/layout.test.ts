@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { escapeHtml, renderEmail, TEXT_DIVIDER, type BilingualEmail } from './layout';
+import { escapeHtml, plainValue, renderEmail, TEXT_DIVIDER, type BilingualEmail } from './layout';
 
 const LINK = 'https://masari.test/ar/invite/abc?x=1&y=2';
 
@@ -26,6 +26,30 @@ describe('escapeHtml', () => {
   });
 });
 
+describe('plainValue', () => {
+  const CONTROLS = ['‎', '‏', '‪', '‫', '‬', '‭', '‮', '⁦', '⁧', '⁨', '⁩'];
+
+  it.each(CONTROLS.map((char) => [char.codePointAt(0)?.toString(16).toUpperCase(), char]))(
+    'removes U+%s',
+    (_code, char) => {
+      expect(plainValue(`Mo${char}na${char}`)).toBe('Mona');
+    },
+  );
+
+  it('keeps ordinary Arabic, English, and joiner characters', () => {
+    expect(plainValue('مُنى Mona ‍')).toBe('مُنى Mona ‍');
+  });
+
+  it('cleans the college name in the footer', () => {
+    const { text } = renderEmail({
+      ...EMAIL,
+      collegeName: { ar: '‮كلية‬', en: '⁧Computing⁩' },
+    });
+    expect(text).toContain('نيابةً عن كلية.');
+    expect(text).toContain('on behalf of Computing.');
+  });
+});
+
 describe('renderEmail', () => {
   it('joins the subject as "<Arabic> | <English>" on one line', () => {
     const { subject } = renderEmail({
@@ -33,6 +57,12 @@ describe('renderEmail', () => {
       subject: { ar: 'سطر\r\nثانٍ', en: ' Two\nlines ' },
     });
     expect(subject).toBe('سطر ثانٍ | Two lines');
+    // NEL (U+0085) and the Unicode line/paragraph separators are line breaks too.
+    const unicode = renderEmail({
+      ...EMAIL,
+      subject: { ar: 'أ\u0085ب', en: 'A B C\u0085' },
+    });
+    expect(unicode.subject).toBe('أ ب | A B C');
   });
 
   it('puts the Arabic RTL block before the divider and the English LTR block', () => {

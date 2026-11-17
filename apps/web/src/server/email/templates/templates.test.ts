@@ -122,6 +122,37 @@ describe.each(CASES)('$template', ({ render, renderAttack, urls, subject }) => {
   });
 });
 
+// Direction-control characters in names would reorder the surrounding sentence; every template removes
+// them from interpolated names (layout.ts plainValue).
+const BIDI = /[‎‏‪-‮⁦-⁩]/;
+const RLO_NAME = '‮anoM‬⁦';
+const RLO_COLLEGE = '‫كلية‬‏';
+
+describe.each([
+  { template: 'verify-email', render: () => verifyEmail({ name: RLO_NAME, url: URL_A }) },
+  { template: 'reset-password', render: () => resetPassword({ name: RLO_NAME, url: URL_A }) },
+  {
+    template: 'invitation-pending',
+    render: () => invitationPending({ collegeNameAr: RLO_COLLEGE, collegeNameEn: RLO_NAME }),
+  },
+  {
+    template: 'invitation',
+    render: () =>
+      invitation({
+        collegeNameAr: RLO_COLLEGE,
+        collegeNameEn: RLO_NAME,
+        role: 'student',
+        url: URL_A,
+      }),
+  },
+])('$template', ({ render }) => {
+  it('strips bidi control characters from interpolated names', () => {
+    const { subject, text, html } = render();
+    for (const part of [subject, text, html]) expect(part).not.toMatch(BIDI);
+    expect(text).toContain('anoM');
+  });
+});
+
 describe('invitation', () => {
   it.each(ROLES)('names the role %s with the catalog labels in both languages', (role) => {
     const { text } = invitation({ collegeNameAr: 'ك', collegeNameEn: 'C', role, url: URL_A });

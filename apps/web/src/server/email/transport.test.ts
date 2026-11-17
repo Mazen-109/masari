@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -108,6 +108,14 @@ describe('capture transport', () => {
     expect(output.stdout).toBe('');
   });
 
+  it('writes files readable by their owner only', async () => {
+    const transport = createCaptureTransport({ dir, from: FROM, printLinks: false });
+    await captureOutput(() => transport.deliver(MESSAGE));
+    const [name] = await readdir(dir);
+    const { mode } = await stat(path.join(dir, name ?? ''));
+    expect(mode & 0o777).toBe(0o600);
+  });
+
   it('creates the capture directory when it is missing', async () => {
     const nested = path.join(dir, 'a', 'b');
     const transport = createCaptureTransport({ dir: nested, from: FROM, printLinks: false });
@@ -190,7 +198,11 @@ describe('smtp transport', () => {
       host: 'smtp.example.edu',
       port: 465,
       secure: true,
+      requireTLS: false,
       auth: { user: 'mailer', pass: 'smtp-pass-value' },
+      connectionTimeout: 15_000,
+      greetingTimeout: 15_000,
+      socketTimeout: 15_000,
     });
 
     await transport.deliver(MESSAGE);
@@ -201,6 +213,32 @@ describe('smtp transport', () => {
       text: MESSAGE.text,
       html: MESSAGE.html,
     });
+  });
+
+  it('requires STARTTLS when SMTP_SECURE=false, so it never falls back to plain text', () => {
+    let options: SmtpOptions | undefined;
+    createSmtpTransport({ ...SMTP_ENV, SMTP_PORT: 587, SMTP_SECURE: false }, (given) => {
+      options = given;
+      return { sendMail: () => Promise.resolve({}) };
+    });
+    expect(options).toMatchObject({ port: 587, secure: false, requireTLS: true });
+  });
+
+  it('requires STARTTLS with the env defaults (SMTP_SECURE unset)', () => {
+    const env = parseEnv({
+      ...BASE_ENV,
+      APP_ENV: 'development',
+      EMAIL_TRANSPORT: 'smtp',
+      SMTP_HOST: 'smtp.example.edu',
+      SMTP_USER: 'mailer',
+      SMTP_PASSWORD: 'smtp-pass-value',
+    });
+    let options: SmtpOptions | undefined;
+    createSmtpTransport(env, (given) => {
+      options = given;
+      return { sendMail: () => Promise.resolve({}) };
+    });
+    expect(options).toMatchObject({ port: 587, secure: false, requireTLS: true });
   });
 
   it('propagates a delivery failure', async () => {

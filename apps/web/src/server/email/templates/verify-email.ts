@@ -1,7 +1,9 @@
-import { renderEmail, type RenderedEmail } from './layout';
+import { plainValue, renderEmail, type RenderedEmail } from './layout';
 
 /** Confirmation link after registration or a resend request (contracts/emails.md §3). */
-export function verifyEmail({ name, url }: { name: string; url: string }): RenderedEmail {
+export function verifyEmail(input: { name: string; url: string }): RenderedEmail {
+  const name = plainValue(input.name);
+  const { url } = input;
   return renderEmail({
     subject: {
       ar: 'تأكيد بريدك الإلكتروني في مساري',
