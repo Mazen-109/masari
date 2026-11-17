@@ -12,7 +12,7 @@ import { resendVerificationAction } from '../actions';
 type ResendVerificationFormProps = Readonly<{
   /** `missing`: the email may not have arrived ("check your email"). `invalid`: the link did not work. */
   variant?: 'missing' | 'invalid';
-  /** Id of the control; also prefixes the heading, hint, and error ids. Unique per page. */
+  /** Id of the control; also prefixes the heading and error ids. Unique per page. */
   id?: string;
 }>;
 
@@ -25,20 +25,21 @@ function enteredEmail(result: ActionResult | null): string {
 /**
  * "Send the confirmation email again" (FR-004, FR-005). Works without JavaScript. After a successful
  * request it always shows the same sentence — whether or not an account needs confirmation — so it never
- * reveals whether the address is registered. Errors (validation, rate limit with the retry time) are shown
- * by `FormError` and on the field.
+ * reveals whether the address is registered. The sentence is removed while a request is pending and
+ * inserted again when it succeeds, so every successful request is announced. Errors (validation, rate
+ * limit with the retry time) are shown by `FormError` and on the field.
  */
 export function ResendVerificationForm({
   variant = 'missing',
   id = 'resend-email',
 }: ResendVerificationFormProps) {
   const t = useTranslations('auth.resend');
-  const [result, formAction] = useActionState<ActionResult | null, FormData>(
+  const [result, formAction, pending] = useActionState<ActionResult | null, FormData>(
     resendVerificationAction,
     null,
   );
   const fieldErrors = result?.ok === false ? result.fieldErrors : undefined;
-  const sent = result?.ok === true;
+  const sent = result?.ok === true && !pending;
 
   return (
     <form
@@ -50,12 +51,15 @@ export function ResendVerificationForm({
       <h2 id={`${id}-title`} className="text-xl font-semibold">
         {variant === 'missing' ? t('titleMissing') : t('titleInvalid')}
       </h2>
-      <p className="text-muted-foreground">{t('lead')}</p>
+      <div>
+        <p className="text-muted-foreground">{t('lead')}</p>
+        {/* The live region is always rendered and displayed (empty, it takes no space), so screen
+            readers announce the sentence when it is inserted. */}
+        <div role="status" data-slot="form-status">
+          {sent ? <p className="mt-4 font-medium">{t('sent')}</p> : null}
+        </div>
+      </div>
       <FormError result={result} />
-      {/* Always rendered, so screen readers announce the sentence when it appears. */}
-      <p role="status" data-slot="form-status" className="font-medium empty:hidden">
-        {sent ? t('sent') : null}
-      </p>
       <Field id={id} label={t('email')} error={fieldErrors?.email}>
         {(control) => (
           <Input

@@ -4,7 +4,8 @@ import { registerStudentAction, resendVerificationAction } from './actions';
 
 // Branches of registerStudentAction and resendVerificationAction that the e2e tests cannot reach
 // (contracts/server-actions.md §4.1–4.2): suspended or unknown college, the domain rule (end-to-end in
-// PR-35), already-confirmed accounts, failing emails, and unexpected errors. Every collaborator is mocked; redirect() throws like Next.js does.
+// PR-35), already-confirmed accounts, failing emails, and unexpected errors. Every collaborator is
+// mocked; redirect() throws like Next.js does.
 
 const mocks = vi.hoisted(() => ({
   findBySlug: vi.fn(),
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   sendEmail: vi.fn(),
   recordAudit: vi.fn(),
   enforceRateLimit: vi.fn(),
+  rateLimitRules: vi.fn(),
   log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
@@ -47,7 +49,7 @@ vi.mock('@/server/env', () => ({ getEnv: () => ({ APP_URL: 'https://masari.examp
 vi.mock('@/server/log', () => ({ log: mocks.log }));
 vi.mock('@/server/request', () => ({ getClientIp: () => Promise.resolve('198.18.0.1') }));
 vi.mock('@/server/rate-limit', () => ({
-  rateLimitRules: () => [],
+  rateLimitRules: mocks.rateLimitRules,
   enforceRateLimit: mocks.enforceRateLimit,
 }));
 
@@ -89,6 +91,7 @@ async function run(data: FormData): Promise<unknown> {
 
 beforeEach(() => {
   mocks.enforceRateLimit.mockResolvedValue(null);
+  mocks.rateLimitRules.mockReturnValue([]);
   mocks.findBySlug.mockResolvedValue(COLLEGE);
   mocks.findByEmail.mockResolvedValue(null);
   mocks.signUpEmail.mockImplementation(() => {
@@ -246,6 +249,10 @@ describe('resendVerificationAction', () => {
     await expect(resendVerificationAction(null, resendForm(' Mona@Example.EDU '))).resolves.toEqual(
       ok(undefined),
     );
+    expect(mocks.rateLimitRules).toHaveBeenCalledWith('verify-resend', {
+      email: 'mona@example.edu',
+      ip: '198.18.0.1',
+    });
     expect(mocks.findByEmail).toHaveBeenCalledWith('mona@example.edu');
     expect(mocks.sendVerificationEmail).toHaveBeenCalledWith({
       body: { email: 'mona@example.edu', callbackURL: '/en/email-verified' },

@@ -9,12 +9,15 @@ import { ResendVerificationForm } from './resend-verification-form';
 
 // The account forms rendered from a given action state. `useActionState` is mocked to return that state
 // (the rest of React is real); the Server Actions and the locale-aware Link are replaced by stubs.
-const actionState = vi.hoisted((): { current: unknown } => ({ current: null }));
+const actionState = vi.hoisted((): { current: unknown; pending: boolean } => ({
+  current: null,
+  pending: false,
+}));
 vi.mock('react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react')>();
   return {
     ...actual,
-    useActionState: () => [actionState.current, () => undefined, false],
+    useActionState: () => [actionState.current, () => undefined, actionState.pending],
   };
 });
 vi.mock('../actions', () => ({
@@ -29,6 +32,7 @@ vi.mock('@/i18n/navigation', () => ({
 
 afterEach(() => {
   actionState.current = null;
+  actionState.pending = false;
 });
 
 function render(node: ReactNode, state: ActionResult | null): string {
@@ -87,17 +91,31 @@ describe('RegisterForm', () => {
   });
 });
 
+/** The live region, always rendered, with nothing in it. */
+const EMPTY_STATUS = '<div role="status" data-slot="form-status"></div>';
+
 describe('ResendVerificationForm', () => {
   it('shows no status sentence before a request', () => {
     const html = render(<ResendVerificationForm />, null);
-    expect(html).toMatch(/<p role="status"[^>]*><\/p>/);
+    expect(html).toContain(EMPTY_STATUS);
     expect(html).not.toContain(en.auth.resend.sent);
   });
 
   it('shows the same sentence after every successful request', () => {
     const html = render(<ResendVerificationForm />, ok(undefined));
-    expect(html).toMatch(new RegExp(`<p role="status"[^>]*>${en.auth.resend.sent}</p>`));
+    expect(html).toMatch(
+      new RegExp(
+        `<div role="status" data-slot="form-status"><p[^>]*>${en.auth.resend.sent}</p></div>`,
+      ),
+    );
     expect(html).not.toContain('data-slot="form-error"');
+  });
+
+  it('removes the sentence while a new request is pending, so the next success is announced again', () => {
+    actionState.pending = true;
+    const html = render(<ResendVerificationForm />, ok(undefined));
+    expect(html).toContain(EMPTY_STATUS);
+    expect(html).not.toContain(en.auth.resend.sent);
   });
 
   it('shows the field error and keeps the entered email', () => {

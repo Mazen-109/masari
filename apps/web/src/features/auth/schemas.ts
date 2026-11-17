@@ -12,7 +12,9 @@ const CONTROL_CHARACTER = /\p{Cc}/u;
 /**
  * Bidirectional embedding/override (U+202A–U+202E) and isolate (U+2066–U+2069) controls: in a name they
  * can reorder the text around it wherever the name is shown (screens, emails, lists). The joiners
- * U+200C (ZWNJ) and U+200D (ZWJ) are ordinary parts of Arabic and Persian names and stay allowed.
+ * U+200C (ZWNJ) and U+200D (ZWJ) are ordinary parts of Arabic and Persian names and stay allowed. The
+ * directional marks LRM (U+200E), RLM (U+200F), and ALM (U+061C) are deliberately allowed too: they only
+ * affect the neighbouring characters, never the text around the name, and fix mixed Arabic/Latin names.
  */
 const BIDI_CONTROL = /[\u202A-\u202E\u2066-\u2069]/u;
 

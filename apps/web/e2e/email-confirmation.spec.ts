@@ -96,8 +96,8 @@ test('a tampered link shows the invalid screen with a resend form that sends a n
   const since = new Date();
   await requestResend(page, email);
   await expect(statusOf(page)).toHaveText(ar.auth.resend.sent);
-  await waitForEmail({ to: email, subjectIncludes: VERIFY_SUBJECT, since });
-  await confirmEmail(page, email);
+  const resent = await waitForEmail({ to: email, subjectIncludes: VERIFY_SUBJECT, since });
+  await page.goto(firstLink(resent));
   await expect(page).toHaveURL('/ar/email-verified');
   expect(await getUserByEmail(email)).toMatchObject({ emailVerified: true });
 });

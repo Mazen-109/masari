@@ -31,7 +31,8 @@ export function fieldErrorsOf(error: z.ZodError): Record<string, FieldErrorCode>
  * The submitted fields, one value per name. A name sent more than once (a forged duplicate, or a field
  * the page renders twice) counts with its **first** value, like `FormData.get`. Every reader of a form —
  * `parseForm` and anything that echoes entered values back — goes through this, so they always agree on
- * which value was submitted.
+ * which value was submitted. A field that is meant to repeat (e.g. the `enabledModules` checkboxes) must
+ * be read with `formData.getAll(name)`, never through `formFields` or `parseForm`, which keep one value.
  */
 export function formFields(formData: FormData): Record<string, FormDataEntryValue> {
   const fields = new Map<string, FormDataEntryValue>();

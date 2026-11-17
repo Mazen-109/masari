@@ -105,6 +105,8 @@ describe('registerSchema', () => {
     expect(errorFor('name', 'می\u200Cخواهم')).toBeNull();
     expect(errorFor('name', 'محمد\u200Dعلي')).toBeNull();
     expect(errorFor('name', 'Mona\u2070Ali')).toBeNull();
+    expect(errorFor('name', '\u0645\u0646\u0649\u200e Ali\u200f')).toBeNull();
+    expect(errorFor('name', '\u0645\u0646\u0649\u061c Ali')).toBeNull();
     expect(errorFor('name', 'Mona\u2065Ali')).toBeNull();
   });
 
