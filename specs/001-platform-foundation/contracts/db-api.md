@@ -219,6 +219,11 @@ export function countSessionsByEmail(migrationUrl: string, email: string): Promi
 /** Deletes rate-limit counters whose key starts with keyPrefix (default: all) → rows removed. Refuses (before
  *  connecting) a database whose name does not match /^masari_(test|e2e)[a-z0-9_]*$/. e2e global setup. */
 export function resetRateLimits(migrationUrl: string, keyPrefix?: string): Promise<number>;
+/** e2e fixture: the account with this email gets an academic profile in its college (level default 1, division by
+ *  code, default its first by sort order); no audit row. Throws for an unknown email or division; refuses (before
+ *  connecting) a database that is not masari_(test|e2e)…. Signed-in specs that are not about onboarding. */
+export function createStudentProfile(migrationUrl: string, email: string,
+  input: { studentCode: string; level?: number; divisionCode?: string }): Promise<void>;
 export function expireInvitation(migrationUrl: string, email: string): Promise<void>;   // sets expires_at to the past
 ```
 

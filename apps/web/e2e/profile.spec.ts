@@ -118,7 +118,9 @@ test('a student code already used in the college is refused on the field', async
     'data-code',
     'validation',
   );
-  await expect(fieldError(page, 'profile-student-code')).toHaveText(ar.errors.student_code_taken);
+  // US2 scenario 3: the code is in use, and whom to contact (onboarding's own text, not the shared one).
+  await expect(fieldError(page, 'profile-student-code')).toHaveText(ar.onboarding.studentCodeTaken);
+  await expect(fieldError(page, 'profile-student-code')).toContainText('إدارة الكلية');
   await expect(page.getByLabel(ar.onboarding.studentCode, { exact: true })).toHaveAttribute(
     'aria-invalid',
     'true',

@@ -4,12 +4,15 @@ import { withDatabaseName } from '../src/admin/database';
 import {
   countAuditEvents,
   countSessionsByEmail,
+  createStudentProfile,
   getUserByEmail,
   resetRateLimits,
 } from '../src/admin/test-support';
 import { withTenant } from '../src/context';
 import { getAdminDbEnv } from '../src/env';
 import * as audit from '../src/repositories/audit';
+import * as divisions from '../src/repositories/divisions';
+import * as studentProfiles from '../src/repositories/student-profiles';
 import { closeTestPools, makeTenant, makeUser, ownerQuery, randomSlug } from './helpers';
 
 // contracts/db-api.md §3 "Test support": the owner-connection reads used by the e2e tests.
@@ -106,6 +109,66 @@ describe('countSessionsByEmail', () => {
     await expect(
       countSessionsByEmail(migrationUrl(), `${randomSlug('none')}@example.test`),
     ).resolves.toBe(0);
+  });
+});
+
+describe('createStudentProfile', () => {
+  async function profileOf(tenantId: string, userId: string) {
+    return withTenant({ tenantId, userId: null }, (tx) => studentProfiles.findByUserId(tx, userId));
+  }
+
+  it("creates the profile in the account's college, with its first division by default", async () => {
+    const tenant = await makeTenant();
+    const user = await makeUser(tenant.id);
+    const [second, first] = await withTenant({ tenantId: tenant.id, userId: null }, async (tx) => [
+      await divisions.create(tx, { code: 'B', nameAr: 'ب', nameEn: 'B', sortOrder: 2 }),
+      await divisions.create(tx, { code: 'A', nameAr: 'أ', nameEn: 'A', sortOrder: 1 }),
+    ]);
+    if (!first?.ok || !second?.ok) throw new Error('divisions not created');
+
+    await createStudentProfile(migrationUrl(), user.email.toUpperCase(), {
+      studentCode: 'FIX-1',
+    });
+    expect(await profileOf(tenant.id, user.id)).toMatchObject({
+      tenantId: tenant.id,
+      studentCode: 'FIX-1',
+      level: 1,
+      divisionId: first.value.id,
+    });
+
+    const other = await makeUser(tenant.id);
+    await createStudentProfile(migrationUrl(), other.email, {
+      studentCode: 'FIX-2',
+      level: 3,
+      divisionCode: 'B',
+    });
+    expect(await profileOf(tenant.id, other.id)).toMatchObject({
+      level: 3,
+      divisionId: second.value.id,
+    });
+  });
+
+  it('throws for an unknown email or division and writes nothing', async () => {
+    const tenant = await makeTenant();
+    const user = await makeUser(tenant.id);
+    await expect(
+      createStudentProfile(migrationUrl(), `${randomSlug('none')}@example.test`, {
+        studentCode: 'FIX-3',
+      }),
+    ).rejects.toThrow(/unknown account/);
+    // The new college has no division at all.
+    await expect(
+      createStudentProfile(migrationUrl(), user.email, { studentCode: 'FIX-4' }),
+    ).rejects.toThrow(/unknown division/);
+    expect(await profileOf(tenant.id, user.id)).toBeNull();
+  });
+
+  it('refuses a database that is not a throw-away test database', async () => {
+    await expect(
+      createStudentProfile(withDatabaseName(migrationUrl(), 'masari'), 'x@example.test', {
+        studentCode: 'FIX-5',
+      }),
+    ).rejects.toThrow(/outside a test database/);
   });
 });
 

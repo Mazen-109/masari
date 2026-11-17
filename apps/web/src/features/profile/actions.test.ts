@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   setLocale: vi.fn(),
   findDivision: vi.fn(),
   createProfile: vi.fn(),
+  findProfile: vi.fn(),
   withTenant: vi.fn(),
   recordAudit: vi.fn(),
   getActionContext: vi.fn(),
@@ -24,7 +25,7 @@ class RedirectSignal extends Error {
 vi.mock('@masari/db', () => ({
   users: { setLocale: mocks.setLocale },
   divisions: { findById: mocks.findDivision },
-  studentProfiles: { create: mocks.createProfile },
+  studentProfiles: { create: mocks.createProfile, findByUserId: mocks.findProfile },
   withTenant: mocks.withTenant,
 }));
 vi.mock('next/navigation', () => ({
@@ -130,6 +131,7 @@ describe('completeStudentProfileAction', () => {
     mocks.withTenant.mockImplementation((_ctx: unknown, fn: (tx: unknown) => Promise<unknown>) =>
       fn(TX),
     );
+    mocks.findProfile.mockResolvedValue(null);
     mocks.findDivision.mockResolvedValue({ id: DIVISION_ID, isActive: true });
     mocks.createProfile.mockImplementation((_tx: unknown, input: Record<string, unknown>) =>
       Promise.resolve({ ok: true, value: { ...input, tenantId: TENANT_ID } }),
@@ -146,6 +148,7 @@ describe('completeStudentProfileAction', () => {
       { tenantId: TENANT_ID, userId: USER_ID },
       expect.any(Function),
     );
+    expect(mocks.findProfile).toHaveBeenCalledExactlyOnceWith(TX, USER_ID);
     expect(mocks.findDivision).toHaveBeenCalledExactlyOnceWith(TX, DIVISION_ID);
     expect(mocks.createProfile).toHaveBeenCalledExactlyOnceWith(TX, {
       userId: USER_ID,
@@ -158,6 +161,16 @@ describe('completeStudentProfileAction', () => {
       { action: 'profile.created', targetId: USER_ID },
       TX,
     );
+  });
+
+  it('goes to the dashboard when the profile already exists (double submit), writing nothing', async () => {
+    mocks.findProfile.mockResolvedValue({ userId: USER_ID, studentCode: 'OTHER-1' });
+    // Even a resubmitted form that would no longer validate.
+    expect(await submit(form({ studentCode: 'a b', level: '0' }))).toEqual({
+      redirect: '/en/dashboard',
+    });
+    expect(mocks.createProfile).not.toHaveBeenCalled();
+    expect(mocks.recordAudit).not.toHaveBeenCalled();
   });
 
   it('answers forbidden for a role without the permission and touches nothing', async () => {
@@ -183,7 +196,8 @@ describe('completeStudentProfileAction', () => {
         meta: entered({ studentCode: 'a b', level: '0', divisionId: 'x' }),
       }),
     );
-    expect(mocks.withTenant).not.toHaveBeenCalled();
+    expect(mocks.findDivision).not.toHaveBeenCalled();
+    expect(mocks.createProfile).not.toHaveBeenCalled();
   });
 
   it("refuses a level above the college's number of levels", async () => {
@@ -193,7 +207,8 @@ describe('completeStudentProfileAction', () => {
         meta: entered({ level: '5' }),
       }),
     );
-    expect(mocks.withTenant).not.toHaveBeenCalled();
+    expect(mocks.findDivision).not.toHaveBeenCalled();
+    expect(mocks.createProfile).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -217,11 +232,16 @@ describe('completeStudentProfileAction', () => {
       'invalid_division',
       fail('validation', { fieldErrors: { divisionId: 'invalid_choice' }, meta: entered() }),
     ],
-    ['already_exists', fail('conflict', { meta: entered() })],
     ['user_not_in_tenant', fail('forbidden', { meta: entered() })],
   ])('maps the repository refusal %s and writes no audit row', async (reason, expected) => {
     mocks.createProfile.mockResolvedValue({ ok: false, reason });
     expect(await submit()).toEqual(expected);
+    expect(mocks.recordAudit).not.toHaveBeenCalled();
+  });
+
+  it('treats already_exists from a concurrent submit as done: dashboard, no audit row', async () => {
+    mocks.createProfile.mockResolvedValue({ ok: false, reason: 'already_exists' });
+    expect(await submit()).toEqual({ redirect: '/en/dashboard' });
     expect(mocks.recordAudit).not.toHaveBeenCalled();
   });
 
@@ -230,8 +250,31 @@ describe('completeStudentProfileAction', () => {
     expect(await submit()).toEqual(fail('internal', { meta: entered() }));
     expect(mocks.log.error).toHaveBeenCalledExactlyOnceWith('profile.complete_failed', {
       errorName: 'RangeError',
+      sqlState: null,
     });
     expect(JSON.stringify(mocks.log.error.mock.calls)).not.toContain(CODE);
+  });
+
+  it('logs the SQLSTATE of a database error, and nothing else from it', async () => {
+    const error = Object.assign(new Error(`student_profiles.create failed`), {
+      name: 'StudentProfileQueryError',
+      code: '23514',
+    });
+    mocks.createProfile.mockRejectedValue(error);
+    expect(await submit()).toEqual(fail('internal', { meta: entered() }));
+    expect(mocks.log.error).toHaveBeenCalledExactlyOnceWith('profile.complete_failed', {
+      errorName: 'StudentProfileQueryError',
+      sqlState: '23514',
+    });
+  });
+
+  it('never logs a code property that is not a SQLSTATE', async () => {
+    mocks.createProfile.mockRejectedValue(Object.assign(new Error('x'), { code: CODE }));
+    await submit();
+    expect(mocks.log.error).toHaveBeenCalledExactlyOnceWith('profile.complete_failed', {
+      errorName: 'Error',
+      sqlState: null,
+    });
   });
 
   it('answers internal when the audit fails (the transaction rolls back)', async () => {

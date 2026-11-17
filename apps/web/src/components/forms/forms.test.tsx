@@ -90,6 +90,29 @@ describe('Field', () => {
     expect(control).not.toContain('aria-invalid');
   });
 
+  it('shows the screen-specific error message instead of the generic one, with the same wiring', () => {
+    const html = render(
+      <Field id="code" label="Code" error="student_code_taken" errorMessage="Ask the office.">
+        {input}
+      </Field>,
+    );
+    const control = openingTag(html, 'input');
+    expect(control).toContain('aria-invalid="true"');
+    expect(control).toContain('aria-describedby="code-error"');
+    expect(html).toMatch(/<p id="code-error"[^>]*>Ask the office\.<\/p>/);
+    expect(html).not.toContain(en.errors.student_code_taken);
+  });
+
+  it('ignores the error message while there is no error', () => {
+    const html = render(
+      <Field id="code" label="Code" errorMessage="Ask the office.">
+        {input}
+      </Field>,
+    );
+    expect(html).not.toContain('Ask the office.');
+    expect(openingTag(html, 'input')).not.toContain('aria-invalid');
+  });
+
   it('translates the error in Arabic', () => {
     const html = render(
       <Field id="consent" label="x" error="consent_required">

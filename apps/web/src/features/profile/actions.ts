@@ -22,6 +22,18 @@ function errorName(error: unknown): string {
   return error instanceof Error ? error.name : 'unknown';
 }
 
+const SQLSTATE = /^[0-9A-Z]{5}$/;
+
+/**
+ * The SQLSTATE an error carries in its own `code` (e.g. StudentProfileQueryError), for the log: five
+ * characters, never personal data. null when there is none.
+ */
+function sqlStateOf(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return null;
+  const { code } = error;
+  return typeof code === 'string' && SQLSTATE.test(code) ? code : null;
+}
+
 async function currentLocale(): Promise<Locale> {
   const locale = await getLocale();
   return isLocale(locale) ? locale : DEFAULT_LOCALE;
@@ -72,18 +84,23 @@ function invalid(
 }
 
 /**
- * Validate → college rules → create, with its audit row, in one withTenant transaction. `ok` means "go to
- * the dashboard". Whether a profile already exists is decided by the repository (`already_exists`), never
- * by the session context, which is cached for the request.
+ * Profile exists? → validate → college rules → create, with its audit row, in one withTenant transaction.
+ * `ok` means "go to the dashboard". A profile that already exists — checked first, and again by the
+ * repository's `already_exists` for a concurrent submit — is also `ok`: a double submit or a resubmit
+ * from the back button simply lands on the dashboard, without a second audit row. Existence is read in
+ * the transaction, never from the session context, which is cached for the request.
  */
 async function completeProfile(ctx: SessionContext, formData: FormData): Promise<ActionResult> {
-  const parsed = parseForm(studentProfileSchema, formData);
-  if (!parsed.ok) return parsed.failure;
-  const input = parsed.data;
-
-  if (!isLevelAllowed(input.level, ctx.tenant.levelsCount)) return invalid('level', 'out_of_range');
-
   return withTenant({ tenantId: ctx.tenant.id, userId: ctx.user.id }, async (tx) => {
+    if ((await studentProfiles.findByUserId(tx, ctx.user.id)) !== null) return ok(undefined);
+
+    const parsed = parseForm(studentProfileSchema, formData);
+    if (!parsed.ok) return parsed.failure;
+    const input = parsed.data;
+
+    if (!isLevelAllowed(input.level, ctx.tenant.levelsCount)) {
+      return invalid('level', 'out_of_range');
+    }
     const division = await divisions.findById(tx, input.divisionId);
     if (division === null || !isDivisionSelectable(division, null)) {
       return invalid('divisionId', 'invalid_choice');
@@ -101,7 +118,7 @@ async function completeProfile(ctx: SessionContext, formData: FormData): Promise
         case 'invalid_division':
           return invalid('divisionId', 'invalid_choice');
         case 'already_exists':
-          return fail('conflict');
+          return ok(undefined);
         case 'user_not_in_tenant':
           // The account no longer belongs to the session's college.
           return fail('forbidden');
@@ -117,7 +134,7 @@ async function completeProfile(ctx: SessionContext, formData: FormData): Promise
  * student code (unique in the college), level (≤ the college's number of levels), and an active division
  * of the college. On success goes to the dashboard, which reads the profile afresh (requireSession).
  * The student code is personal data: it is never logged; an unexpected failure is logged with the error
- * class only.
+ * class and, for a database error, its SQLSTATE only.
  */
 export async function completeStudentProfileAction(
   _previous: ActionResult | null,
@@ -132,7 +149,10 @@ export async function completeStudentProfileAction(
     result = await completeProfile(guard.ctx, formData);
   } catch (error) {
     unstable_rethrow(error);
-    log.error('profile.complete_failed', { errorName: errorName(error) });
+    log.error('profile.complete_failed', {
+      errorName: errorName(error),
+      sqlState: sqlStateOf(error),
+    });
     result = fail('internal');
   }
   if (result.ok) redirect(`/${locale}/dashboard`);

@@ -172,6 +172,7 @@
     "lead": "One last step before you start: enter your student code and choose your level and division. Every Masari module uses this information.",
     "studentCode": "Student code",
     "studentCodeHint": "As on your student card: English letters, digits, and hyphens (-) only, 3 to 20 characters.",
+    "studentCodeTaken": "This student code is already registered to another student of your college. If it really is yours, contact the college administration to sort it out.",
     "level": "Level",
     "levelPlaceholder": "Choose your level",
     "division": "Division",
@@ -205,7 +206,8 @@
       "title": "Your academic profile",
       "studentCode": "Student code",
       "level": "Level",
-      "division": "Division"
+      "division": "Division",
+      "divisionUnavailable": "Not available at the moment"
     }
   },
   "modules": {

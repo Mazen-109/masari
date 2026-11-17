@@ -11,13 +11,13 @@ import {
   CATALOGS,
   openUserMenu,
   registerConfirmedStudent,
-  registerOnboardedStudent,
   registerStudent,
   signIn,
   signOut,
   TEST_PASSWORD,
   uniqueEmail,
 } from './support/flows';
+import { registerStudentWithProfile } from './support/students';
 
 // Sign-in, sign-out, and the first dashboard (US1 acceptance scenarios 3, 5, 6, 9, 10;
 // contracts/server-actions.md §4.3–4.4, contracts/routes.md §1–2, §4; FR-006, FR-008, FR-009, FR-044).
@@ -41,7 +41,7 @@ test('a confirmed student signs in and lands on the Arabic dashboard with their 
   page,
 }) => {
   const college = await createCollege();
-  const email = await registerOnboardedStudent(page, { college: college.slug, name: 'Mona Ali' });
+  const email = await registerStudentWithProfile(page, { college: college.slug, name: 'Mona Ali' });
 
   await signIn(page, { email });
 
@@ -59,7 +59,7 @@ test('a confirmed student signs in and lands on the Arabic dashboard with their 
 });
 
 test('signing in from the English screen still lands in the account language', async ({ page }) => {
-  const email = await registerOnboardedStudent(page);
+  const email = await registerStudentWithProfile(page);
   await signIn(page, { email, locale: 'en' });
   await expect(page).toHaveURL('/ar/dashboard');
 });
@@ -70,7 +70,7 @@ test('the language chosen on the dashboard is remembered with the account, on an
   baseURL,
   extraHTTPHeaders,
 }) => {
-  const email = await registerOnboardedStudent(page);
+  const email = await registerStudentWithProfile(page);
   await signIn(page, { email });
   await expect(page).toHaveURL('/ar/dashboard');
   // A working user menu shows the page is hydrated, so the switch below runs its click handler.
@@ -157,7 +157,7 @@ test('an unconfirmed account with the correct password is told to confirm and ca
 test('a signed-out visit to the dashboard goes to sign-in with next, and back after signing in', async ({
   page,
 }) => {
-  const email = await registerOnboardedStudent(page);
+  const email = await registerStudentWithProfile(page);
 
   await page.goto('/ar/dashboard');
   await expect(page).toHaveURL('/ar/sign-in?next=%2Fdashboard');
@@ -174,14 +174,14 @@ test('a safe next is honoured after sign-in', async ({ page }) => {
 });
 
 test('next=//evil.test is ignored', async ({ page }) => {
-  const email = await registerOnboardedStudent(page);
+  const email = await registerStudentWithProfile(page);
   await signIn(page, { email, query: 'next=%2F%2Fevil.test' });
   await expect(page.locator('main input[name="next"]')).toHaveCount(0);
   await expect(page).toHaveURL('/ar/dashboard');
 });
 
 test('signed-in users opening /, /sign-in, or /register go to the dashboard', async ({ page }) => {
-  const email = await registerOnboardedStudent(page);
+  const email = await registerStudentWithProfile(page);
   await signIn(page, { email });
   await expect(page).toHaveURL('/ar/dashboard');
 
@@ -192,7 +192,7 @@ test('signed-in users opening /, /sign-in, or /register go to the dashboard', as
 });
 
 test('the signed-in shell starts with the skip link', async ({ page }) => {
-  const email = await registerOnboardedStudent(page);
+  const email = await registerStudentWithProfile(page);
   await signIn(page, { email });
   await expect(page).toHaveURL('/ar/dashboard');
 
@@ -204,7 +204,7 @@ test('the signed-in shell starts with the skip link', async ({ page }) => {
 });
 
 test('after sign-out the dashboard is gone, also through the back button', async ({ page }) => {
-  const email = await registerOnboardedStudent(page);
+  const email = await registerStudentWithProfile(page);
   await signIn(page, { email });
   await expect(page).toHaveURL('/ar/dashboard');
 
@@ -224,7 +224,7 @@ test('after sign-out the dashboard is gone, also through the back button', async
 test('a session cookie saved before sign-out no longer works (the session row is gone)', async ({
   page,
 }) => {
-  const email = await registerOnboardedStudent(page);
+  const email = await registerStudentWithProfile(page);
   await signIn(page, { email });
   await expect(page).toHaveURL('/ar/dashboard');
   const saved = await sessionCookie(page);
@@ -284,31 +284,28 @@ test('the 11th sign-in attempt for one email within 10 minutes is refused', asyn
 
 test('every sign-in writes exactly one auth.sign_in audit row', async ({ page }) => {
   const college = await createCollege();
-  // Onboarding the student signed in and out once already: count from there.
-  const email = await registerOnboardedStudent(page, { college: college.slug });
-  const signInsBefore = await countAuditEvents(college.slug, 'auth.sign_in');
-  const signOutsBefore = await countAuditEvents(college.slug, 'auth.sign_out');
-  expect(signInsBefore).toBe(1);
+  const email = await registerStudentWithProfile(page, { college: college.slug });
+  expect(await countAuditEvents(college.slug, 'auth.sign_in')).toBe(0);
 
   await signIn(page, { email });
   await expect(page).toHaveURL('/ar/dashboard');
-  expect(await countAuditEvents(college.slug, 'auth.sign_in')).toBe(signInsBefore + 1);
+  expect(await countAuditEvents(college.slug, 'auth.sign_in')).toBe(1);
 
   await signOut(page);
-  expect(await countAuditEvents(college.slug, 'auth.sign_out')).toBe(signOutsBefore + 1);
+  expect(await countAuditEvents(college.slug, 'auth.sign_out')).toBe(1);
 
   await signIn(page, { email, password: `${TEST_PASSWORD}x` });
   await expect(formError(page)).toHaveAttribute('data-code', 'invalid_credentials');
   await signIn(page, { email, open: false });
   await expect(page).toHaveURL('/ar/dashboard');
-  expect(await countAuditEvents(college.slug, 'auth.sign_in')).toBe(signInsBefore + 2);
+  expect(await countAuditEvents(college.slug, 'auth.sign_in')).toBe(2);
 });
 
 test.describe('without JavaScript', () => {
   test.use({ javaScriptEnabled: false });
 
   test('signing in, a refusal, and signing out all work', async ({ page }) => {
-    const email = await registerOnboardedStudent(page);
+    const email = await registerStudentWithProfile(page);
 
     await signIn(page, { email, password: `${TEST_PASSWORD}x` });
     await expect(formError(page)).toHaveAttribute('data-code', 'invalid_credentials');

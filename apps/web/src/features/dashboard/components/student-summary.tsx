@@ -5,15 +5,19 @@ type StudentSummaryProps = Readonly<{
   studentCode: string;
   /** «الفرقة الثالثة» / "Level 3". */
   levelLabel: string;
-  /** The division's name in the current language. */
-  divisionName: string;
+  /**
+   * The division in the current language; `active: false` once the college deactivated it. null when it
+   * cannot be found (never expected: the foreign key keeps it).
+   */
+  division: Readonly<{ name: string; active: boolean }> | null;
 }>;
 
 /**
  * The student's academic profile on the home screen (contracts/routes.md §4, FR-024): student code, level,
- * and division. The code is Latin text and is isolated (`dir="ltr"`) inside the Arabic layout.
+ * and division — with a note when the division is deactivated, and the note alone when it cannot be read,
+ * so the entry is never empty. The code is Latin text and is isolated (`dir="ltr"`) inside the Arabic layout.
  */
-export function StudentSummary({ studentCode, levelLabel, divisionName }: StudentSummaryProps) {
+export function StudentSummary({ studentCode, levelLabel, division }: StudentSummaryProps) {
   const t = useTranslations('dashboard.studentSummary');
 
   return (
@@ -40,7 +44,18 @@ export function StudentSummary({ studentCode, levelLabel, divisionName }: Studen
           <div className="flex flex-col gap-1">
             <dt className="text-sm text-muted-foreground">{t('division')}</dt>
             <dd className="font-medium" data-field="division">
-              {divisionName}
+              {division === null ? (
+                <span className="text-muted-foreground">{t('divisionUnavailable')}</span>
+              ) : (
+                <>
+                  {division.name}
+                  {division.active ? null : (
+                    <span className="block text-sm font-normal text-muted-foreground">
+                      {t('divisionUnavailable')}
+                    </span>
+                  )}
+                </>
+              )}
             </dd>
           </div>
         </dl>

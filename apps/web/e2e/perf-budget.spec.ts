@@ -1,5 +1,6 @@
 import { expect, test } from './support/fixtures';
-import { registerOnboardedStudent, signIn } from './support/flows';
+import { signIn } from './support/flows';
+import { registerStudentWithProfile } from './support/students';
 
 // Script budget (contracts/ci.md §5, FR-043): the compressed bytes of every JavaScript response a fresh
 // visitor downloads, measured through the Chromium DevTools protocol until the network is idle. Public
@@ -14,7 +15,7 @@ for (const { path, limitKB, signedIn } of BUDGETS) {
   test(`scripts on ${path} stay within ${limitKB} KB`, async ({ page: setupPage }, testInfo) => {
     let page = setupPage;
     if (signedIn === true) {
-      const email = await registerOnboardedStudent(setupPage);
+      const email = await registerStudentWithProfile(setupPage);
       await signIn(setupPage, { email });
       await setupPage.waitForURL('/ar/dashboard');
       page = await setupPage.context().newPage();

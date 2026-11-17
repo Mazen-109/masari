@@ -60,6 +60,10 @@ export function StudentProfileForm({ levels, divisions }: StudentProfileFormProp
         label={t('studentCode')}
         hint={t('studentCodeHint')}
         error={fieldErrors?.studentCode}
+        // US2 scenario 3: say the code is in use and whom to contact (the shared text says only the first).
+        errorMessage={
+          fieldErrors?.studentCode === 'student_code_taken' ? t('studentCodeTaken') : undefined
+        }
       >
         {(control) => (
           <Input

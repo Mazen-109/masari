@@ -63,8 +63,13 @@ export default async function DashboardPage({ params }: Props) {
         <StudentSummary
           studentCode={profile.studentCode}
           levelLabel={tCommon(levelLabelKey(profile.level))}
-          divisionName={
-            division === null ? '' : locale === 'ar' ? division.nameAr : division.nameEn
+          division={
+            division === null
+              ? null
+              : {
+                  name: locale === 'ar' ? division.nameAr : division.nameEn,
+                  active: division.isActive,
+                }
           }
         />
       )}

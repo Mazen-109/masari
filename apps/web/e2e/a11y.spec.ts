@@ -5,11 +5,11 @@ import {
   CATALOGS,
   completeProfile,
   registerConfirmedStudent,
-  registerOnboardedStudent,
   registerStudent,
   signIn,
   uniqueEmail,
 } from './support/flows';
+import { registerStudentWithProfile } from './support/students';
 
 // Accessibility scan of every screen in both languages (contracts/ci.md §5, FR-042). Every batch that adds
 // a screen appends it here: public screens to PUBLIC_SCREENS; signed-in screens (scanned once per role
@@ -43,7 +43,7 @@ async function signInAs(page: Page, role: string): Promise<void> {
     return;
   }
   if (role !== 'student') throw new Error(`a11y: no sign-in fixture for the role ${role} yet`);
-  const email = await registerOnboardedStudent(page);
+  const email = await registerStudentWithProfile(page);
   await signIn(page, { email });
   await page.waitForURL('/ar/dashboard');
 }
