@@ -24,6 +24,13 @@ for (const locale of ['ar', 'en'] as const) {
       messages.privacy.rights.title,
     ]);
     await expect(page.locator('main')).toContainText(messages.privacy.rights.delete);
+    for (const text of [
+      messages.privacy.access.operators,
+      messages.privacy.access.providers,
+      messages.privacy.access.nobodyElse,
+    ]) {
+      await expect(page.locator('main')).toContainText(text);
+    }
   });
 
   test(`the public shell has a header, main, and a footer link to the notice (${locale})`, async ({

@@ -274,7 +274,8 @@ roving-tabindex menu, tab, and radio items, keep the ring.
 `apps/web/src/components/ui/button.tsx` (shadcn/ui, adapted). Variants: `primary` (one per form or
 region), `secondary` (teal wash), `outline` (`input` border on `surface`), `ghost`, `destructive`,
 `link`. Sizes: `default` (min 44 px high, 20 px inline padding), `lg` (48 px), `icon` (44 × 44 px).
-Medium weight (500), 16 px text, colour-only transitions (150 ms), disabled at 50 % opacity. `asChild`
+Medium weight (500), 16 px text, colour-only transitions (150 ms), disabled at 50 % opacity; `aria-disabled` (a submit button while its form is sent) at 70 % with a
+not-allowed cursor, still focusable. `asChild`
 renders a link with button styling. A `<button>` defaults to `type="button"`; submit buttons say
 `type="submit"`.
 

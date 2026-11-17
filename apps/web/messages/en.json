@@ -96,7 +96,7 @@
     "intro": "This notice explains what Masari keeps about you, why, who can see it, and how to ask for it to be corrected or deleted. You are asked to accept it when you create your account, and we record the date and time you accepted.",
     "collected": {
       "title": "What we keep",
-      "account": "Account details: your name, email address, and password. The password is stored hashed, so nobody can read it — not even the Masari team.",
+      "account": "Account details: your name, email address, password, your role (student, faculty member, Student Affairs, or college administration), and your account status (active or suspended). The password is stored hashed, so nobody can read it — not even the Masari team.",
       "academic": "Study details: your college, student code, level, and division.",
       "preferences": "Your preferences: the interface language, and the date and time you accepted this notice.",
       "security": "Security details: the internet (IP) address you connect from, information about your browser and device, and a log of important actions such as signing in and role changes."
@@ -107,14 +107,16 @@
     },
     "access": {
       "title": "Who can see it",
-      "you": "You: your profile page shows your name, email address, college, student code, level, division, and interface language. Security details (IP address, browser and device information, and the activity log) are kept to protect your account and are not shown there.",
+      "you": "You: your profile page shows your name and your email address (read-only), and for students also the student code, level, and division. Security details (IP address, browser and device information, and the activity log) are kept to protect your account and are not shown there.",
       "college": "Your college administration: to manage accounts and to correct study details when needed.",
       "staff": "Faculty members: only what the services your college turns on need.",
-      "nobodyElse": "No other college can see your data, and we do not share it with anyone outside unless the law requires us to."
+      "operators": "The Masari platform operators: they can access data only to run, maintain, and support the platform.",
+      "providers": "Service providers that process data on Masari’s behalf: website hosting, the database, and email delivery. They process it only to provide these services.",
+      "nobodyElse": "No other college can see your data. We do not sell your data, and we share it with no one else unless the law requires it."
     },
     "rights": {
       "title": "How to ask for a correction or deletion",
-      "correct": "You can change your name, interface language, level, and division yourself on your profile page. To correct your student code, contact your college administration.",
+      "correct": "Everyone can change their name and interface language on their profile page. Students can also change their level and division. To correct your student code, contact your college administration.",
       "delete": "Contact your college administration about deleting your account or getting a copy of your data."
     }
   },

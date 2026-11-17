@@ -57,6 +57,8 @@ export default async function PrivacyPage({ params }: Props) {
           <li>{t('access.you')}</li>
           <li>{t('access.college')}</li>
           <li>{t('access.staff')}</li>
+          <li>{t('access.operators')}</li>
+          <li>{t('access.providers')}</li>
         </ul>
         <p className="mt-3">{t('access.nobodyElse')}</p>
       </section>

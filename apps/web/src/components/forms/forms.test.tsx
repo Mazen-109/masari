@@ -171,9 +171,9 @@ describe('SubmitButton', () => {
     const html = render(<SubmitButton>Create account</SubmitButton>);
     expect(html).toMatch(/^<button[^>]* type="submit"/);
     expect(html).toContain('Create account');
-    expect(html).not.toContain('aria-disabled');
+    expect(html).not.toContain('aria-disabled=');
     expect(html).not.toContain(en.common.actions.pending);
-    expect(html).not.toContain('aria-busy');
+    expect(html).not.toContain('aria-busy=');
   });
 
   it.each([
@@ -188,6 +188,9 @@ describe('SubmitButton', () => {
       expect(button).toContain('type="submit"');
       expect(button).toContain('aria-disabled="true"');
       expect(button).toContain('aria-busy="true"');
+      // Looks disabled while pending (the aria-disabled styles of Button).
+      expect(button).toContain('aria-disabled:opacity-70');
+      expect(button).toContain('aria-disabled:cursor-not-allowed');
       // Stays focusable: marked aria-disabled, never the disabled attribute.
       expect(button).not.toMatch(/\sdisabled(=|\s|>)/);
       expect(html).toContain(catalog.common.actions.pending);
