@@ -8,8 +8,9 @@ import { FALLBACK_NOT_FOUND_TITLE } from '@/lib/fallback-text';
 
 // On a 404 render Next.js takes the title from the layouts plus the deepest `not-found` file of the
 // matched tree, not from the page that called `notFound()` — so the localized 404 title
-// (`<Screen> · مساري`, contracts/routes.md §1) is set here. For an unknown locale (`/fr`) this file
-// still shadows `app/not-found.tsx` metadata, so it returns the bilingual fallback title.
+// (`<Screen> · مساري`, contracts/routes.md §1) is set here. For an unknown locale it returns the
+// bilingual fallback title; the `/fr` page itself gets its title from the `<title>` element of
+// `app/not-found.tsx`, because no metadata title is emitted when the layout calls `notFound()`.
 export async function generateMetadata({
   params,
 }: {

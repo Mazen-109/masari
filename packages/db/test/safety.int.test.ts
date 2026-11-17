@@ -70,7 +70,8 @@ describe('assertSafeRuntimeRole', () => {
 
   it('throws when connected as the owner', async () => {
     await expect(checkAs()).rejects.toThrow('Unsafe database role');
-    // The web app's start-up check recognises this class and prints its message (instrumentation.ts).
+    // The web app's start-up check recognises this class and prints its message
+    // (apps/web/src/server/startup.ts).
     await expect(checkAs()).rejects.toBeInstanceOf(UnsafeRuntimeRoleError);
   });
 

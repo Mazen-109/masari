@@ -362,10 +362,10 @@ here, and from then on versions change only through reviewed PRs (Dependabot or 
 | zod | 4 | 4.6.7 (`@masari/db`; `@masari/web` since PR-9) |
 | nodemailer | latest stable | |
 | vitest / @vitest/coverage-v8 | latest stable (≥ 3) | 4.1.12 / 4.1.12 |
-| @playwright/test / @axe-core/playwright | 1 / 4 | |
+| @playwright/test / @axe-core/playwright | 1 / 4 | 1.63.0 (exact pin: matches the Chromium build CI installs) / 4.14.0 |
 | eslint / typescript-eslint / eslint-config-next | latest supported by eslint-config-next 16 | 9.39.5 (+ @eslint/js 9.39.5) / 8.73.0 / 16.4.6 |
 | prettier / prettier-plugin-tailwindcss | 3 / latest | 3.10.1 / 0.7.4 |
-| tsx / dotenv-cli | latest stable | 4.23.15 / 8.0.0 (also `@masari/web` devDependency since PR-9) |
+| tsx / dotenv-cli | latest stable | 4.23.15 / 8.0.0 (dotenv-cli also a `@masari/web` devDependency since PR-9; tsx since PR-10) |
 | @fontsource/ibm-plex-sans-arabic / lucide-react | latest stable | 5.3.0 / (not installed yet) |
 | clsx / tailwind-merge / class-variance-authority / @radix-ui/react-slot (shadcn/ui, PR-8) | latest stable | 2.1.1 / 3.7.0 / 0.7.1 / 1.5.0 |
 
