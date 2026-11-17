@@ -135,11 +135,17 @@ setActive(tx: Tx, id: string, isActive: boolean): Promise<Division | null>
 ```ts
 findByUserId(tx: Tx, userId: string): Promise<StudentProfile | null>
 create(tx: Tx, input: { userId: string; studentCode: string; level: number; divisionId: string }):
-  Promise<{ ok: true; value: StudentProfile } | { ok: false; reason: 'student_code_taken' | 'already_exists' | 'invalid_division' }>
+  Promise<{ ok: true; value: StudentProfile } | { ok: false; reason: 'student_code_taken' | 'already_exists' | 'invalid_division' | 'user_not_in_tenant' }>
+  // user_not_in_tenant: the account is unknown or belongs to another college (looked up in the same tx, before the insert)
 update(tx: Tx, userId: string, patch: { studentCode?: string; level?: number; divisionId?: string }):
   Promise<{ ok: true; value: StudentProfile } | { ok: false; reason: 'student_code_taken' | 'not_found' | 'invalid_division' }>
+  // an empty patch writes nothing (updated_at unchanged) and returns the profile, or not_found
 maxLevelInUse(tx: Tx): Promise<number>                                         // 0 when the college has no profiles
 ```
+
+Any other database error from `create` / `update` is thrown as `StudentProfileQueryError` (exported in the
+namespace): name `StudentProfileQueryError`, `code` = the SQLSTATE, a message naming only the operation, and
+no `cause` — driver and Drizzle errors quote the statement's parameters, which include the student code.
 
 **`invitations`**
 
@@ -213,6 +219,11 @@ export function countSessionsByEmail(migrationUrl: string, email: string): Promi
 /** Deletes rate-limit counters whose key starts with keyPrefix (default: all) → rows removed. Refuses (before
  *  connecting) a database whose name does not match /^masari_(test|e2e)[a-z0-9_]*$/. e2e global setup. */
 export function resetRateLimits(migrationUrl: string, keyPrefix?: string): Promise<number>;
+/** e2e fixture: the account with this email gets an academic profile in its college (level default 1, division by
+ *  code, default its first by sort order); no audit row. Throws for an unknown email or division; refuses (before
+ *  connecting) a database that is not masari_(test|e2e)…. Signed-in specs that are not about onboarding. */
+export function createStudentProfile(migrationUrl: string, email: string,
+  input: { studentCode: string; level?: number; divisionCode?: string }): Promise<void>;
 export function expireInvitation(migrationUrl: string, email: string): Promise<void>;   // sets expires_at to the past
 ```
 
@@ -231,7 +242,7 @@ All `admin` functions that write tenant-scoped rows set the tenant context exact
 | `rate-limit.int.test.ts` | Counts, refuses over the limit with a positive `retryAfterSeconds`, resets after the window (window passed as 1 s), concurrent hits are atomic; `purgeExpiredRateLimits` removes only counters older than the given age. |
 | `users.int.test.ts` | Tenant filter on every scoped function (cross-college `setRole`/`setStatus`/`findInTenant` → null/false); search escapes `%` and `_`; pagination and totals; `activateInvited`; `deleteJustCreated` removes a fresh user of that college with its accounts/sessions and refuses another college's user and a user older than 10 minutes. |
 | `sessions.int.test.ts` | `revokeAllForUser` deletes only that user's sessions; `revokeByToken` deletes only the session with that token. |
-| `student-profiles.int.test.ts` | Unique code per college (and concurrent creates → exactly one wins); same code in two colleges; division from another college → `invalid_division`; cross-college invisibility; `maxLevelInUse`. |
+| `student-profiles.int.test.ts` | Unique code per college (and concurrent creates → exactly one wins); same code in two colleges (create and update); division from another college → `invalid_division`; account from another college → `user_not_in_tenant`; empty update patch; unexpected errors never carry the code; cross-college invisibility; `maxLevelInUse`. |
 | `invitations.int.test.ts` | One pending per email; expired pending replaced; token lookup works only with the matching hash and returns nothing for other tokens; concurrent `claim` → exactly one succeeds; `release`; `revoke` states; cross-college invisibility. |
 | `auth-schema.int.test.ts` | Defaults `student`/`active`/`ar`; upper-case email, unknown role, and missing tenant rejected; deleting a user cascades to sessions and accounts and sets `audit_events.actor_user_id` to NULL. |
 | `cli.int.test.ts` | `tenant-create` and `tenant-set-status` scripts: outputs and exit codes of `cli.md` §4–5; nothing changes on failure. |

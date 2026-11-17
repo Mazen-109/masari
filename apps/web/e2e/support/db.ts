@@ -2,12 +2,14 @@ import { randomBytes } from 'node:crypto';
 import {
   countAuditEvents as countAuditEventsIn,
   countSessionsByEmail as countSessionsByEmailIn,
+  createStudentProfile as createStudentProfileIn,
   createTenant,
   getAdminDbEnv,
   getUserByEmail as getUserByEmailIn,
   resetRateLimits as resetRateLimitsIn,
   setTenantStatus as setTenantStatusIn,
   withDatabaseName,
+  type StudentProfileFixture,
   type UserDetails,
 } from '@masari/db/admin';
 import { E2E_DATABASE } from './constants';
@@ -30,6 +32,14 @@ export function countAuditEvents(tenantSlug: string, action: string): Promise<nu
 /** Number of sign-in sessions stored for the account with this email (0 when there is none). */
 export function countSessions(email: string): Promise<number> {
   return countSessionsByEmailIn(ownerUrl(), email);
+}
+
+/**
+ * Gives the account an academic profile directly (no screens, no audit row), for signed-in specs that are
+ * not about onboarding. Onboarding itself is tested through the screens (registerOnboardedStudent).
+ */
+export function createStudentProfile(email: string, input: StudentProfileFixture): Promise<void> {
+  return createStudentProfileIn(ownerUrl(), email, input);
 }
 
 /** Suspends or reactivates a college (as `pnpm tenant:set-status` will); sessions are not touched. */

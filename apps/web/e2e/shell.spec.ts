@@ -1,14 +1,8 @@
 import type { Locator, Page } from '@playwright/test';
 import { expectNoA11yViolations } from './support/axe';
 import { expect, test } from './support/fixtures';
-import {
-  CATALOGS,
-  openUserMenu,
-  registerConfirmedStudent,
-  signIn,
-  userMenuTrigger,
-  type TestLocale,
-} from './support/flows';
+import { CATALOGS, openUserMenu, signIn, userMenuTrigger, type TestLocale } from './support/flows';
+import { registerStudentWithProfile } from './support/students';
 
 // The signed-in shell (US1 acceptance scenario 3; contracts/routes.md §4–5 and §7, permissions.md §5;
 // FR-016, FR-035, FR-039, FR-040, FR-042): navigation and module cards of a student, the 404 inside the
@@ -21,7 +15,7 @@ const STUDENT_MODULES = ['mueed', 'codejudge', 'kitabi', 'careermap', 'tadreeb']
 
 /** Signs in a new student of the demo college and opens `/{locale}/dashboard`. */
 async function signInStudent(page: Page, locale: TestLocale = 'ar'): Promise<void> {
-  const email = await registerConfirmedStudent(page);
+  const email = await registerStudentWithProfile(page);
   await signIn(page, { email });
   await page.waitForURL('/ar/dashboard');
   if (locale !== 'ar') await page.goto(`/${locale}/dashboard`);

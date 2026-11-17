@@ -3,15 +3,18 @@ import { expectNoA11yViolations } from './support/axe';
 import { expect, test } from './support/fixtures';
 import {
   CATALOGS,
+  completeProfile,
   registerConfirmedStudent,
   registerStudent,
   signIn,
   uniqueEmail,
 } from './support/flows';
+import { registerStudentWithProfile } from './support/students';
 
 // Accessibility scan of every screen in both languages (contracts/ci.md §5, FR-042). Every batch that adds
 // a screen appends it here: public screens to PUBLIC_SCREENS; signed-in screens (scanned once per role
-// that can open them, from PR-18 on when signing in exists) to SIGNED_IN_SCREENS.
+// that can open them, from PR-18 on when signing in exists) to SIGNED_IN_SCREENS. The pseudo-role
+// `new_student` is a confirmed student who has not completed the academic profile yet (PR-22).
 export const PUBLIC_SCREENS: readonly string[] = [
   '/sign-in',
   '/sign-in?reason=account_suspended&reset=1&invited=1',
@@ -25,6 +28,7 @@ export const PUBLIC_SCREENS: readonly string[] = [
 export const SIGNED_IN_SCREENS: readonly { path: string; roles: readonly string[] }[] = [
   { path: '/dashboard', roles: ['student'] },
   { path: '/modules/mueed', roles: ['student'] },
+  { path: '/onboarding', roles: ['new_student'] },
 ];
 
 /**
@@ -32,8 +36,14 @@ export const SIGNED_IN_SCREENS: readonly { path: string; roles: readonly string[
  * the staff roles come with invitations (PR-27), which extend this helper.
  */
 async function signInAs(page: Page, role: string): Promise<void> {
+  if (role === 'new_student') {
+    const email = await registerConfirmedStudent(page);
+    await signIn(page, { email });
+    await page.waitForURL('/ar/onboarding');
+    return;
+  }
   if (role !== 'student') throw new Error(`a11y: no sign-in fixture for the role ${role} yet`);
-  const email = await registerConfirmedStudent(page);
+  const email = await registerStudentWithProfile(page);
   await signIn(page, { email });
   await page.waitForURL('/ar/dashboard');
 }
@@ -91,6 +101,21 @@ for (const locale of LOCALES) {
     await expect(
       page.getByRole('heading', { level: 2, name: CATALOGS[locale].auth.resend.titleMissing }),
     ).toBeVisible();
+    await expectNoA11yViolations(page);
+  });
+
+  test(`no serious or critical violations on the onboarding form with field errors (${locale})`, async ({
+    page,
+  }) => {
+    await signInAs(page, 'new_student');
+    await page.goto(localized(locale, '/onboarding'));
+    await completeProfile(page, { locale, studentCode: 'x y' });
+    const code = page.getByLabel(CATALOGS[locale].onboarding.studentCode, { exact: true });
+    await expect(code).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.locator('main [data-slot="form-error"]')).toHaveAttribute(
+      'data-code',
+      'validation',
+    );
     await expectNoA11yViolations(page);
   });
 

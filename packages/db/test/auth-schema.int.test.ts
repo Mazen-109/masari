@@ -145,9 +145,12 @@ describe('deleting a user', () => {
     expect(await count('sessions', keep.id)).toBe(1);
     expect(await count('accounts', keep.id)).toBe(1);
 
+    // Filtered explicitly: a superuser owner bypasses even forced row-level security, and other test
+    // files write audit events of their own colleges at the same time.
     const events = await ownerTenantQuery<{ actor_user_id: string | null }>(
       tenant.id,
-      'SELECT actor_user_id FROM audit_events ORDER BY actor_user_id NULLS FIRST',
+      'SELECT actor_user_id FROM audit_events WHERE tenant_id = $1 ORDER BY actor_user_id NULLS FIRST',
+      [tenant.id],
     );
     expect(events.rows).toEqual([{ actor_user_id: null }, { actor_user_id: keep.id }]);
   });

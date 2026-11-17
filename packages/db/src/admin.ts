@@ -12,7 +12,8 @@ export type { SeedResult } from './admin/seed';
 export {
   countAuditEvents,
   countSessionsByEmail,
+  createStudentProfile,
   getUserByEmail,
   resetRateLimits,
 } from './admin/test-support';
-export type { UserDetails } from './admin/test-support';
+export type { StudentProfileFixture, UserDetails } from './admin/test-support';

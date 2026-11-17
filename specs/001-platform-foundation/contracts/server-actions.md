@@ -52,7 +52,8 @@ export const fail: (code: ErrorCode, extra?: {...}) => ActionResult<never>;
   right after the change succeeds with `recordAudit(ctx, event)`, which opens its own transaction.
 - `auth.api.*` in this document means `getAuth().api.*`: `server/auth/auth.ts` exports a lazy, memoised
   `getAuth()` and creates no auth instance at module scope (`http-and-env.md` §3 "Parsing").
-- Unknown exceptions are caught, logged with `log.error(event, { errorName })` (no personal data), and
+- Unknown exceptions are caught, logged with `log.error(event, { errorName })` — plus `sqlState` (the
+  five-character SQLSTATE) where the action can meet a database error; no personal data — and
   returned as `fail('internal')`. Redirect/not-found signals thrown by Next.js are re-thrown.
 - Error and field codes are translated in the UI from the `errors` message namespace; actions never return
   human-readable text.
@@ -227,7 +228,7 @@ All database calls are the `db-api.md` §1 functions, in the context named for e
 |---|---|---|---|---|---|
 | `setLocaleAction(locale)` (direct call, not a form) | session | `locale` | — | — | `ok`; the caller then navigates |
 | `updateAccountAction` (form) — FR-027 | session | `name` | — | — | `ok`; revalidate `/profile`, `/dashboard` |
-| `completeStudentProfileAction` (form) — FR-024…026 | `profile.academic.manage_own` | `studentCode`, `level`, `divisionId` | profile must not exist (`conflict`); `level ≤ levelsCount` (`out_of_range`); division active in college (`invalid_choice`); unique code (`student_code_taken`) | `profile.created` | `redirect('/{locale}/dashboard')` |
+| `completeStudentProfileAction` (form) — FR-024…026 | `profile.academic.manage_own` | `studentCode`, `level`, `divisionId` | checked first, in the transaction: a profile that already exists (also `already_exists` from a concurrent submit) is success — redirect, no change, no audit (double submit / back-button resubmit); `level ≤ levelsCount` (`out_of_range`); division active in college (`invalid_choice`); unique code (`student_code_taken`; the onboarding form adds "contact the college administration"); repository `user_not_in_tenant` → `forbidden` | `profile.created` | `redirect('/{locale}/dashboard')` |
 | `updateStudentProfileAction` (form) — FR-026, FR-027 | `profile.academic.manage_own` | `level`, `divisionId` | profile must exist (`not_found`); same level/division rules; current division allowed even if inactive | `profile.updated {fields}` | `ok`; revalidate `/profile`, `/dashboard` |
 
 ### 5.2 `features/invitations/actions.ts` — permission `admin.invitations.manage`

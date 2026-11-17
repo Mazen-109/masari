@@ -184,6 +184,51 @@ describe('studentProfiles.create', () => {
     expect(await pgErrorCode(createOk(collegeA, input))).toBe('23514');
   });
 
+  it("returns user_not_in_tenant for another college's account and an unknown account", async () => {
+    const ofB = await makeUser(collegeB.id);
+    const results = await inCollege(collegeA, async (tx) => {
+      const attempt = (userId: string) =>
+        studentProfiles.create(tx, {
+          userId,
+          studentCode: 'WRONG-1',
+          level: 1,
+          divisionId: collegeA.divisionId,
+        });
+      return [await attempt(ofB.id), await attempt('u_unknown'), await attempt('')];
+    });
+    expect(results).toEqual([
+      { ok: false, reason: 'user_not_in_tenant' },
+      { ok: false, reason: 'user_not_in_tenant' },
+      { ok: false, reason: 'user_not_in_tenant' },
+    ]);
+    const rows = await ownerTenantQuery(
+      collegeA.id,
+      'SELECT 1 FROM student_profiles WHERE user_id = $1',
+      [ofB.id],
+    );
+    expect(rows.rowCount).toBe(0);
+  });
+
+  it('never puts the student code in the message of an unexpected database error', async () => {
+    const user = await makeUser(collegeA.id);
+    const leaky = 'LEAK-CHECK-CODE-TOO-LONG';
+    const error: unknown = await inCollege(collegeA, (tx) =>
+      studentProfiles.create(tx, {
+        userId: user.id,
+        studentCode: leaky,
+        level: 1,
+        divisionId: collegeA.divisionId,
+      }),
+    ).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(studentProfiles.StudentProfileQueryError);
+    const wrapped = error as InstanceType<typeof studentProfiles.StudentProfileQueryError>;
+    expect(wrapped.name).toBe('StudentProfileQueryError');
+    expect(wrapped.code).toBe('23514');
+    expect(wrapped.message).not.toContain(leaky);
+    expect(wrapped.cause).toBeUndefined();
+    expect(String(wrapped.stack)).not.toContain(leaky);
+  });
+
   it('is refused without a tenant context', async () => {
     const user = await makeUser(collegeA.id);
     const code = await pgErrorCode(
@@ -272,6 +317,56 @@ describe('studentProfiles.update', () => {
       after: await studentProfiles.findByUserId(tx, other.userId),
     }));
     expect(outcome).toEqual({ result: { ok: false, reason: 'student_code_taken' }, after: other });
+  });
+
+  it('allows a code that is used only in another college', async () => {
+    await createOk(collegeB, { studentCode: 'ELSEWHERE-1' });
+    const created = await createOk(collegeA, { studentCode: 'HERE-1' });
+    const result = await inCollege(collegeA, (tx) =>
+      studentProfiles.update(tx, created.userId, { studentCode: 'ELSEWHERE-1' }),
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      value: { userId: created.userId, tenantId: collegeA.id, studentCode: 'ELSEWHERE-1' },
+    });
+  });
+
+  it('writes nothing for an empty patch and answers like findByUserId', async () => {
+    const created = await createOk(collegeA, { studentCode: 'EMPTY-1', level: 2 });
+    const ofB = await createOk(collegeB, { studentCode: 'EMPTY-2' });
+    const results = await inCollege(collegeA, async (tx) => [
+      await studentProfiles.update(tx, created.userId, {}),
+      await studentProfiles.update(tx, created.userId, {
+        studentCode: undefined,
+        level: undefined,
+        divisionId: undefined,
+      }),
+      await studentProfiles.update(tx, ofB.userId, {}),
+      await studentProfiles.update(tx, 'u_unknown', {}),
+    ]);
+    expect(results).toEqual([
+      { ok: true, value: created },
+      { ok: true, value: created },
+      { ok: false, reason: 'not_found' },
+      { ok: false, reason: 'not_found' },
+    ]);
+    // updated_at is untouched: the stored row still equals the created one.
+    expect(
+      await inCollege(collegeA, (tx) => studentProfiles.findByUserId(tx, created.userId)),
+    ).toEqual(created);
+  });
+
+  it('never puts the student code in the message of an unexpected database error', async () => {
+    const created = await createOk(collegeA, { studentCode: 'UPD-LEAK' });
+    const leaky = 'has space';
+    const error: unknown = await inCollege(collegeA, (tx) =>
+      studentProfiles.update(tx, created.userId, { studentCode: leaky }),
+    ).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(studentProfiles.StudentProfileQueryError);
+    const wrapped = error as InstanceType<typeof studentProfiles.StudentProfileQueryError>;
+    expect(wrapped.code).toBe('23514');
+    expect(wrapped.message).not.toContain(leaky);
+    expect(wrapped.cause).toBeUndefined();
   });
 
   it("returns invalid_division for another college's division and a non-uuid", async () => {

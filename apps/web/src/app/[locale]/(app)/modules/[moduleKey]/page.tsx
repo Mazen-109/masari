@@ -8,7 +8,7 @@ import { NavIcon } from '@/components/shell/nav-icon';
 import { Badge } from '@/components/ui/badge';
 import { routing } from '@/i18n/routing';
 import { MODULE_REGISTRY, visibleModules } from '@/modules/registry';
-import { getSessionContext, requireSession, type SessionContext } from '@/server/auth/session';
+import { requireSession, type SessionContext } from '@/server/auth/session';
 
 type Props = Readonly<{ params: Promise<{ locale: string; moduleKey: string }> }>;
 
@@ -25,16 +25,24 @@ function isVisible(moduleKey: string, ctx: SessionContext): moduleKey is ModuleK
 }
 
 /**
+ * The page's guard, shared by the metadata and the page so both decide alike: sign-in without a usable
+ * session, /onboarding for a student without a profile — both before any 404, so a module the student may
+ * not open never answers 404 in place of the onboarding redirect.
+ */
+function guard(moduleKey: string): Promise<SessionContext> {
+  return requireSession(`/modules/${encodeURIComponent(moduleKey)}`);
+}
+
+/**
  * The title names the module only when the page will show it. Otherwise `notFound()` is thrown here as
  * well: Next.js then takes the title from `(app)/not-found.tsx` (a page's own later `notFound()` does not
  * replace metadata already resolved), and the title never reveals a module the user may not open.
- * Without a session the page redirects to sign-in, so no title is needed.
+ * The guard runs first (same request-cached session as the page).
  */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale, moduleKey } = await params;
   if (!hasLocale(routing.locales, locale)) return {};
-  const ctx = await getSessionContext();
-  if (ctx === null) return {};
+  const ctx = await guard(moduleKey);
   if (!isVisible(moduleKey, ctx)) notFound();
   const t = await getTranslations({ locale, namespace: 'modules' });
   return { title: t(`${moduleKey}.name`) };
@@ -52,7 +60,7 @@ export default async function ModulePage({ params }: Props) {
   }
   setRequestLocale(locale);
   await connection();
-  const ctx = await requireSession(`/modules/${encodeURIComponent(moduleKey)}`);
+  const ctx = await guard(moduleKey);
   if (!isVisible(moduleKey, ctx)) notFound();
   const t = await getTranslations('modules');
   const tDashboard = await getTranslations('dashboard');

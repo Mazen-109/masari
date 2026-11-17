@@ -18,6 +18,11 @@ type FieldProps = Readonly<{
   hint?: ReactNode;
   /** Field error code from `ActionFailure.fieldErrors`; translated from the `errors` namespace. */
   error?: FieldErrorCode | null;
+  /**
+   * Replaces the generic translation of `error` when a screen needs to say more (e.g. what to do next).
+   * Used only while there is an error.
+   */
+  errorMessage?: ReactNode;
   /** Control id; generated when omitted. The hint and error ids derive from it. */
   id?: string;
   /** `stacked` (default): label above the control. `inline`: control then label on one row (checkbox). */
@@ -37,6 +42,7 @@ export function Field({
   label,
   hint,
   error,
+  errorMessage,
   id,
   layout = 'stacked',
   className,
@@ -66,7 +72,7 @@ export function Field({
   ) : null;
   const errorElement = hasError ? (
     <p id={errorId} className="text-sm font-medium text-danger">
-      {t(error)}
+      {errorMessage ?? t(error)}
     </p>
   ) : null;
 

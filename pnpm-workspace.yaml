@@ -1,3 +1,10 @@
 packages:
   - apps/*
   - packages/*
+
+# TEMPORARY (owner-approved 2026-11-17): GHSA-fc5q-39xc-vjpf (picomatch ReDoS, no patched
+# version yet) reaches the prod graph only via better-auth's optional `vitest` peer, which is
+# a test tool and never runs in production. Remove this entry as soon as picomatch is patched.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-fc5q-39xc-vjpf
