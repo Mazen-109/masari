@@ -38,6 +38,18 @@ async function expectNoFieldError(control: Locator) {
   await expect(control).not.toHaveAttribute('aria-invalid', 'true');
 }
 
+/**
+ * Exactly `count` messages to `to` since `since`, and still so after about a second: a duplicate sent a
+ * little later than the first message is caught too.
+ */
+async function expectEmailCountStays(to: string, since: Date, count: number) {
+  for (let check = 0; check < 5; check++) {
+    expect(await countEmails({ to, since })).toBe(count);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  expect(await countEmails({ to, since })).toBe(count);
+}
+
 function controls(page: Page, locale: TestLocale = 'ar') {
   const t = CATALOGS[locale].auth.register;
   return {
@@ -66,7 +78,7 @@ test('a new student registers, sees "check your email", and gets one confirmatio
   expect(message.template).toBe('verify-email');
   expect(firstLink(message)).toContain('/api/auth/verify-email?token=');
   expect(firstLink(message)).toContain(`callbackURL=${encodeURIComponent('/ar/email-verified')}`);
-  expect(await countEmails({ to: email, since })).toBe(1);
+  await expectEmailCountStays(email, since, 1);
 
   const user = await getUserByEmail(email);
   expect(user).toMatchObject({
@@ -122,7 +134,7 @@ test('registering an existing email shows the same screen and only notifies the 
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(ar.auth.verifyEmail.title);
   const notice = await waitForEmail({ to: email, subjectIncludes: EXISTS_SUBJECT, since });
   expect(notice.template).toBe('account-exists');
-  expect(await countEmails({ to: email, since })).toBe(1);
+  await expectEmailCountStays(email, since, 1);
   expect(await getUserByEmail(email)).toEqual(original);
   expect(await countAuditEvents(college.slug, 'user.registered')).toBe(1);
 });
@@ -139,9 +151,23 @@ test('the college is fixed by ?u= and shown in the page language', async ({ page
   await expect(controls(page, 'en').college).toHaveValue(college.nameEn);
 });
 
+test('the privacy link of the consent opens in a new tab and says so', async ({ page }) => {
+  await page.goto('/en/register?u=demo');
+  const linkText = /<link>(.*)<\/link>/.exec(en.auth.register.consent)?.[1] ?? '';
+  expect(linkText).not.toBe('');
+  const link = page
+    .locator('main')
+    .getByRole('link', { name: `${linkText}${en.common.opensInNewTab}`, exact: true });
+  await expect(link).toHaveAttribute('target', '_blank');
+  await expect(link).toHaveAttribute('rel', 'noopener');
+  await expect(link).toHaveAttribute('href', '/en/privacy');
+});
+
 test('an unknown ?u= shows the picker; each invalid field shows its error on the field', async ({
   page,
 }) => {
+  // With a single active college it would be fixed whatever ?u= says (FR-002); make sure there are two.
+  await createCollege();
   await page.goto('/ar/register?u=no-such-college');
   const form = controls(page);
   await expect(form.college).toHaveJSProperty('tagName', 'SELECT');
@@ -200,6 +226,11 @@ test.describe('without JavaScript', () => {
     await expectFieldError(page, form.email, 'invalid_email', 'en');
     await expectFieldError(page, form.password, 'password_too_short', 'en');
     await expectFieldError(page, form.consent, 'consent_required', 'en');
+    // The page is rendered from the action result: what was typed is back, except the password.
+    await expect(form.name).toHaveValue('M');
+    await expect(form.email).toHaveValue('not-an-email');
+    await expect(form.password).toHaveValue('');
+    await expect(form.consent).not.toBeChecked();
   });
 
   test('a new and an existing email get exactly the same redirect', async ({ page }) => {

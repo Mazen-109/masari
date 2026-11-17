@@ -5,7 +5,7 @@ import { redirect, unstable_rethrow } from 'next/navigation';
 import { getLocale } from 'next-intl/server';
 import { parseForm } from '@/lib/form';
 import { DEFAULT_LOCALE, isLocale, type Locale } from '@/lib/locale';
-import { fail, type ActionResult } from '@/lib/result';
+import { fail, ok, type ActionResult } from '@/lib/result';
 import { recordAudit } from '@/server/audit';
 import { getAuth } from '@/server/auth/auth';
 import { sendEmail } from '@/server/email/send';
@@ -84,6 +84,56 @@ async function createStudent(input: RegisterInput, tenantId: string, locale: Loc
   );
 }
 
+/** Non-secret fields echoed back on a failure (never the password), at most this many characters each. */
+const ENTERED_FIELDS = ['tenantSlug', 'name', 'email', 'consent'] as const;
+const MAX_ENTERED_LENGTH = 254;
+
+/**
+ * A failure plus what the user typed in the non-secret fields (`meta.tenantSlug`, `meta.name`,
+ * `meta.email`, `meta.consent`), so the form is re-filled also when JavaScript is off and the page is
+ * rendered from the action state. The password is never returned.
+ */
+function withEnteredValues(result: ActionResult, formData: FormData): ActionResult {
+  if (result.ok) return result;
+  const meta: Record<string, string | number> = { ...result.meta };
+  for (const key of ENTERED_FIELDS) {
+    const value = formData.get(key);
+    if (typeof value === 'string') meta[key] = value.slice(0, MAX_ENTERED_LENGTH);
+  }
+  return { ...result, meta };
+}
+
+/** Steps 1–8; `ok` means "go to the check-your-email screen" (step 9). */
+async function register(formData: FormData, locale: Locale): Promise<ActionResult> {
+  const parsed = parseForm(registerSchema, formData);
+  if (!parsed.ok) return parsed.failure;
+  const input = parsed.data;
+
+  const limited = await enforceRateLimit(
+    rateLimitRules('register', { email: input.email, ip: await getClientIp() }),
+  );
+  if (limited) return limited;
+
+  const tenant = await tenants.findBySlug(input.tenantSlug);
+  if (tenant?.status !== 'active') {
+    return fail('validation', { fieldErrors: { tenantSlug: 'invalid_choice' } });
+  }
+  if (!isEmailDomainAllowed(input.email, tenant.allowedEmailDomains)) {
+    return fail('validation', {
+      fieldErrors: { email: 'domain_not_allowed' },
+      meta: { domains: tenant.allowedEmailDomains.join(', ') },
+    });
+  }
+
+  if (await users.findByEmail(input.email)) {
+    await sendAccountExists(input.email);
+  } else {
+    // Step 6 (pending invitation → `invitation-pending` email) is added in PR-29.
+    await createStudent(input, tenant.id, locale);
+  }
+  return ok(undefined);
+}
+
 /**
  * Student self-registration (contracts/server-actions.md §4.1; FR-001…FR-005, FR-009, FR-011, FR-013).
  * A new address, an address that already has an account, and (from PR-29) one with a pending invitation
@@ -94,37 +144,14 @@ export async function registerStudentAction(
   formData: FormData,
 ): Promise<ActionResult> {
   const locale = await currentLocale();
+  let result: ActionResult;
   try {
-    const parsed = parseForm(registerSchema, formData);
-    if (!parsed.ok) return parsed.failure;
-    const input = parsed.data;
-
-    const limited = await enforceRateLimit(
-      rateLimitRules('register', { email: input.email, ip: await getClientIp() }),
-    );
-    if (limited) return limited;
-
-    const tenant = await tenants.findBySlug(input.tenantSlug);
-    if (tenant?.status !== 'active') {
-      return fail('validation', { fieldErrors: { tenantSlug: 'invalid_choice' } });
-    }
-    if (!isEmailDomainAllowed(input.email, tenant.allowedEmailDomains)) {
-      return fail('validation', {
-        fieldErrors: { email: 'domain_not_allowed' },
-        meta: { domains: tenant.allowedEmailDomains.join(', ') },
-      });
-    }
-
-    if (await users.findByEmail(input.email)) {
-      await sendAccountExists(input.email);
-    } else {
-      // Step 6 (pending invitation → `invitation-pending` email) is added in PR-29.
-      await createStudent(input, tenant.id, locale);
-    }
+    result = await register(formData, locale);
   } catch (error) {
     unstable_rethrow(error);
     log.error('auth.register_failed', { errorName: errorName(error) });
-    return fail('internal');
+    result = fail('internal');
   }
-  redirect(`/${locale}/verify-email`);
+  if (result.ok) redirect(`/${locale}/verify-email`);
+  return withEnteredValues(result, formData);
 }

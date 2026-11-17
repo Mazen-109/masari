@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useActionState, useState, type FormEvent } from 'react';
+import { useActionState } from 'react';
 import { Field } from '@/components/forms/field';
 import { FormError } from '@/components/forms/form-error';
 import { SubmitButton } from '@/components/forms/submit-button';
@@ -21,54 +21,45 @@ type RegisterFormProps = Readonly<{
   colleges: readonly CollegeOption[];
 }>;
 
-/** What the user typed, kept on the client only so the fields keep their values after a failed attempt. */
-type Remembered = { tenantSlug: string; name: string; email: string; consent: boolean };
-
-const EMPTY: Remembered = { tenantSlug: '', name: '', email: '', consent: false };
-
-function text(data: FormData, key: string): string {
-  const value = data.get(key);
+/** A value the action echoed back after a failure (`meta.<field>`; never the password). */
+function entered(result: ActionResult | null, key: string): string {
+  const value = result?.ok === false ? result.meta?.[key] : undefined;
   return typeof value === 'string' ? value : '';
 }
 
 /**
  * Student registration form (FR-001, FR-002, FR-011). Works without JavaScript (the Server Action posts
- * the form natively). With JavaScript, React resets the form after the action: the inputs then return to
- * their `defaultValue`, which holds what was submitted (the password is never kept).
+ * the form natively and the page is rendered from its result). After a failure the action echoes the
+ * non-secret fields, which become the inputs' default values: React resets the form to them, and without
+ * JavaScript they are rendered into the page. The password is never echoed.
  */
 export function RegisterForm({ college, colleges }: RegisterFormProps) {
   const t = useTranslations('auth.register');
+  const tCommon = useTranslations('common');
   const [result, formAction] = useActionState<ActionResult | null, FormData>(
     registerStudentAction,
     null,
   );
-  const [remembered, setRemembered] = useState<Remembered>(EMPTY);
   const fieldErrors = result?.ok === false ? result.fieldErrors : undefined;
-  const domains = result?.ok === false ? result.meta?.domains : undefined;
-
-  function remember(event: FormEvent<HTMLFormElement>) {
-    const data = new FormData(event.currentTarget);
-    setRemembered({
-      tenantSlug: text(data, 'tenantSlug'),
-      name: text(data, 'name'),
-      email: text(data, 'email'),
-      consent: data.get('consent') === 'on',
-    });
-  }
+  const domains = entered(result, 'domains');
+  const tenantSlug = entered(result, 'tenantSlug');
+  const consent = entered(result, 'consent') === 'on';
+  // A fixed college that the action refused (e.g. suspended meanwhile): let the visitor choose again.
+  const fixed = fieldErrors?.tenantSlug === undefined ? college : null;
 
   return (
-    <form action={formAction} onSubmit={remember} noValidate className="flex flex-col gap-6">
+    <form action={formAction} noValidate className="flex flex-col gap-6">
       <FormError result={result} />
 
-      {college === null ? (
+      {fixed === null ? (
         <Field id="register-college" label={t('college')} error={fieldErrors?.tenantSlug}>
           {(control) => (
             <Select
               {...control}
-              key={`college-${remembered.tenantSlug}`}
+              key={`college-${tenantSlug}`}
               name="tenantSlug"
               required
-              defaultValue={remembered.tenantSlug}
+              defaultValue={tenantSlug}
             >
               <option value="">{t('collegePlaceholder')}</option>
               {colleges.map((option) => (
@@ -80,11 +71,11 @@ export function RegisterForm({ college, colleges }: RegisterFormProps) {
           )}
         </Field>
       ) : (
-        <Field id="register-college" label={t('college')} error={fieldErrors?.tenantSlug}>
+        <Field id="register-college" label={t('college')}>
           {(control) => (
             <>
-              <Input {...control} readOnly value={college.name} />
-              <input type="hidden" name="tenantSlug" value={college.slug} />
+              <Input {...control} readOnly value={fixed.name} />
+              <input type="hidden" name="tenantSlug" value={fixed.slug} />
             </>
           )}
         </Field>
@@ -97,7 +88,7 @@ export function RegisterForm({ college, colleges }: RegisterFormProps) {
             name="name"
             autoComplete="name"
             required
-            defaultValue={remembered.name}
+            defaultValue={entered(result, 'name')}
           />
         )}
       </Field>
@@ -107,7 +98,7 @@ export function RegisterForm({ college, colleges }: RegisterFormProps) {
         label={t('email')}
         error={fieldErrors?.email}
         hint={
-          fieldErrors?.email === 'domain_not_allowed' && domains !== undefined ? (
+          fieldErrors?.email === 'domain_not_allowed' && domains !== '' ? (
             <>
               {t('allowedDomains')}
               <bdi dir="ltr" className="ms-1">
@@ -125,7 +116,7 @@ export function RegisterForm({ college, colleges }: RegisterFormProps) {
             dir="ltr"
             autoComplete="email"
             required
-            defaultValue={remembered.email}
+            defaultValue={entered(result, 'email')}
           />
         )}
       </Field>
@@ -153,8 +144,15 @@ export function RegisterForm({ college, colleges }: RegisterFormProps) {
         layout="inline"
         label={t.rich('consent', {
           link: (chunks) => (
-            <Link href="/privacy" className="text-primary underline underline-offset-4">
+            // A new tab, so the form keeps what was typed while the notice is read.
+            <Link
+              href="/privacy"
+              target="_blank"
+              rel="noopener"
+              className="text-primary underline underline-offset-4"
+            >
               {chunks}
+              <span className="sr-only">{tCommon('opensInNewTab')}</span>
             </Link>
           ),
         })}
@@ -163,10 +161,10 @@ export function RegisterForm({ college, colleges }: RegisterFormProps) {
         {(control) => (
           <Checkbox
             {...control}
-            key={`consent-${String(remembered.consent)}`}
+            key={`consent-${String(consent)}`}
             name="consent"
             required
-            defaultChecked={remembered.consent}
+            defaultChecked={consent}
           />
         )}
       </Field>

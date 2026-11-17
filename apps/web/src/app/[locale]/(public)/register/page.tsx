@@ -5,6 +5,7 @@ import { connection } from 'next/server';
 import { hasLocale } from 'next-intl';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { RegisterForm, type CollegeOption } from '@/features/auth/components/register-form';
+import { pickCollege } from '@/features/auth/rules';
 import { routing } from '@/i18n/routing';
 import { getSessionContext } from '@/server/auth/session';
 
@@ -21,9 +22,9 @@ export async function generateMetadata({ params }: Pick<Props, 'params'>): Promi
 }
 
 /**
- * Student registration (contracts/routes.md §2, FR-002). `?u=<slug>` of an active college fixes the
- * college, as does having exactly one active college; otherwise (including an unknown slug) the visitor
- * picks it. Signed-in users go to their dashboard.
+ * Student registration (contracts/routes.md §2, FR-002). The college is fixed by `?u=<slug>` of an active
+ * college, or — whatever `?u=` says — when exactly one active college exists (`pickCollege`); otherwise
+ * the visitor picks it. Signed-in users go to their dashboard.
  */
 export default async function RegisterPage({ params, searchParams }: Props) {
   const { locale } = await params;
@@ -43,12 +44,6 @@ export default async function RegisterPage({ params, searchParams }: Props) {
     slug: college.slug,
     name: locale === 'ar' ? college.nameAr : college.nameEn,
   }));
-  const fixed =
-    typeof u === 'string'
-      ? options.find((option) => option.slug === u)
-      : options.length === 1
-        ? options[0]
-        : undefined;
   const t = await getTranslations('auth.register');
 
   return (
@@ -56,7 +51,7 @@ export default async function RegisterPage({ params, searchParams }: Props) {
       <h1 className="text-3xl font-bold text-balance">{t('title')}</h1>
       <p className="mt-3 text-lg text-muted-foreground">{t('lead')}</p>
       <div className="mt-8">
-        <RegisterForm college={fixed ?? null} colleges={options} />
+        <RegisterForm college={pickCollege(options, u)} colleges={options} />
       </div>
     </div>
   );

@@ -84,6 +84,10 @@ describe('registerSchema', () => {
     ['   ', 'required'],
     [' M ', 'too_short'],
     ['م'.repeat(101), 'too_long'],
+    ['Mona\u0000Ali', 'invalid_format'],
+    ['Mona\nAli', 'invalid_format'],
+    ['Mona\tAli', 'invalid_format'],
+    ['Mona\u007fAli', 'invalid_format'],
   ])('name %j → %s', (value, code) => {
     expect(errorFor('name', value)).toBe(code);
   });

@@ -55,6 +55,7 @@
       "body": "We couldn't complete your request right now. Please try again in a moment."
     },
     "privacyNotice": "Privacy notice",
+    "opensInNewTab": " (opens in a new tab)",
     "retryAfter": "{count, plural, one {You can try again in {minutes} minute.} other {You can try again in {minutes} minutes.}}"
   },
   "errors": {

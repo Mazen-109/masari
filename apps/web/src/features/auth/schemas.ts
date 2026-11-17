@@ -7,13 +7,16 @@ import { z } from 'zod';
 
 const TENANT_SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
-/** Trimmed, 2–100 characters. */
+const CONTROL_CHARACTER = /\p{Cc}/u;
+
+/** Trimmed, 2–100 characters, no control characters (line breaks, tabs, NUL, …). */
 export const nameField = z
   .string({ error: 'required' })
   .trim()
   .min(1, { error: 'required' })
   .min(2, { error: 'too_short' })
-  .max(100, { error: 'too_long' });
+  .max(100, { error: 'too_long' })
+  .refine((value) => !CONTROL_CHARACTER.test(value), { error: 'invalid_format' });
 
 /** Trimmed, lower-cased, ≤ 254 characters, a valid address. */
 export const emailField = z

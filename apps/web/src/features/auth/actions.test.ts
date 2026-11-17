@@ -69,6 +69,14 @@ function form(overrides: Record<string, string> = {}): FormData {
   return data;
 }
 
+/** What the action echoes back on every failure: the fields of form() except the password. */
+const ENTERED = {
+  tenantSlug: 'demo',
+  name: 'Mona Ali',
+  email: 'mona@example.edu',
+  consent: 'on',
+};
+
 /** The redirect target, or the returned result when the action did not redirect. */
 async function run(data: FormData): Promise<unknown> {
   try {
@@ -119,15 +127,32 @@ describe('registerStudentAction', () => {
     );
   });
 
-  it('returns validation errors before any other work', async () => {
-    const result = await run(form({ consent: 'off' }));
-    expect(result).toMatchObject({ ok: false, fieldErrors: { consent: 'consent_required' } });
+  it('returns validation errors before any other work, echoing the fields but never the password', async () => {
+    const result = await run(form({ consent: 'off', name: ' M ', email: 'Not-An-Email' }));
+    expect(result).toStrictEqual(
+      fail('validation', {
+        fieldErrors: { name: 'too_short', email: 'invalid_email', consent: 'consent_required' },
+        meta: { tenantSlug: 'demo', name: ' M ', email: 'Not-An-Email', consent: 'off' },
+      }),
+    );
+    expect(JSON.stringify(result)).not.toContain('Ab1'.repeat(4));
     expect(mocks.enforceRateLimit).not.toHaveBeenCalled();
+  });
+
+  it('echoes at most 254 characters per field and skips missing fields', async () => {
+    const data = new FormData();
+    data.append('name', 'x'.repeat(300));
+    data.append('password', 'Ab1'.repeat(4));
+    const result = await run(data);
+    expect(result).toMatchObject({ meta: { name: 'x'.repeat(254) } });
+    expect(Object.keys((result as { meta: object }).meta)).toEqual(['name']);
   });
 
   it('returns the rate-limit refusal', async () => {
     mocks.enforceRateLimit.mockResolvedValue(fail('rate_limited', { retryAfterSeconds: 60 }));
-    await expect(run(form())).resolves.toEqual(fail('rate_limited', { retryAfterSeconds: 60 }));
+    await expect(run(form())).resolves.toEqual(
+      fail('rate_limited', { retryAfterSeconds: 60, meta: ENTERED }),
+    );
     expect(mocks.findBySlug).not.toHaveBeenCalled();
   });
 
@@ -136,7 +161,7 @@ describe('registerStudentAction', () => {
     async (college) => {
       mocks.findBySlug.mockResolvedValue(college);
       await expect(run(form())).resolves.toEqual(
-        fail('validation', { fieldErrors: { tenantSlug: 'invalid_choice' } }),
+        fail('validation', { fieldErrors: { tenantSlug: 'invalid_choice' }, meta: ENTERED }),
       );
       expect(mocks.signUpEmail).not.toHaveBeenCalled();
     },
@@ -150,7 +175,7 @@ describe('registerStudentAction', () => {
     await expect(run(form())).resolves.toEqual(
       fail('validation', {
         fieldErrors: { email: 'domain_not_allowed' },
-        meta: { domains: 'stud.example.edu, example.org' },
+        meta: { domains: 'stud.example.edu, example.org', ...ENTERED },
       }),
     );
   });
@@ -190,7 +215,7 @@ describe('registerStudentAction', () => {
 
   it('returns internal on an unexpected error without leaking it', async () => {
     mocks.findBySlug.mockRejectedValue(new TypeError('connection refused'));
-    await expect(run(form())).resolves.toEqual(fail('internal'));
+    await expect(run(form())).resolves.toEqual(fail('internal', { meta: ENTERED }));
     expect(mocks.log.error).toHaveBeenCalledWith('auth.register_failed', {
       errorName: 'TypeError',
     });
