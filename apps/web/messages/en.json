@@ -2,6 +2,7 @@
   "common": {
     "appName": "Masari",
     "switchLanguage": "العربية",
+    "skipToContent": "Skip to main content",
     "languages": {
       "ar": "Arabic",
       "en": "English"
@@ -82,6 +83,10 @@
     "code_taken": "This code is already in use.",
     "levels_in_use": "The number of levels can't be reduced while students are registered in higher levels.",
     "too_many": "This is more than allowed."
+  },
+  "home": {
+    "title": "Your companion through college, from the first day to graduation",
+    "lead": "One platform for students, faculty members, Student Affairs, and college administration."
   },
   "meta": {
     "titleTemplate": "%s · Masari",

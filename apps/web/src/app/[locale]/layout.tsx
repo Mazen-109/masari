@@ -5,6 +5,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import type { ReactNode } from 'react';
 import { routing } from '@/i18n/routing';
 import { dirOf } from '@/lib/locale';
+// Tokens and the self-hosted IBM Plex Sans Arabic font (both in globals.css).
 import '../globals.css';
 
 type Props = Readonly<{
@@ -38,7 +39,7 @@ export default async function LocaleLayout({ children, params }: Props) {
 
   return (
     <html lang={locale} dir={dirOf(locale)}>
-      <body>
+      <body className="antialiased">
         <NextIntlClientProvider>{children}</NextIntlClientProvider>
       </body>
     </html>

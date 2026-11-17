@@ -1,1 +1,196 @@
 @import 'tailwindcss';
+/*
+ * IBM Plex Sans Arabic (OFL-1.1), self-hosted: the font files are bundled and served by the app, never
+ * from a font CDN (CSP `font-src 'self'`). Imported here rather than in a layout so every page that
+ * loads this stylesheet — including the root 404 — gets the font. Each weight's CSS splits glyphs
+ * into unicode-range subsets, so English pages do not download the Arabic subset.
+ */
+@import '@fontsource/ibm-plex-sans-arabic/400.css';
+@import '@fontsource/ibm-plex-sans-arabic/500.css';
+@import '@fontsource/ibm-plex-sans-arabic/600.css';
+@import '@fontsource/ibm-plex-sans-arabic/700.css';
+
+/*
+ * Masari design tokens — the values documented in DESIGN.md (repository root). Restyle by editing
+ * tokens here and in DESIGN.md together; components use only these tokens, never one-off colours.
+ * Light theme only. Contrast ratios of every text/background pair are listed in DESIGN.md.
+ */
+/* Only the palette below exists: Tailwind's default colours are removed on purpose. Nothing is set
+   smaller than 14 px, so `text-xs` is removed too. */
+@theme {
+  --color-*: initial;
+  --text-xs: initial;
+  --text-xs--line-height: initial;
+}
+
+/*
+ * shadcn/ui names → Masari tokens (DESIGN.md "Components"), so copied components keep their colours.
+ * `inline`: utilities use the Masari variable directly. Prefer the Masari names in new code.
+ */
+@theme inline {
+  --color-card: var(--color-surface);
+  --color-card-foreground: var(--color-foreground);
+  --color-popover: var(--color-surface);
+  --color-popover-foreground: var(--color-foreground);
+  --color-secondary: var(--color-primary-soft);
+  --color-secondary-foreground: var(--color-primary-soft-foreground);
+  --color-accent: var(--color-muted);
+  --color-accent-foreground: var(--color-foreground);
+  --color-destructive: var(--color-danger);
+  --color-destructive-foreground: var(--color-danger-foreground);
+}
+
+/* `static`: every token is emitted as a CSS variable, so base styles and inline styles can use them. */
+@theme static {
+  /* Surfaces */
+  --color-background: #fbfaf7;
+  --color-surface: #ffffff;
+  --color-muted: #f1efe9;
+
+  /* Text */
+  --color-foreground: #18212b;
+  --color-muted-foreground: #525c69;
+
+  /* Brand action colour (deep teal) */
+  --color-primary: #0e5a5c;
+  --color-primary-hover: #0a4547;
+  --color-primary-foreground: #ffffff;
+  --color-primary-soft: #e3efee;
+  --color-primary-soft-foreground: #0a4547;
+
+  /* Status */
+  --color-danger: #b3261e;
+  --color-danger-hover: #8c1d17;
+  --color-danger-foreground: #ffffff;
+  --color-danger-soft: #fbeae8;
+  --color-danger-soft-foreground: #8c1d17;
+  --color-success: #1d6a3a;
+  --color-success-soft: #e6f2ea;
+  --color-warning: #8a4b00;
+  --color-warning-soft: #fbf0df;
+
+  /* Lines and focus */
+  --color-border: #ddd8ce;
+  --color-input: #7b828c;
+  --color-ring: #0e5a5c;
+
+  /* Type: one family for both scripts, self-hosted (layout imports @fontsource), system fallback */
+  --font-sans:
+    'IBM Plex Sans Arabic', system-ui, -apple-system, 'Segoe UI', Tahoma, 'Noto Sans Arabic',
+    'Geeza Pro', sans-serif;
+
+  /* Type scale (English line heights; Arabic overrides below) */
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.5;
+  --text-base: 1rem;
+  --text-base--line-height: 1.6;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.6;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.4;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 1.35;
+  --text-3xl: 1.875rem;
+  --text-3xl--line-height: 1.25;
+  --text-4xl: 2.25rem;
+  --text-4xl--line-height: 1.2;
+
+  /* Corners */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    min-height: 100dvh;
+    line-height: 1.6;
+    accent-color: var(--color-primary);
+    caret-color: var(--color-primary);
+  }
+
+  /* Arabic: taller lines for diacritics and descenders; tracking and italics break letter joining. */
+  html:lang(ar) {
+    --text-sm--line-height: 1.7;
+    --text-base--line-height: 1.7;
+    --text-lg--line-height: 1.7;
+    --text-xl--line-height: 1.6;
+    --text-2xl--line-height: 1.5;
+    --text-3xl--line-height: 1.45;
+    --text-4xl--line-height: 1.4;
+  }
+
+  html:lang(ar) body {
+    line-height: 1.7;
+  }
+
+  /* `!important` beats tracking-* utilities: Arabic is never letter-spaced (DESIGN.md). */
+  :lang(ar) {
+    letter-spacing: 0 !important;
+  }
+
+  :lang(ar) :is(em, i, cite, dfn, var) {
+    font-style: normal;
+  }
+
+  ::selection {
+    background-color: var(--color-primary-soft);
+    color: var(--color-foreground);
+  }
+
+  /* Visible 2 px focus ring on every interactive element; never removed, only restyled. */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  /*
+   * The skip link's target is a landmark, not a control, so it shows no ring when focused. Only this
+   * one target: other `tabindex="-1"` elements (roving-tabindex menu, tab, and radio items) keep
+   * the ring (WCAG 2.4.7).
+   */
+  main[tabindex='-1']:focus {
+    outline: none;
+  }
+
+  a {
+    text-underline-offset: 0.2em;
+  }
+
+  /*
+   * Links inside running text are underlined, not marked by colour alone (WCAG 1.4.1; teal on ink is
+   * about 2:1). `:where` keeps specificity at one element, so a component can still opt out.
+   */
+  :where(p, li, dd, td, th, blockquote, figcaption, label, small) a {
+    color: var(--color-primary);
+    text-decoration-line: underline;
+  }
+
+  /* Inputs at 16 px or more: smaller text makes mobile browsers zoom the page. */
+  input,
+  select,
+  textarea {
+    font-size: max(1rem, 1em);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

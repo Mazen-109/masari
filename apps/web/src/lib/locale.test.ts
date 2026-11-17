@@ -22,7 +22,7 @@ describe('isLocale', () => {
 });
 
 describe('dirOf', () => {
-  it('is right-to-left for Arabic and left-to-right for English', () => {
+  it('is rtl for Arabic and ltr for English', () => {
     expect(dirOf('ar')).toBe('rtl');
     expect(dirOf('en')).toBe('ltr');
   });
