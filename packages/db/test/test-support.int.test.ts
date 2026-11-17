@@ -2,9 +2,11 @@ import { randomBytes } from 'node:crypto';
 import { afterAll, describe, expect, it } from 'vitest';
 import { withDatabaseName } from '../src/admin/database';
 import {
+  addDivision,
   countAuditEvents,
   countSessionsByEmail,
   createStudentProfile,
+  getStudentProfileByEmail,
   getUserByEmail,
   resetRateLimits,
 } from '../src/admin/test-support';
@@ -148,6 +150,58 @@ describe('createStudentProfile', () => {
     });
   });
 
+  /** Creates the divisions in this order and deactivates those marked inactive; returns their ids. */
+  async function addDivisions(
+    tenantId: string,
+    specs: readonly { code: string; sortOrder: number; isActive: boolean }[],
+  ): Promise<string[]> {
+    return withTenant({ tenantId, userId: null }, async (tx) => {
+      const ids: string[] = [];
+      for (const spec of specs) {
+        const created = await divisions.create(tx, {
+          code: spec.code,
+          nameAr: spec.code,
+          nameEn: spec.code,
+          sortOrder: spec.sortOrder,
+        });
+        if (!created.ok) throw new Error('division not created');
+        if (!spec.isActive) await divisions.setActive(tx, created.value.id, false);
+        ids.push(created.value.id);
+      }
+      return ids;
+    });
+  }
+
+  it('skips inactive divisions by default, but takes an inactive one named by its code', async () => {
+    const tenant = await makeTenant();
+    const [inactiveId, activeId] = await addDivisions(tenant.id, [
+      { code: 'A', sortOrder: 1, isActive: false },
+      { code: 'B', sortOrder: 2, isActive: true },
+    ]);
+
+    const user = await makeUser(tenant.id);
+    await createStudentProfile(migrationUrl(), user.email, { studentCode: 'FIX-6' });
+    expect((await profileOf(tenant.id, user.id))?.divisionId).toBe(activeId);
+
+    const other = await makeUser(tenant.id);
+    await createStudentProfile(migrationUrl(), other.email, {
+      studentCode: 'FIX-7',
+      divisionCode: 'A',
+    });
+    expect((await profileOf(tenant.id, other.id))?.divisionId).toBe(inactiveId);
+  });
+
+  it('throws when no code is given and the college has no active division', async () => {
+    const tenant = await makeTenant();
+    await addDivisions(tenant.id, [{ code: 'A', sortOrder: 1, isActive: false }]);
+    const user = await makeUser(tenant.id);
+
+    await expect(
+      createStudentProfile(migrationUrl(), user.email, { studentCode: 'FIX-8' }),
+    ).rejects.toThrow(/unknown division/);
+    expect(await profileOf(tenant.id, user.id)).toBeNull();
+  });
+
   it('throws for an unknown email or division and writes nothing', async () => {
     const tenant = await makeTenant();
     const user = await makeUser(tenant.id);
@@ -167,6 +221,76 @@ describe('createStudentProfile', () => {
     await expect(
       createStudentProfile(withDatabaseName(migrationUrl(), 'masari'), 'x@example.test', {
         studentCode: 'FIX-5',
+      }),
+    ).rejects.toThrow(/outside a test database/);
+  });
+});
+
+describe('getStudentProfileByEmail', () => {
+  it("returns the account's profile with its division code, matching the email case-insensitively", async () => {
+    const tenant = await makeTenant();
+    await addDivision(migrationUrl(), tenant.id, { code: 'CS', nameAr: 'حاسب', nameEn: 'CS' });
+    const user = await makeUser(tenant.id);
+    await createStudentProfile(migrationUrl(), user.email, {
+      studentCode: 'FIX-10',
+      level: 2,
+      divisionCode: 'CS',
+    });
+
+    await expect(
+      getStudentProfileByEmail(migrationUrl(), ` ${user.email.toUpperCase()} `),
+    ).resolves.toEqual({ studentCode: 'FIX-10', level: 2, divisionCode: 'CS' });
+  });
+
+  it('returns null for an unknown email or an account without a profile', async () => {
+    const tenant = await makeTenant();
+    const user = await makeUser(tenant.id);
+    await expect(getStudentProfileByEmail(migrationUrl(), user.email)).resolves.toBeNull();
+    await expect(
+      getStudentProfileByEmail(migrationUrl(), `${randomSlug('none')}@example.test`),
+    ).resolves.toBeNull();
+  });
+});
+
+describe('addDivision', () => {
+  it('adds an active division by default, or an inactive one, to that college only', async () => {
+    const tenant = await makeTenant();
+    const other = await makeTenant();
+    await addDivision(migrationUrl(), tenant.id, {
+      code: 'CS',
+      nameAr: 'علوم الحاسب',
+      nameEn: 'Computer Science',
+      sortOrder: 5,
+    });
+    await addDivision(migrationUrl(), tenant.id, {
+      code: 'OLD',
+      nameAr: 'قديم',
+      nameEn: 'Old',
+      isActive: false,
+    });
+
+    const all = await withTenant({ tenantId: tenant.id, userId: null }, (tx) =>
+      divisions.list(tx, { includeInactive: true }),
+    );
+    expect(
+      all.map(({ code, nameEn, sortOrder, isActive }) => ({ code, nameEn, sortOrder, isActive })),
+    ).toEqual([
+      { code: 'OLD', nameEn: 'Old', sortOrder: 0, isActive: false },
+      { code: 'CS', nameEn: 'Computer Science', sortOrder: 5, isActive: true },
+    ]);
+    const elsewhere = await withTenant({ tenantId: other.id, userId: null }, (tx) =>
+      divisions.list(tx, { includeInactive: true }),
+    );
+    expect(elsewhere).toEqual([]);
+  });
+
+  it('refuses a database that is not a throw-away test database', async () => {
+    const tenant = await makeTenant();
+    await expect(
+      addDivision(withDatabaseName(migrationUrl(), 'masari'), tenant.id, {
+        code: 'X',
+        nameAr: 'س',
+        nameEn: 'X',
       }),
     ).rejects.toThrow(/outside a test database/);
   });

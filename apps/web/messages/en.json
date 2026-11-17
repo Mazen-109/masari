@@ -180,6 +180,27 @@
     "submit": "Save and continue",
     "noDivisions": "Your college has no divisions to choose from yet. Ask the college administration to add them."
   },
+  "profile": {
+    "title": "Your profile",
+    "saved": "Your changes have been saved.",
+    "account": {
+      "title": "Account",
+      "name": "Full name",
+      "email": "Email",
+      "emailReadOnly": "Your email cannot be changed here.",
+      "submit": "Save name"
+    },
+    "language": {
+      "title": "Language",
+      "current": "Masari is shown in {language}. Your choice is remembered on every device."
+    },
+    "academic": {
+      "title": "Academic profile",
+      "studentCodeReadOnly": "The student code cannot be changed. If it is wrong, contact the college administration.",
+      "divisionInactive": "{name} (no longer offered)",
+      "submit": "Save academic profile"
+    }
+  },
   "nav": {
     "label": "Main navigation",
     "menuTitle": "Menu",
@@ -247,6 +268,7 @@
     "emailVerified": "Email confirmation",
     "signIn": "Sign in",
     "dashboard": "Home",
-    "onboarding": "Complete your profile"
+    "onboarding": "Complete your profile",
+    "profile": "Your profile"
   }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isDivisionSelectable, isLevelAllowed, levelOptions } from './rules';
+import { changedProfileFields, isDivisionSelectable, isLevelAllowed, levelOptions } from './rules';
 
 const DIVISION_ID = '11111111-1111-4111-8111-111111111111';
 const OTHER_ID = '22222222-2222-4222-8222-222222222222';
@@ -51,5 +51,26 @@ describe('isDivisionSelectable', () => {
   it("keeps the student's current division even when it was deactivated", () => {
     expect(isDivisionSelectable({ id: DIVISION_ID, isActive: false }, DIVISION_ID)).toBe(true);
     expect(isDivisionSelectable({ id: DIVISION_ID, isActive: false }, OTHER_ID)).toBe(false);
+  });
+});
+
+describe('changedProfileFields', () => {
+  const current = { level: 2, divisionId: DIVISION_ID };
+
+  it('is empty when nothing changed', () => {
+    expect(changedProfileFields(current, { ...current })).toEqual({});
+  });
+
+  it('keeps only the changed fields, level before division', () => {
+    expect(changedProfileFields(current, { level: 3, divisionId: DIVISION_ID })).toEqual({
+      level: 3,
+    });
+    expect(changedProfileFields(current, { level: 2, divisionId: OTHER_ID })).toEqual({
+      divisionId: OTHER_ID,
+    });
+    expect(Object.keys(changedProfileFields(current, { level: 1, divisionId: OTHER_ID }))).toEqual([
+      'level',
+      'divisionId',
+    ]);
   });
 });

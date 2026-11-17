@@ -41,6 +41,18 @@ export async function findById(id: string): Promise<UserSummary | null> {
 }
 
 /**
+ * Changes the account's display name (FR-027). The caller validates it (2–100 characters after trim; the
+ * CHECK constraint of data-model.md §3.2 refuses anything else). An unknown id changes nothing.
+ */
+export async function setName(userId: string, name: string): Promise<void> {
+  if (userId === '') return;
+  await getDb()
+    .update(users)
+    .set({ name, updatedAt: sql`now()` })
+    .where(eq(users.id, userId));
+}
+
+/**
  * Stores the account's language (FR-037), applied after sign-in on any device. An unknown id changes
  * nothing. A preference, not an audited change (contracts/server-actions.md §5.1).
  */

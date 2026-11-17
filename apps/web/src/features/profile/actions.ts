@@ -1,6 +1,7 @@
 'use server';
 
 import { divisions, studentProfiles, users, withTenant } from '@masari/db';
+import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import { getLocale } from 'next-intl/server';
 import { z } from 'zod';
@@ -11,8 +12,8 @@ import { recordAudit } from '@/server/audit';
 import { getActionContext } from '@/server/auth/action-context';
 import type { SessionContext } from '@/server/auth/session';
 import { log } from '@/server/log';
-import { isDivisionSelectable, isLevelAllowed } from './rules';
-import { studentProfileSchema } from './schemas';
+import { changedProfileFields, isDivisionSelectable, isLevelAllowed } from './rules';
+import { accountSchema, studentProfileSchema, studentProfileUpdateSchema } from './schemas';
 
 /** Account and academic-profile actions (contracts/server-actions.md §5.1). */
 
@@ -61,26 +62,43 @@ export async function setLocaleAction(locale: unknown): Promise<ActionResult> {
   return ok(undefined);
 }
 
-/** Fields echoed back after a failure (`meta.<field>`) so the form is re-filled, also without JavaScript. */
+/**
+ * Fields echoed back after a failure (`meta.<field>`) so the form is re-filled, also without JavaScript.
+ * Each form echoes only its own fields: a forged extra field is never sent back.
+ */
 const PROFILE_ENTERED_FIELDS = ['studentCode', 'level', 'divisionId'] as const;
-const MAX_ENTERED_LENGTH = 64;
+const PROFILE_UPDATE_ENTERED_FIELDS = ['level', 'divisionId'] as const;
+const ACCOUNT_ENTERED_FIELDS = ['name'] as const;
+/** Long enough for any valid value (a name has at most 100 characters). */
+const MAX_ENTERED_LENGTH = 120;
 
-function withEnteredValues(result: ActionResult, formData: FormData): ActionResult {
+type ProfileField = (typeof PROFILE_ENTERED_FIELDS)[number];
+
+function withEnteredValues(
+  result: ActionResult,
+  formData: FormData,
+  keys: readonly string[],
+): ActionResult {
   if (result.ok) return result;
   const fields = formFields(formData);
   const meta: Record<string, string | number> = { ...result.meta };
-  for (const key of PROFILE_ENTERED_FIELDS) {
+  for (const key of keys) {
     const value = fields[key];
     if (typeof value === 'string') meta[key] = value.slice(0, MAX_ENTERED_LENGTH);
   }
   return { ...result, meta };
 }
 
-function invalid(
-  field: (typeof PROFILE_ENTERED_FIELDS)[number],
-  code: FieldErrorCode,
-): ActionResult {
+function invalid(field: ProfileField, code: FieldErrorCode): ActionResult {
   return fail('validation', { fieldErrors: { [field]: code } });
+}
+
+/** The screens that show the name and the academic profile, in both languages. */
+function revalidateProfileScreens(): void {
+  for (const locale of LOCALES) {
+    revalidatePath(`/${locale}/profile`);
+    revalidatePath(`/${locale}/dashboard`);
+  }
 }
 
 /**
@@ -156,5 +174,109 @@ export async function completeStudentProfileAction(
     result = fail('internal');
   }
   if (result.ok) redirect(`/${locale}/dashboard`);
-  return withEnteredValues(result, formData);
+  return withEnteredValues(result, formData, PROFILE_ENTERED_FIELDS);
+}
+
+/**
+ * The account form of the profile screen (contracts/server-actions.md §5.1; FR-027): changes the signed-in
+ * user's name. Any role. Unknown fields (email, role, status, …) are ignored. Not audited (the name is not
+ * security-relevant, FR-044); the name is never logged.
+ */
+export async function updateAccountAction(
+  _previous: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const guard = await getActionContext();
+  if ('failure' in guard) return guard.failure;
+
+  const parsed = parseForm(accountSchema, formData);
+  if (!parsed.ok) return withEnteredValues(parsed.failure, formData, ACCOUNT_ENTERED_FIELDS);
+
+  try {
+    if (parsed.data.name !== guard.ctx.user.name) {
+      await users.setName(guard.ctx.user.id, parsed.data.name);
+    }
+  } catch (error) {
+    log.error('profile.update_account_failed', {
+      errorName: errorName(error),
+      sqlState: sqlStateOf(error),
+    });
+    return withEnteredValues(fail('internal'), formData, ACCOUNT_ENTERED_FIELDS);
+  }
+  revalidateProfileScreens();
+  return ok(undefined);
+}
+
+/**
+ * Validate → current profile → college rules → change the fields that differ, with the audit row listing
+ * them, in one withTenant transaction. Nothing changed → `ok`, no write, no audit row.
+ */
+async function updateProfile(ctx: SessionContext, formData: FormData): Promise<ActionResult> {
+  const parsed = parseForm(studentProfileUpdateSchema, formData);
+  if (!parsed.ok) return parsed.failure;
+  const input = parsed.data;
+
+  return withTenant({ tenantId: ctx.tenant.id, userId: ctx.user.id }, async (tx) => {
+    const current = await studentProfiles.findByUserId(tx, ctx.user.id);
+    if (current === null) return fail('not_found');
+
+    if (!isLevelAllowed(input.level, ctx.tenant.levelsCount)) {
+      return invalid('level', 'out_of_range');
+    }
+    const division = await divisions.findById(tx, input.divisionId);
+    if (division === null || !isDivisionSelectable(division, current.divisionId)) {
+      return invalid('divisionId', 'invalid_choice');
+    }
+
+    const patch = changedProfileFields(current, { level: input.level, divisionId: division.id });
+    const fields = Object.keys(patch);
+    if (fields.length === 0) return ok(undefined);
+
+    const updated = await studentProfiles.update(tx, ctx.user.id, patch);
+    if (!updated.ok) {
+      switch (updated.reason) {
+        case 'not_found':
+          return fail('not_found');
+        case 'invalid_division':
+          return invalid('divisionId', 'invalid_choice');
+        case 'student_code_taken':
+          // Cannot happen: the student code is never part of this patch.
+          return fail('conflict');
+      }
+    }
+    await recordAudit(
+      ctx,
+      { action: 'profile.updated', targetId: ctx.user.id, metadata: { fields } },
+      tx,
+    );
+    return ok(undefined);
+  });
+}
+
+/**
+ * The academic part of the profile screen (contracts/server-actions.md §5.1; FR-026, FR-027, FR-044):
+ * level (≤ the college's number of levels) and division (an active one, or the student's current one even
+ * if deactivated since). The student code cannot be changed here: it is not a field of the schema, so a
+ * forged `studentCode` (or `role`, `status`) is ignored. Audit `profile.updated {fields}` with the changed
+ * fields only. The student code is never logged.
+ */
+export async function updateStudentProfileAction(
+  _previous: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const guard = await getActionContext('profile.academic.manage_own');
+  if ('failure' in guard) return guard.failure;
+
+  let result: ActionResult;
+  try {
+    result = await updateProfile(guard.ctx, formData);
+  } catch (error) {
+    log.error('profile.update_failed', {
+      errorName: errorName(error),
+      sqlState: sqlStateOf(error),
+    });
+    result = fail('internal');
+  }
+  if (result.ok) revalidateProfileScreens();
+  return withEnteredValues(result, formData, PROFILE_UPDATE_ENTERED_FIELDS);
 }

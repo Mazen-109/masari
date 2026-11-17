@@ -3,7 +3,7 @@ import { connection } from 'next/server';
 import { hasLocale } from 'next-intl';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import type { ReactNode } from 'react';
-import { LocaleSwitcher } from '@/components/shell/locale-switcher';
+import { HeaderCollegeName, SignedInLocaleSwitcher } from '@/components/shell/header-parts';
 import { SignOutButton } from '@/components/shell/sign-out-button';
 import { SkipLink } from '@/components/shell/skip-link';
 import { routing } from '@/i18n/routing';
@@ -39,17 +39,9 @@ export default async function OnboardingLayout({ children, params }: Props) {
             <p className="inline-flex min-h-11 items-center text-2xl font-bold text-primary">
               {t('appName')}
             </p>
-            <p
-              className="order-last min-w-0 basis-full truncate text-muted-foreground sm:order-none sm:flex-1 sm:basis-auto"
-              data-slot="college-name"
-            >
-              {locale === 'ar' ? ctx.tenant.nameAr : ctx.tenant.nameEn}
-            </p>
+            <HeaderCollegeName nameAr={ctx.tenant.nameAr} nameEn={ctx.tenant.nameEn} />
             <div className="ms-auto flex items-center gap-2 sm:ms-0">
-              <LocaleSwitcher
-                remember
-                className="inline-flex min-h-11 items-center rounded-md px-3 font-medium text-primary underline-offset-4 hover:underline"
-              />
+              <SignedInLocaleSwitcher />
               <SignOutButton />
             </div>
           </div>

@@ -329,9 +329,9 @@ permissions. **No user-story batch may start before PR-14 is merged.**
 
 ### PR-23 — Profile screen · branch `001-pr23-profile-screen`
 
-- [ ] T095 [US2] Add `setName` to `packages/db/src/repositories/users.ts` (+ test case) and `updateAccountAction`, `updateStudentProfileAction` to `apps/web/src/features/profile/actions.ts` with `accountSchema`, `studentProfileUpdateSchema` (+ tests) in `apps/web/src/features/profile/schemas.ts` (contracts/server-actions.md §5.1; audit `profile.updated {fields}`) (FR-027, FR-044)
-- [ ] T096 [US2] Create `apps/web/src/app/[locale]/(app)/profile/page.tsx` (`requireSession('/profile')`), `apps/web/src/features/profile/components/account-form.tsx` (name; email read-only `dir="ltr"`), reuse `student-profile-form.tsx` in edit mode (code read-only; current division offered even if inactive); `profile` namespace in both catalogs
-- [ ] T097 [US2] Extend `apps/web/e2e/profile.spec.ts` (part 2): change name → header shows it; change level and division → dashboard shows them; student code not editable (no input, and a forged `studentCode` field is ignored — create `apps/web/e2e/support/forge.ts` with `setFormField`, contracts/server-actions.md §6); add `/profile` to `SIGNED_IN_SCREENS`
+- [x] T095 [US2] Add `setName` to `packages/db/src/repositories/users.ts` (+ test case) and `updateAccountAction`, `updateStudentProfileAction` to `apps/web/src/features/profile/actions.ts` with `accountSchema`, `studentProfileUpdateSchema` (+ tests) in `apps/web/src/features/profile/schemas.ts` (contracts/server-actions.md §5.1; audit `profile.updated {fields}`) (FR-027, FR-044)
+- [x] T096 [US2] Create `apps/web/src/app/[locale]/(app)/profile/page.tsx` (`requireSession('/profile')`), `apps/web/src/features/profile/components/account-form.tsx` (name; email read-only `dir="ltr"`), reuse `student-profile-form.tsx` in edit mode (code read-only; current division offered even if inactive); `profile` namespace in both catalogs
+- [x] T097 [US2] Extend `apps/web/e2e/profile.spec.ts` (part 2): change name → header shows it; change level and division → dashboard shows them; student code not editable (no input, and a forged `studentCode` field is ignored — create `apps/web/e2e/support/forge.ts` with `setFormField`, contracts/server-actions.md §6); add `/profile` to `SIGNED_IN_SCREENS`
 
 **Accept**: US2 acceptance scenarios 5–6 (student part) pass; scenario 4 is covered by PR-21's integration test · forged extra form fields never change `student_code`, `role`, or `status`
 

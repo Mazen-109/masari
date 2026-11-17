@@ -1,7 +1,7 @@
-import { useLocale, useTranslations } from 'next-intl';
-import { LocaleSwitcher } from '@/components/shell/locale-switcher';
+import { useTranslations } from 'next-intl';
 import { SignOutButton } from '@/components/shell/sign-out-button';
 import { Link } from '@/i18n/navigation';
+import { HeaderCollegeName, SignedInLocaleSwitcher } from './header-parts';
 import { MobileNav } from './mobile-nav';
 import type { RenderedNavSection } from './nav-list';
 import { UserMenu } from './user-menu';
@@ -29,7 +29,6 @@ export function AppHeader({
   sections,
 }: AppHeaderProps) {
   const t = useTranslations('common');
-  const locale = useLocale();
 
   return (
     <header className="border-b border-border bg-surface">
@@ -41,17 +40,9 @@ export function AppHeader({
         >
           {t('appName')}
         </Link>
-        <p
-          className="order-last min-w-0 basis-full truncate text-muted-foreground sm:order-none sm:flex-1 sm:basis-auto"
-          data-slot="college-name"
-        >
-          {locale === 'ar' ? collegeNameAr : collegeNameEn}
-        </p>
+        <HeaderCollegeName nameAr={collegeNameAr} nameEn={collegeNameEn} />
         <div className="ms-auto flex items-center gap-1 sm:ms-0 sm:gap-2">
-          <LocaleSwitcher
-            remember
-            className="inline-flex min-h-11 items-center rounded-md px-3 font-medium text-primary underline-offset-4 hover:underline"
-          />
+          <SignedInLocaleSwitcher />
           <UserMenu name={userName} roleLabel={roleLabel} />
           {/* The whole form is hidden with JavaScript on, so it leaves no gap in the row. */}
           <div className="hidden noscript:block" data-slot="noscript-sign-out">

@@ -10,10 +10,17 @@ export type { CreateTenantResult, NewTenantInput } from './admin/tenants';
 export { DEMO_SLUG, seedDemo } from './admin/seed';
 export type { SeedResult } from './admin/seed';
 export {
+  addDivision,
   countAuditEvents,
   countSessionsByEmail,
   createStudentProfile,
+  getStudentProfileByEmail,
   getUserByEmail,
   resetRateLimits,
 } from './admin/test-support';
-export type { StudentProfileFixture, UserDetails } from './admin/test-support';
+export type {
+  DivisionFixture,
+  StudentProfileDetails,
+  StudentProfileFixture,
+  UserDetails,
+} from './admin/test-support';
