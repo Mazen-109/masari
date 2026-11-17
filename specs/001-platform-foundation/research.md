@@ -356,7 +356,7 @@ here, and from then on versions change only through reviewed PRs (Dependabot or 
 | next / react / react-dom | 16 / 19 / 19 | 16.4.6 / 19.3.1 / 19.3.1 (@types/react, @types/react-dom 19.3.0; @types/node 24.19.2) |
 | tailwindcss | 4 | 4.3.5 (+ @tailwindcss/postcss 4.3.5, pinned exactly) |
 | next-intl | 4 | 4.15.1 (+ use-intl 4.15.1) |
-| better-auth | 1 | |
+| better-auth | 1 | 1.7.25 (`@masari/web`, PR-12; Drizzle adapter `@better-auth/drizzle-adapter` 1.7.25 comes with it and needs `drizzle-orm` as a peer, so `drizzle-orm` 0.45.4 is also a `@masari/web` dependency — never imported by `apps/web/src`) |
 | drizzle-orm / drizzle-kit | latest stable pair | 0.45.4 / 0.31.11 |
 | pg | 8 | 8.23.1 (+ @types/pg 8.23.1; also a `@masari/web` dependency since PR-9 so Next.js can keep it external — never imported by `apps/web/src`) |
 | zod | 4 | 4.6.7 (`@masari/db`; `@masari/web` since PR-9) |

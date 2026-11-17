@@ -36,6 +36,32 @@ export const TABLE_CLASSIFICATION: Readonly<Record<string, TableClassification>>
       ],
     },
   },
+  // Auth-library identity tables: read before a college is known, so no RLS (constitution III exemption;
+  // compensating controls in data-model.md §1).
+  users: {
+    scope: 'global',
+    rls: 'none',
+    policies: [],
+    privileges: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+  },
+  sessions: {
+    scope: 'global',
+    rls: 'none',
+    policies: [],
+    privileges: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+  },
+  accounts: {
+    scope: 'global',
+    rls: 'none',
+    policies: [],
+    privileges: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+  },
+  verifications: {
+    scope: 'global',
+    rls: 'none',
+    policies: [],
+    privileges: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+  },
   rate_limit_counters: {
     scope: 'global',
     rls: 'none',

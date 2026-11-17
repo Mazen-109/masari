@@ -7,13 +7,14 @@ import {
   closeTestPools,
   inRuntimeTransaction,
   makeTenant,
+  makeUser,
   pgErrorCode,
   runtimeQuery,
   type TenantFixture,
 } from './helpers';
 
 // contracts/db-api.md §4: insert + read within the college; UPDATE/DELETE denied; cross-college invisible.
-// PR-5 uses actorUserId: null only (the users table and the actor foreign key arrive in PR-12).
+// Since PR-12 the actor is a foreign key to users (data-model.md §3.8).
 
 let collegeA: TenantFixture;
 let collegeB: TenantFixture;
@@ -68,6 +69,31 @@ describe('audit.record', () => {
     expect(await readEvents(collegeA)).toEqual([
       expect.objectContaining({ metadata: {}, targetType: null, targetId: null, ip: null }),
     ]);
+  });
+
+  it('stores a real user as the actor', async () => {
+    const user = await makeUser(collegeA.id);
+    await inCollege(collegeA, (tx) =>
+      audit.record(tx, {
+        actorUserId: user.id,
+        action: 'auth.sign_in',
+        targetType: 'user',
+        targetId: user.id,
+      }),
+    );
+    expect(await readEvents(collegeA)).toEqual([
+      expect.objectContaining({ actorUserId: user.id, targetId: user.id }),
+    ]);
+  });
+
+  it('rejects an actor id that is not an existing user (foreign key)', async () => {
+    const code = await pgErrorCode(
+      inCollege(collegeA, (tx) =>
+        audit.record(tx, { actorUserId: 'no-such-user', action: 'auth.sign_in' }),
+      ),
+    );
+    expect(code).toBe('23503');
+    expect(await readEvents(collegeA)).toEqual([]);
   });
 
   it('rejects an action longer than 64 characters (CHECK constraint)', async () => {

@@ -27,7 +27,7 @@ describe('escapeHtml', () => {
 });
 
 describe('plainValue', () => {
-  const CONTROLS = ['‎', '‏', '‪', '‫', '‬', '‭', '‮', '⁦', '⁧', '⁨', '⁩'];
+  const CONTROLS = ['؜', '‎', '‏', '‪', '‫', '‬', '‭', '‮', '⁦', '⁧', '⁨', '⁩'];
 
   it.each(CONTROLS.map((char) => [char.codePointAt(0)?.toString(16).toUpperCase(), char]))(
     'removes U+%s',

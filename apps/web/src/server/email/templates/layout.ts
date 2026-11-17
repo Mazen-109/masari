@@ -71,8 +71,9 @@ function oneLine(value: string): string {
   return value.replace(/[\s\u0085]+/g, ' ').trim();
 }
 
-// LRE/RLE/PDF/LRO/RLO (U+202A–202E), LRI/RLI/FSI/PDI (U+2066–2069), LRM/RLM (U+200E/200F).
-const BIDI_CONTROLS = /[‎‏‪-‮⁦-⁩]/g;
+// LRE/RLE/PDF/LRO/RLO (U+202A–202E), LRI/RLI/FSI/PDI (U+2066–2069), LRM/RLM (U+200E/200F), and the
+// Arabic letter mark ALM (U+061C).
+const BIDI_CONTROLS = /[؜‎‏‪-‮⁦-⁩]/g;
 
 /**
  * A user- or operator-supplied value (person or college name) ready to interpolate: direction-control

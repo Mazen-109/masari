@@ -1,11 +1,22 @@
 import { sql } from 'drizzle-orm';
-import { check, index, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  check,
+  foreignKey,
+  index,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
+import { users } from './auth';
 import { tenants } from './tenants';
 
 /**
  * Append-only audit log (data-model.md §3.8). Tenant-scoped: forced RLS, the `tenant_isolation` policy, and
  * the SELECT/INSERT-only grants live in the custom migration `divisions_audit_security`.
- * `actor_user_id` has no foreign key yet: `users` arrives in PR-12, whose migration adds it.
+ * `actor_user_id` is NULL for system/operator events; deleting a user keeps their events and clears the
+ * actor (`audit_events_actor_user_id_fk … ON DELETE SET NULL`, added by the PR-12 migration).
  */
 export const auditEvents = pgTable(
   'audit_events',
@@ -29,5 +40,10 @@ export const auditEvents = pgTable(
   (table) => [
     index('audit_events_tenant_created_idx').on(table.tenantId, table.createdAt.desc()),
     check('audit_events_action_check', sql`char_length(action) <= 64`),
+    foreignKey({
+      name: 'audit_events_actor_user_id_fk',
+      columns: [table.actorUserId],
+      foreignColumns: [users.id],
+    }).onDelete('set null'),
   ],
 );

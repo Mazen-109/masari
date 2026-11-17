@@ -15,6 +15,8 @@ export async function generateMetadata({
   params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
   const { locale } = await params;
+  // Safe cast: `[locale]/layout.tsx` already called `notFound()` for an unknown locale, so this file only
+  // renders with `ar` or `en`.
   const t = await getTranslations({ locale: locale as Locale, namespace: 'meta' });
   return { title: t('notFound') };
 }

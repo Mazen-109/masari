@@ -123,6 +123,37 @@ export async function makeTenant(
   return row;
 }
 
+export interface UserFixture {
+  id: string;
+  tenantId: string;
+  email: string;
+}
+
+/**
+ * Creates an account row in a college through the owner connection (fixtures only; real accounts are
+ * created by the auth library). Columns not given take their database defaults.
+ */
+export async function makeUser(
+  tenantId: string,
+  overrides: { email?: string; name?: string; role?: string; status?: string } = {},
+): Promise<UserFixture> {
+  const id = `u_${randomBytes(9).toString('hex')}`;
+  const email = overrides.email ?? `${id}@example.test`;
+  await ownerQuery(
+    `INSERT INTO users (id, tenant_id, name, email, role, status)
+     VALUES ($1, $2, $3, $4, coalesce($5, 'student'), coalesce($6, 'active'))`,
+    [
+      id,
+      tenantId,
+      overrides.name ?? 'Test User',
+      email,
+      overrides.role ?? null,
+      overrides.status ?? null,
+    ],
+  );
+  return { id, tenantId, email };
+}
+
 /**
  * Awaits a promise that must fail and returns its PostgreSQL error code (SQLSTATE). Drizzle wraps driver
  * errors in DrizzleQueryError with the pg error as `cause`; raw pg errors carry `code` themselves.
