@@ -17,6 +17,24 @@ const PROCESS_ENV_FILES = [
   '**/vitest.config.ts',
 ];
 
+const BASE_RESTRICTED_SYNTAX = [
+  {
+    selector: 'CallExpression > MemberExpression.callee[property.name="only"]',
+    message: 'Focused tests (.only) must not be committed.',
+  },
+];
+
+// User-facing attributes that `react/jsx-no-literals` (ignoreProps) does not cover. `alt=""` for
+// decorative images stays allowed.
+const TEXT_ATTRIBUTE = 'JSXAttribute[name.name=/^(aria-label|title|alt|placeholder)$/]';
+const TEXT_ATTRIBUTE_MESSAGE =
+  'User-facing attribute text must come from the message catalogs (constitution IV).';
+const TEXT_ATTRIBUTE_SYNTAX = [
+  `${TEXT_ATTRIBUTE} > Literal[value=/\\S/]`,
+  `${TEXT_ATTRIBUTE} > JSXExpressionContainer > Literal[value=/\\S/]`,
+  `${TEXT_ATTRIBUTE} > JSXExpressionContainer > TemplateLiteral[expressions.length=0]`,
+].map((selector) => ({ selector, message: TEXT_ATTRIBUTE_MESSAGE }));
+
 // Layer rules for apps/web/src (plan.md "Structure Decision").
 const webRestrictedImports = ({ allowDbAuth = false, forbidOtherFeatureActions = false } = {}) => [
   'error',
@@ -102,13 +120,7 @@ export default defineConfig([
             'Read configuration through getEnv() / getDbEnv() (contracts/http-and-env.md §3).',
         },
       ],
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: 'CallExpression > MemberExpression.callee[property.name="only"]',
-          message: 'Focused tests (.only) must not be committed.',
-        },
-      ],
+      'no-restricted-syntax': ['error', ...BASE_RESTRICTED_SYNTAX],
     },
   },
   {
@@ -118,6 +130,17 @@ export default defineConfig([
   {
     files: ['apps/web/src/server/log.ts', 'packages/db/scripts/**'],
     rules: { 'no-console': 'off' },
+  },
+
+  // No literal user-facing text in components: every string comes from the message catalogs
+  // (research.md §12). Props (className, href, …) are ignored except the user-facing attributes below.
+  {
+    files: ['apps/web/src/**/*.tsx'],
+    ignores: ['apps/web/src/**/*.test.tsx', 'apps/web/src/components/ui/**'],
+    rules: {
+      'react/jsx-no-literals': ['error', { noStrings: true, ignoreProps: true }],
+      'no-restricted-syntax': ['error', ...BASE_RESTRICTED_SYNTAX, ...TEXT_ATTRIBUTE_SYNTAX],
+    },
   },
 
   {

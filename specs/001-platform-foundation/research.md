@@ -355,7 +355,7 @@ here, and from then on versions change only through reviewed PRs (Dependabot or 
 | typescript | 5 (≥ 5.9) or the major required by the pinned Next.js | 5.9.3 |
 | next / react / react-dom | 16 / 19 / 19 | 16.4.6 / 19.3.1 / 19.3.1 (@types/react, @types/react-dom 19.3.0; @types/node 24.19.2) |
 | tailwindcss | 4 | 4.3.5 (+ @tailwindcss/postcss 4.3.5) |
-| next-intl | 4 | |
+| next-intl | 4 | 4.15.1 (+ use-intl 4.15.1) |
 | better-auth | 1 | |
 | drizzle-orm / drizzle-kit | latest stable pair | 0.45.4 / 0.31.11 |
 | pg | 8 | 8.23.1 (+ @types/pg 8.23.1) |

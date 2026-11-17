@@ -1,34 +1,40 @@
-export type ErrorCode =
-  | 'validation'
-  | 'unauthenticated'
-  | 'forbidden'
-  | 'not_found'
-  | 'conflict'
-  | 'rate_limited'
-  | 'invalid_credentials'
-  | 'email_not_verified'
-  | 'account_suspended'
-  | 'tenant_suspended'
-  | 'token_invalid'
-  | 'internal';
+export const ERROR_CODES = [
+  'validation',
+  'unauthenticated',
+  'forbidden',
+  'not_found',
+  'conflict',
+  'rate_limited',
+  'invalid_credentials',
+  'email_not_verified',
+  'account_suspended',
+  'tenant_suspended',
+  'token_invalid',
+  'internal',
+] as const;
 
-export type FieldErrorCode =
-  | 'required'
-  | 'too_short'
-  | 'too_long'
-  | 'invalid_format'
-  | 'invalid_email'
-  | 'invalid_choice'
-  | 'out_of_range'
-  | 'password_too_short'
-  | 'password_too_long'
-  | 'consent_required'
-  | 'domain_not_allowed'
-  | 'email_unavailable'
-  | 'student_code_taken'
-  | 'code_taken'
-  | 'levels_in_use'
-  | 'too_many';
+export type ErrorCode = (typeof ERROR_CODES)[number];
+
+export const FIELD_ERROR_CODES = [
+  'required',
+  'too_short',
+  'too_long',
+  'invalid_format',
+  'invalid_email',
+  'invalid_choice',
+  'out_of_range',
+  'password_too_short',
+  'password_too_long',
+  'consent_required',
+  'domain_not_allowed',
+  'email_unavailable',
+  'student_code_taken',
+  'code_taken',
+  'levels_in_use',
+  'too_many',
+] as const;
+
+export type FieldErrorCode = (typeof FIELD_ERROR_CODES)[number];
 
 export type ActionFailure = {
   ok: false;

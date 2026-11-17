@@ -1,0 +1,91 @@
+{
+  "common": {
+    "appName": "Masari",
+    "switchLanguage": "العربية",
+    "languages": {
+      "ar": "Arabic",
+      "en": "English"
+    },
+    "roles": {
+      "student": "Student",
+      "faculty": "Faculty member",
+      "student_affairs": "Student Affairs",
+      "admin": "College administration"
+    },
+    "statuses": {
+      "active": "Active",
+      "suspended": "Suspended",
+      "pending": "Pending",
+      "accepted": "Accepted",
+      "revoked": "Revoked",
+      "expired": "Expired"
+    },
+    "levels": {
+      "1": "Level 1",
+      "2": "Level 2",
+      "3": "Level 3",
+      "4": "Level 4",
+      "5": "Level 5",
+      "6": "Level 6",
+      "7": "Level 7"
+    },
+    "actions": {
+      "save": "Save",
+      "cancel": "Cancel",
+      "submit": "Submit",
+      "confirm": "Confirm",
+      "edit": "Edit",
+      "delete": "Delete",
+      "close": "Close",
+      "back": "Back",
+      "next": "Next",
+      "previous": "Previous",
+      "search": "Search",
+      "tryAgain": "Try again",
+      "goHome": "Go to the home page"
+    },
+    "notFound": {
+      "title": "Page not found",
+      "body": "We couldn't find the page you're looking for. The link may have changed or is no longer available."
+    },
+    "error": {
+      "title": "Something went wrong",
+      "body": "We couldn't complete your request right now. Please try again in a moment."
+    }
+  },
+  "errors": {
+    "validation": "Check what you entered and correct the highlighted fields.",
+    "unauthenticated": "Your session has ended. Sign in again to continue.",
+    "forbidden": "You don't have permission to do this.",
+    "not_found": "The requested item doesn't exist.",
+    "conflict": "Things have changed and this action is no longer available. Refresh the page and try again.",
+    "rate_limited": "Too many attempts in a short time. Wait a little and try again.",
+    "invalid_credentials": "The email or password is incorrect.",
+    "email_not_verified": "Your email isn't confirmed yet. Open the confirmation email we sent you.",
+    "account_suspended": "Your account has been suspended. Contact your college administration.",
+    "tenant_suspended": "Your college's Masari account is temporarily suspended.",
+    "token_invalid": "This link is invalid, has expired, or has already been used.",
+    "internal": "Something unexpected went wrong. Please try again in a moment.",
+    "required": "This field is required.",
+    "too_short": "This value is too short.",
+    "too_long": "This value is too long.",
+    "invalid_format": "The format isn't valid.",
+    "invalid_email": "Enter a valid email address.",
+    "invalid_choice": "Choose a value from the list.",
+    "out_of_range": "This value is out of the allowed range.",
+    "password_too_short": "The password is too short.",
+    "password_too_long": "The password is too long.",
+    "consent_required": "You need to accept the privacy notice to continue.",
+    "domain_not_allowed": "Use your college email address.",
+    "email_unavailable": "This email address can't be used.",
+    "student_code_taken": "This student code is already registered at the college.",
+    "code_taken": "This code is already in use.",
+    "levels_in_use": "The number of levels can't be reduced while students are registered in higher levels.",
+    "too_many": "This is more than allowed."
+  },
+  "meta": {
+    "titleTemplate": "%s · Masari",
+    "home": "Masari",
+    "notFound": "Page not found"
+  }
+}
