@@ -50,6 +50,22 @@ export interface Division {
 }
 
 /**
+ * An account as the application sees it (contracts/db-api.md §1.6). Never carries the password hash
+ * (`accounts.password`) or session tokens.
+ */
+export interface UserSummary {
+  id: string;
+  tenantId: string;
+  name: string;
+  email: string;
+  emailVerified: boolean;
+  role: Role;
+  status: UserStatus;
+  locale: Locale;
+  createdAt: Date;
+}
+
+/**
  * One audit-log entry (data-model.md §3.8). `actorUserId` null = system/operator. Metadata holds IDs and
  * enumerations only — never emails, names, tokens, or passwords.
  */
