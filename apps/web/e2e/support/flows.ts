@@ -110,8 +110,13 @@ export async function signIn(page: Page, input: SignInInput): Promise<void> {
   }
   await page.getByLabel(t.email, { exact: true }).fill(input.email);
   await page.getByLabel(t.password, { exact: true }).fill(input.password ?? TEST_PASSWORD);
+  // Only the form's own POST (to the sign-in screen, with or without JavaScript) ends the wait.
+  const signInPath = `/${locale}/sign-in`;
   await Promise.all([
-    page.waitForResponse((response) => response.request().method() === 'POST'),
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' && new URL(response.url()).pathname === signInPath,
+    ),
     page.getByRole('button', { name: t.submit, exact: true }).click(),
   ]);
 }

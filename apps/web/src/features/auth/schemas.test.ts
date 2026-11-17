@@ -223,4 +223,12 @@ describe('signInSchema', () => {
     );
     expect(result).toMatchObject({ ok: true, data: { next: '/admin/users?page=2' } });
   });
+
+  it('drops a leading locale from next (the action adds the user’s own)', () => {
+    const result = parseForm(
+      signInSchema,
+      form({ email: 'a@example.edu', password: 'x', next: '/en/profile' }),
+    );
+    expect(result).toMatchObject({ ok: true, data: { next: '/profile' } });
+  });
 });

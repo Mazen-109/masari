@@ -7,6 +7,8 @@
  * the returned path is locale-less, and the locale prefix keeps the target inside the app's routes.
  */
 
+import { LOCALES } from '@/lib/locale';
+
 export const MAX_NEXT_LENGTH = 512;
 
 // Browsers drop tabs and line breaks from URLs (`/\t/evil` → `//evil`) and read `\` as `/`, so both are
@@ -28,4 +30,20 @@ export function safeNext(value: unknown): string | null {
     return null;
   }
   return value;
+}
+
+// A leading locale segment (`/ar`, `/en`, followed by `/`, `?`, `#`, or the end).
+const LOCALE_PREFIX = new RegExp(`^/(?:${LOCALES.join('|')})(?=[/?#]|$)`);
+
+/**
+ * `safeNext`, then without a leading locale segment: callers prefix the user's own locale, so
+ * `next=/en/dashboard` must become `/dashboard`, never `/ar/en/dashboard`. A value that is only a locale
+ * (`/en`, `/en?x=1`) or that is unsafe once stripped (`/en//evil`) gives null.
+ */
+export function localeLessNext(value: unknown): string | null {
+  const next = safeNext(value);
+  if (next === null) return null;
+  const stripped = next.replace(LOCALE_PREFIX, '');
+  if (stripped === next) return next;
+  return stripped.startsWith('/') ? safeNext(stripped) : null;
 }

@@ -1,4 +1,5 @@
 import type pg from 'pg';
+import type { TenantStatus } from '../constants';
 import { setTenantContext, withOwnerTransaction } from './owner';
 
 /**
@@ -59,6 +60,24 @@ export async function ensureDivisions(
       [row.code, row.nameAr, row.nameEn, row.sortOrder],
     );
   }
+}
+
+/**
+ * Suspends or reactivates the college with this slug (contracts/db-api.md §3, cli.md §5). Changes the
+ * status only: session rows stay, and the web app refuses them on every request while suspended.
+ */
+export function setTenantStatus(
+  migrationUrl: string,
+  slug: string,
+  status: TenantStatus,
+): Promise<'updated' | 'not_found'> {
+  return withOwnerTransaction(migrationUrl, async (client) => {
+    const result = await client.query(
+      'UPDATE tenants SET status = $2, updated_at = now() WHERE slug = $1',
+      [slug, status],
+    );
+    return (result.rowCount ?? 0) > 0 ? 'updated' : 'not_found';
+  });
 }
 
 /** Creates a college with default settings and the GEN division in one transaction. */

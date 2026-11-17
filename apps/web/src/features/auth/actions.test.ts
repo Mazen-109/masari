@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   findUserById: vi.fn(),
   findTenantById: vi.fn(),
   revokeAllForUser: vi.fn(),
+  revokeByToken: vi.fn(),
   signUpEmail: vi.fn(),
   signInEmail: vi.fn(),
   signOut: vi.fn(),
@@ -47,7 +48,7 @@ class FakeAPIError extends Error {
 vi.mock('@masari/db', () => ({
   tenants: { findBySlug: mocks.findBySlug, findById: mocks.findTenantById },
   users: { findByEmail: mocks.findByEmail, findById: mocks.findUserById },
-  sessions: { revokeAllForUser: mocks.revokeAllForUser },
+  sessions: { revokeAllForUser: mocks.revokeAllForUser, revokeByToken: mocks.revokeByToken },
 }));
 vi.mock('better-auth/api', () => ({
   isAPIError: (error: unknown) => error instanceof Error && error.name === 'APIError',
@@ -341,7 +342,8 @@ describe('resendVerificationAction', () => {
 });
 
 describe('signInAction', () => {
-  const SESSION_COOKIE = `better-auth.session_token=${'Tk9'.repeat(4)}`;
+  const SESSION_TOKEN = 'Tk9'.repeat(4);
+  const SESSION_COOKIE = `better-auth.session_token=${SESSION_TOKEN}.sig`;
   const ACTIVE_USER = { id: USER_ID, tenantId: TENANT_ID, status: 'active', locale: 'ar' };
 
   function signInForm(fields: Record<string, string> = {}): FormData {
@@ -365,9 +367,10 @@ describe('signInAction', () => {
     responseHeaders.append('set-cookie', `${SESSION_COOKIE}; Path=/; HttpOnly; SameSite=Lax`);
     mocks.signInEmail.mockResolvedValue({
       headers: responseHeaders,
-      response: { user: { id: USER_ID } },
+      response: { token: SESSION_TOKEN, user: { id: USER_ID } },
     });
     mocks.signOut.mockResolvedValue({ success: true });
+    mocks.revokeByToken.mockResolvedValue(1);
     mocks.findUserById.mockResolvedValue(ACTIVE_USER);
     mocks.findTenantById.mockResolvedValue({ id: TENANT_ID, status: 'active' });
     mocks.revokeAllForUser.mockResolvedValue(1);
@@ -443,6 +446,91 @@ describe('signInAction', () => {
     expect(mocks.signOut).toHaveBeenCalledTimes(1);
     expect(mocks.revokeAllForUser).not.toHaveBeenCalled();
     expect(mocks.recordAudit).not.toHaveBeenCalled();
+  });
+
+  /** The Cookie header of the (only) library sign-out call. */
+  function signOutCookie(): string | null {
+    expect(mocks.signOut).toHaveBeenCalledTimes(1);
+    const [call] = mocks.signOut.mock.calls[0] as [{ headers: Headers }];
+    return call.headers.get('cookie');
+  }
+
+  /** No log call carries anything but an event name and an error class name. */
+  function expectLogsWithoutPersonalData(): void {
+    for (const level of [mocks.log.info, mocks.log.warn, mocks.log.error]) {
+      for (const call of level.mock.calls as unknown[][]) {
+        expect(JSON.stringify(call)).not.toMatch(/mona|example\.edu|Tk9|Ab1/i);
+      }
+    }
+  }
+
+  it('ends the new session and answers internal when the audit fails', async () => {
+    mocks.recordAudit.mockRejectedValue(new Error('db down'));
+    await expect(runSignIn(signInForm())).resolves.toMatchObject({ ok: false, code: 'internal' });
+    expect(signOutCookie()).toBe(SESSION_COOKIE);
+    expect(mocks.revokeByToken).not.toHaveBeenCalled();
+    expect(mocks.log.error).toHaveBeenCalledWith('auth.sign_in_failed', { errorName: 'Error' });
+    expectLogsWithoutPersonalData();
+  });
+
+  it('ends the new session and answers internal when reading the account fails', async () => {
+    mocks.findUserById.mockRejectedValue(new TypeError('connection refused'));
+    await expect(runSignIn(signInForm())).resolves.toMatchObject({ ok: false, code: 'internal' });
+    expect(signOutCookie()).toBe(SESSION_COOKIE);
+    expect(mocks.recordAudit).not.toHaveBeenCalled();
+  });
+
+  it('ends the new session and answers internal when reading the college fails', async () => {
+    mocks.findTenantById.mockRejectedValue(new TypeError('connection refused'));
+    await expect(runSignIn(signInForm())).resolves.toMatchObject({ ok: false, code: 'internal' });
+    expect(signOutCookie()).toBe(SESSION_COOKIE);
+  });
+
+  it.each([
+    ['account', () => mocks.findUserById.mockResolvedValue(null)],
+    ['college', () => mocks.findTenantById.mockResolvedValue(null)],
+  ])('warns and ends the new session when the %s is missing', async (_case, arrange) => {
+    arrange();
+    await expect(runSignIn(signInForm())).resolves.toMatchObject({ ok: false, code: 'internal' });
+    expect(mocks.log.warn).toHaveBeenCalledWith('auth.sign_in_account_missing');
+    expect(signOutCookie()).toBe(SESSION_COOKIE);
+    expect(mocks.recordAudit).not.toHaveBeenCalled();
+    expectLogsWithoutPersonalData();
+  });
+
+  it('deletes the new session row when the library cannot end it (suspended account)', async () => {
+    mocks.findUserById.mockResolvedValue({ ...ACTIVE_USER, status: 'suspended' });
+    mocks.signOut.mockRejectedValue(new Error('library down'));
+    await expect(runSignIn(signInForm())).resolves.toMatchObject({
+      ok: false,
+      code: 'account_suspended',
+    });
+    expect(mocks.revokeByToken).toHaveBeenCalledWith(SESSION_TOKEN);
+    expect(mocks.revokeAllForUser).toHaveBeenCalledWith(USER_ID);
+    expect(mocks.log.error).toHaveBeenCalledWith('auth.new_session_sign_out_failed', {
+      errorName: 'Error',
+    });
+    expectLogsWithoutPersonalData();
+  });
+
+  it('answers internal when revoking a suspended account’s sessions fails, after ending the new one', async () => {
+    mocks.findUserById.mockResolvedValue({ ...ACTIVE_USER, status: 'suspended' });
+    mocks.revokeAllForUser.mockRejectedValue(new Error('db down'));
+    await expect(runSignIn(signInForm())).resolves.toMatchObject({ ok: false, code: 'internal' });
+    expect(mocks.signOut).toHaveBeenCalled();
+    const [first] = mocks.signOut.mock.calls[0] as [{ headers: Headers }];
+    expect(first.headers.get('cookie')).toBe(SESSION_COOKIE);
+  });
+
+  it('still answers internal when neither the library nor the repository can end the session', async () => {
+    mocks.recordAudit.mockRejectedValue(new Error('db down'));
+    mocks.signOut.mockRejectedValue(new Error('library down'));
+    mocks.revokeByToken.mockRejectedValue(new Error('db down'));
+    await expect(runSignIn(signInForm())).resolves.toMatchObject({ ok: false, code: 'internal' });
+    expect(mocks.log.error).toHaveBeenCalledWith('auth.new_session_revoke_failed', {
+      errorName: 'Error',
+    });
+    expectLogsWithoutPersonalData();
   });
 
   it('returns validation errors before rate limiting, never echoing the password', async () => {

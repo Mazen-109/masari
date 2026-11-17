@@ -1,7 +1,13 @@
 import type { Page } from '@playwright/test';
 import { expectNoA11yViolations } from './support/axe';
 import { expect, test } from './support/fixtures';
-import { registerConfirmedStudent, signIn } from './support/flows';
+import {
+  CATALOGS,
+  registerConfirmedStudent,
+  registerStudent,
+  signIn,
+  uniqueEmail,
+} from './support/flows';
 
 // Accessibility scan of every screen in both languages (contracts/ci.md §5, FR-042). Every batch that adds
 // a screen appends it here: public screens to PUBLIC_SCREENS; signed-in screens (scanned once per role
@@ -57,6 +63,35 @@ for (const locale of LOCALES) {
       });
     }
   }
+
+  // Form states that only exist after an action answered.
+  test(`no serious or critical violations on the sign-in error state (${locale})`, async ({
+    page,
+  }) => {
+    await signIn(page, { email: uniqueEmail('nobody'), locale });
+    await expect(page.locator('main [data-slot="form-error"]')).toHaveAttribute(
+      'data-code',
+      'invalid_credentials',
+    );
+    await expectNoA11yViolations(page);
+  });
+
+  test(`no serious or critical violations on sign-in with an unconfirmed email (${locale})`, async ({
+    page,
+  }) => {
+    const email = uniqueEmail();
+    await registerStudent(page, { email, locale });
+    await page.waitForURL(`/${locale}/verify-email`);
+    await signIn(page, { email, locale });
+    await expect(page.locator('main [data-slot="form-error"]')).toHaveAttribute(
+      'data-code',
+      'email_not_verified',
+    );
+    await expect(
+      page.getByRole('heading', { level: 2, name: CATALOGS[locale].auth.resend.titleMissing }),
+    ).toBeVisible();
+    await expectNoA11yViolations(page);
+  });
 
   test(`first Tab focuses the skip link; Enter moves focus to main (${locale})`, async ({
     page,

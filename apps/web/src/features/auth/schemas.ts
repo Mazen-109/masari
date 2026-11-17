@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { safeNext } from '@/lib/safe-next';
+import { localeLessNext } from '@/lib/safe-next';
 
 /**
  * Field rules of contracts/server-actions.md §3 for the account forms. Every issue message is a
@@ -87,7 +87,7 @@ export const signInSchema = z.object({
   next: z
     .unknown()
     .optional()
-    .transform((value) => safeNext(value)),
+    .transform((value) => localeLessNext(value)),
 });
 
 export type SignInInput = z.infer<typeof signInSchema>;

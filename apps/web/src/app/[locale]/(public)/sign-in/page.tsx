@@ -7,7 +7,7 @@ import { Alert } from '@/components/ui/alert';
 import { SignInForm } from '@/features/auth/components/sign-in-form';
 import { Link } from '@/i18n/navigation';
 import { routing } from '@/i18n/routing';
-import { safeNext } from '@/lib/safe-next';
+import { localeLessNext } from '@/lib/safe-next';
 import { getSessionContext } from '@/server/auth/session';
 
 type Props = Readonly<{
@@ -73,7 +73,7 @@ export default async function SignInPage({ params, searchParams }: Props) {
         ) : null}
       </div>
       <div className="mt-8">
-        <SignInForm next={safeNext(query.next)} />
+        <SignInForm next={localeLessNext(query.next)} />
       </div>
       <p className="mt-10 border-t border-border pt-6 text-muted-foreground">
         {t('noAccount')}{' '}

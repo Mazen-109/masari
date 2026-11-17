@@ -43,6 +43,19 @@ export function countAuditEvents(
   });
 }
 
+/** Number of sessions of the account with this email (input trimmed and lower-cased); 0 if unknown. */
+export function countSessionsByEmail(migrationUrl: string, email: string): Promise<number> {
+  return withOwnerTransaction(migrationUrl, async (client) => {
+    const result = await client.query<{ count: number }>(
+      `SELECT count(*)::int AS count
+         FROM sessions JOIN users ON users.id = sessions.user_id
+        WHERE users.email = $1`,
+      [email.trim().toLowerCase()],
+    );
+    return result.rows[0]?.count ?? 0;
+  });
+}
+
 /**
  * Deletes the rate-limit counters whose key starts with `keyPrefix` (all of them by default) and returns
  * how many were removed. Only on a throw-away test database (masari_test…, masari_e2e…): any other

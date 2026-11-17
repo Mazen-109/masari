@@ -115,6 +115,8 @@ deleteJustCreated(tenantId: string, userId: string): Promise<boolean>
 
 ```ts
 revokeAllForUser(userId: string): Promise<number>     // deletes the user's sessions; returns count
+revokeByToken(token: string): Promise<number>         // deletes the one session with this token (0 or 1; 0 for '');
+                                                      // only the sign-in action's fallback (server-actions.md §4.3)
 ```
 
 **`divisions`**
@@ -207,6 +209,7 @@ export function seedDemo(migrationUrl: string): Promise<{ tenantId: string; admi
 export function getUserByEmail(migrationUrl: string, email: string):
   Promise<(UserSummary & { privacyConsentAt: Date | null }) | null>;
 export function countAuditEvents(migrationUrl: string, tenantSlug: string, action: string): Promise<number>;
+export function countSessionsByEmail(migrationUrl: string, email: string): Promise<number>;   // 0 for an unknown email
 /** Deletes rate-limit counters whose key starts with keyPrefix (default: all) → rows removed. Refuses (before
  *  connecting) a database whose name does not match /^masari_(test|e2e)[a-z0-9_]*$/. e2e global setup. */
 export function resetRateLimits(migrationUrl: string, keyPrefix?: string): Promise<number>;
@@ -227,7 +230,7 @@ All `admin` functions that write tenant-scoped rows set the tenant context exact
 | `audit.int.test.ts` | Insert + read within the college; `UPDATE`/`DELETE` denied; cross-college invisible. PR-5 uses `actorUserId: null` only (no `users` table yet); from PR-12: a real user as actor is stored, an unknown actor id is rejected by the FK. |
 | `rate-limit.int.test.ts` | Counts, refuses over the limit with a positive `retryAfterSeconds`, resets after the window (window passed as 1 s), concurrent hits are atomic; `purgeExpiredRateLimits` removes only counters older than the given age. |
 | `users.int.test.ts` | Tenant filter on every scoped function (cross-college `setRole`/`setStatus`/`findInTenant` → null/false); search escapes `%` and `_`; pagination and totals; `activateInvited`; `deleteJustCreated` removes a fresh user of that college with its accounts/sessions and refuses another college's user and a user older than 10 minutes. |
-| `sessions.int.test.ts` | `revokeAllForUser` deletes only that user's sessions. |
+| `sessions.int.test.ts` | `revokeAllForUser` deletes only that user's sessions; `revokeByToken` deletes only the session with that token. |
 | `student-profiles.int.test.ts` | Unique code per college (and concurrent creates → exactly one wins); same code in two colleges; division from another college → `invalid_division`; cross-college invisibility; `maxLevelInUse`. |
 | `invitations.int.test.ts` | One pending per email; expired pending replaced; token lookup works only with the matching hash and returns nothing for other tokens; concurrent `claim` → exactly one succeeds; `release`; `revoke` states; cross-college invisibility. |
 | `auth-schema.int.test.ts` | Defaults `student`/`active`/`ar`; upper-case email, unknown role, and missing tenant rejected; deleting a user cascades to sessions and accounts and sets `audit_events.actor_user_id` to NULL. |

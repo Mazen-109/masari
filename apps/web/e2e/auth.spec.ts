@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { countAuditEvents, createCollege } from './support/db';
+import { countAuditEvents, countSessions, createCollege, setCollegeStatus } from './support/db';
 import { expect, test } from './support/fixtures';
 import {
   CATALOGS,
@@ -159,6 +159,48 @@ test('after sign-out the dashboard is gone, also through the back button', async
 
   await page.goto('/ar/dashboard');
   await expect(page).toHaveURL('/ar/sign-in?next=%2Fdashboard');
+});
+
+test('a session cookie saved before sign-out no longer works (the session row is gone)', async ({
+  page,
+}) => {
+  const email = await registerConfirmedStudent(page);
+  await signIn(page, { email });
+  await expect(page).toHaveURL('/ar/dashboard');
+  const saved = await sessionCookie(page);
+  expect(saved).toBeDefined();
+  expect(await countSessions(email)).toBe(1);
+
+  await signOut(page);
+  expect(await countSessions(email)).toBe(0);
+
+  if (saved !== undefined) await page.context().addCookies([saved]);
+  await page.goto('/ar/dashboard');
+  await expect(page).toHaveURL('/ar/sign-in?next=%2Fdashboard');
+});
+
+test('a refused sign-in to a suspended college leaves no session and no audit row', async ({
+  page,
+}) => {
+  const college = await createCollege();
+  const email = await registerConfirmedStudent(page, { college: college.slug });
+  await setCollegeStatus(college.slug, 'suspended');
+
+  await signIn(page, { email });
+
+  await expect(formError(page)).toHaveAttribute('data-code', 'tenant_suspended');
+  await expect(formError(page)).toContainText(ar.errors.tenant_suspended);
+  expect(await sessionCookie(page)).toBeUndefined();
+  expect(await countSessions(email)).toBe(0);
+  expect(await countAuditEvents(college.slug, 'auth.sign_in')).toBe(0);
+  await page.goto('/ar/dashboard');
+  await expect(page).toHaveURL('/ar/sign-in?next=%2Fdashboard');
+});
+
+test('next=/en/dashboard is not doubled into /ar/en/dashboard', async ({ page }) => {
+  const email = await registerConfirmedStudent(page);
+  await signIn(page, { email, query: `next=${encodeURIComponent('/en/privacy')}` });
+  await expect(page).toHaveURL('/ar/privacy');
 });
 
 test('the 11th sign-in attempt for one email within 10 minutes is refused', async ({ page }) => {

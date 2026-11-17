@@ -243,7 +243,12 @@ async function signInWithLibrary(email: string, password: string) {
       returnHeaders: true,
       returnStatus: false,
     });
-    return { ok: true as const, userId: response.user.id, responseHeaders };
+    const session: NewSession = {
+      userId: response.user.id,
+      token: response.token,
+      responseHeaders,
+    };
+    return { ok: true as const, session };
   } catch (error) {
     if (isEmailNotVerified(error))
       return { ok: false as const, result: fail('email_not_verified') };
@@ -252,7 +257,67 @@ async function signInWithLibrary(email: string, password: string) {
   }
 }
 
+/** The session the library just created in this action (its token never leaves the server). */
+type NewSession = { userId: string; token: string; responseHeaders: Headers };
+
+/**
+ * Ends the session created by this action, best effort and without throwing: through the library (which
+ * also clears the cookie it just set), and if that fails, by deleting the session row directly. Logs only
+ * event names and error class names.
+ */
+async function endNewSession(session: NewSession): Promise<void> {
+  try {
+    await getAuth().api.signOut({
+      headers: new Headers({ cookie: cookieHeaderFrom(session.responseHeaders) }),
+    });
+    return;
+  } catch (error) {
+    log.error('auth.new_session_sign_out_failed', { errorName: errorName(error) });
+  }
+  try {
+    await sessions.revokeByToken(session.token);
+  } catch (error) {
+    log.error('auth.new_session_revoke_failed', { errorName: errorName(error) });
+  }
+}
+
 type SignInOutcome = { ok: true; redirectTo: string } | { ok: false; result: ActionResult };
+
+/**
+ * Steps 4–6, after the library created a session. Every refusal ends that session, and so does any
+ * failure (the caller ends it and answers `internal`): a sign-in is never left half done — signed in
+ * without its audit row.
+ */
+async function completeSignIn(session: NewSession, next: string | null): Promise<SignInOutcome> {
+  // Step 4: the library does not know Masari's statuses. The account and college are read fresh.
+  const user = await users.findById(session.userId);
+  const tenant = user === null ? null : await tenants.findById(user.tenantId);
+  if (user === null || tenant === null) {
+    log.warn('auth.sign_in_account_missing');
+    await endNewSession(session);
+    return { ok: false, result: fail('internal') };
+  }
+  if (user.status !== 'active') {
+    await endNewSession(session);
+    // A suspended account keeps no session anywhere.
+    await sessions.revokeAllForUser(user.id);
+    return { ok: false, result: fail('account_suspended') };
+  }
+  if (tenant.status !== 'active') {
+    // Only the new session ends; other sessions of a suspended college are refused on every request.
+    await endNewSession(session);
+    return { ok: false, result: fail('tenant_suspended') };
+  }
+
+  await recordAudit(
+    { tenantId: tenant.id, userId: user.id },
+    { action: 'auth.sign_in', targetId: user.id },
+  );
+  return {
+    ok: true,
+    redirectTo: next === null ? `/${user.locale}/dashboard` : `/${user.locale}${next}`,
+  };
+}
 
 /** Steps 1–6 of contracts/server-actions.md §4.3; a success carries the redirect target. */
 async function signIn(formData: FormData): Promise<SignInOutcome> {
@@ -270,32 +335,13 @@ async function signIn(formData: FormData): Promise<SignInOutcome> {
   const signedIn = await signInWithLibrary(email, password);
   if (!signedIn.ok) return signedIn;
 
-  // Step 4: the library does not know Masari's statuses. The account and college are read fresh.
-  const user = await users.findById(signedIn.userId);
-  const tenant = user === null ? null : await tenants.findById(user.tenantId);
-  if (user === null || tenant === null || user.status !== 'active' || tenant.status !== 'active') {
-    // End the session just created (and clear its cookie) through the library.
-    await getAuth().api.signOut({
-      headers: new Headers({ cookie: cookieHeaderFrom(signedIn.responseHeaders) }),
-    });
-    if (user === null || tenant === null) return { ok: false, result: fail('internal') };
-    if (user.status !== 'active') {
-      // A suspended account keeps no session anywhere.
-      await sessions.revokeAllForUser(user.id);
-      return { ok: false, result: fail('account_suspended') };
-    }
-    // Other sessions of a suspended college stay; they are refused on every request meanwhile.
-    return { ok: false, result: fail('tenant_suspended') };
+  try {
+    return await completeSignIn(signedIn.session, next);
+  } catch (error) {
+    log.error('auth.sign_in_failed', { errorName: errorName(error) });
+    await endNewSession(signedIn.session);
+    return { ok: false, result: fail('internal') };
   }
-
-  await recordAudit(
-    { tenantId: tenant.id, userId: user.id },
-    { action: 'auth.sign_in', targetId: user.id },
-  );
-  return {
-    ok: true,
-    redirectTo: next === null ? `/${user.locale}/dashboard` : `/${user.locale}${next}`,
-  };
 }
 
 /**

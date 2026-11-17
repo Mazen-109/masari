@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_NEXT_LENGTH, safeNext } from './safe-next';
+import { localeLessNext, MAX_NEXT_LENGTH, safeNext } from './safe-next';
 
 describe('safeNext', () => {
   it.each(['/dashboard?x=1', '/dashboard', '/', '/admin/users?page=2#top', '/modules/mueed'])(
@@ -40,4 +40,33 @@ describe('safeNext', () => {
       expect(safeNext(value)).toBeNull();
     },
   );
+});
+
+describe('localeLessNext', () => {
+  it.each([
+    ['/en/dashboard', '/dashboard'],
+    ['/ar/dashboard', '/dashboard'],
+    ['/en/admin/users?page=2#top', '/admin/users?page=2#top'],
+    ['/dashboard', '/dashboard'],
+    ['/english/page', '/english/page'],
+    ['/arabic', '/arabic'],
+    ['/EN/dashboard', '/EN/dashboard'],
+    ['/', '/'],
+  ])('%j → %j', (value, expected) => {
+    expect(localeLessNext(value)).toBe(expected);
+  });
+
+  it.each([
+    ['/en'],
+    ['/ar'],
+    ['/en?x=1'],
+    ['/ar#top'],
+    ['/en//evil.test'],
+    ['/en/\\evil.test'],
+    ['//evil.test'],
+    ['https://evil.test'],
+    [undefined],
+  ])('%j → null', (value) => {
+    expect(localeLessNext(value)).toBeNull();
+  });
 });

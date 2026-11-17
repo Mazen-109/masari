@@ -86,7 +86,7 @@ still applied, on the shared value `unknown`.
 | `name` | string, 2–100 chars after trim | `required`, `too_short`, `too_long` |
 | `email` | trimmed, lower-cased, valid email, ≤ 254 chars | `required`, `invalid_email`, `too_long` |
 | `password` (new) | 10–128 chars, not trimmed | `required`, `password_too_short`, `password_too_long` |
-| `password` (sign-in) | 1–128 chars | `required` |
+| `password` (sign-in) | at least 1 char, not trimmed; the 128-char maximum is enforced by the auth library (`maxPasswordLength`) and reported as `invalid_credentials`, never as a field error | `required` |
 | `consent` | must be `"on"` | `consent_required` |
 | `tenantSlug` | `^[a-z0-9]+(-[a-z0-9]+)*$`, 3–40 | `required`, `invalid_choice` |
 | `role` | one of `ROLES` | `invalid_choice` |
@@ -143,12 +143,21 @@ Fields: `email`, `password`, `next` (optional).
    which also clears the cookie) and return `fail('tenant_suspended')`; the user's other sessions are left in
    place (they are refused on every request while the college is suspended — `cli.md` §5).
 5. Audit `auth.sign_in`.
-6. `redirect(safeNext(next) ? '/{user.locale}' + next : '/{user.locale}/dashboard')`.
+6. `redirect(next ? '/{user.locale}' + next : '/{user.locale}/dashboard')`, where `next` is
+   `localeLessNext(next)` (`lib/safe-next.ts`: `safeNext`, then a leading `/ar` or `/en` segment removed, so
+   `next=/en/dashboard` never becomes `/ar/en/dashboard`).
+
+Any failure in steps 4–5 (reading the user or college, revoking sessions, the audit) first ends the session
+just created — `auth.api.signOut` with that session's cookie, and if that fails too
+`sessions.revokeByToken(token)` — logs only event and error class names, and returns `fail('internal')`: a
+sign-in is never left signed in without its audit row. A user or college that cannot be found after the
+library signed in is logged as `auth.sign_in_account_missing` (warn) and handled the same way.
 
 ### 4.4 `signOutAction` (form, no fields) — FR-008
 
 Requires a session (otherwise just redirect). Audit `auth.sign_out` → `auth.api.signOut` →
-`redirect('/{locale}/sign-in')`.
+`redirect('/{locale}/sign-in')`. A failing audit is logged (`auth.sign_out_audit_failed`) and does not block
+sign-out.
 
 ### 4.5 `requestPasswordResetAction` (form) — FR-005, FR-009, FR-010
 
