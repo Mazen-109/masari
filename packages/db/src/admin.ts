@@ -9,3 +9,5 @@ export { createTenant } from './admin/tenants';
 export type { CreateTenantResult, NewTenantInput } from './admin/tenants';
 export { DEMO_SLUG, seedDemo } from './admin/seed';
 export type { SeedResult } from './admin/seed';
+export { countAuditEvents, getUserByEmail } from './admin/test-support';
+export type { UserDetails } from './admin/test-support';

@@ -44,6 +44,7 @@ for (const locale of ['ar', 'en'] as const) {
       .getByRole('contentinfo')
       .getByRole('link', { name: messages.common.privacyNotice });
     await expect(footerLink).toHaveAttribute('href', `/${locale}/privacy`);
+    await expect(footerLink).toHaveAttribute('aria-current', 'page');
 
     await page.keyboard.press('Tab');
     await expect(page.locator('a[href="#main"]')).toBeFocused();
@@ -55,4 +56,17 @@ test('the language switch on the privacy notice keeps the page', async ({ page }
   await page.getByRole('link', { name: ar.common.switchLanguage }).click();
   await expect(page).toHaveURL('/en/privacy');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(en.privacy.title);
+});
+
+test('the footer link is the current page only on the privacy notice', async ({ page }) => {
+  await page.goto('/ar/register');
+  const footerLink = page
+    .getByRole('contentinfo')
+    .getByRole('link', { name: ar.common.privacyNotice });
+  await expect(footerLink).toBeVisible();
+  await expect(footerLink).not.toHaveAttribute('aria-current');
+
+  await footerLink.click();
+  await expect(page).toHaveURL('/ar/privacy');
+  await expect(footerLink).toHaveAttribute('aria-current', 'page');
 });
