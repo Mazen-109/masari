@@ -5,3 +5,7 @@ export { recreateDatabase, withDatabaseName } from './admin/database';
 export { applyMigrations, ensureRuntimeRole, runMigrations } from './admin/migrate';
 export { connectionTarget } from './admin/identifiers';
 export { failureReason } from './admin/error-reason';
+export { createTenant } from './admin/tenants';
+export type { CreateTenantResult, NewTenantInput } from './admin/tenants';
+export { DEMO_SLUG, seedDemo } from './admin/seed';
+export type { SeedResult } from './admin/seed';

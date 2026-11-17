@@ -6,7 +6,7 @@ import {
   closeTestPools,
   inRuntimeTransaction,
   makeTenant,
-  ownerQuery,
+  ownerTenantQuery,
   pgErrorCode,
   runtimeQuery,
   type TenantFixture,
@@ -166,9 +166,14 @@ describe('divisions.findById', () => {
 describe('divisions.update', () => {
   it('changes names and order, keeps the code, and sets updated_at', async () => {
     const created = await createOk(collegeA, { code: 'CS', sortOrder: 10 });
-    await ownerQuery(`UPDATE divisions SET updated_at = now() - interval '1 day' WHERE id = $1`, [
-      created.id,
-    ]);
+    const backdated = await ownerTenantQuery<{ updated_at: Date }>(
+      collegeA.id,
+      `UPDATE divisions SET updated_at = now() - interval '1 day' WHERE id = $1 RETURNING updated_at`,
+      [created.id],
+    );
+    // Without this, a back-dating that matched no row would let the assertion below pass vacuously.
+    expect(backdated.rowCount).toBe(1);
+    const backdatedAt = backdated.rows[0]?.updated_at.getTime() ?? Number.POSITIVE_INFINITY;
     const updated = await inCollege(collegeA, (tx) =>
       divisions.update(tx, created.id, {
         nameAr: 'علوم الحاسب',
@@ -185,6 +190,7 @@ describe('divisions.update', () => {
       isActive: true,
     });
     // Backdated by a day above; the update resets it to the time of the update.
+    expect(updated?.updatedAt.getTime()).toBeGreaterThan(backdatedAt);
     expect(updated?.updatedAt.getTime()).toBeGreaterThanOrEqual(created.updatedAt.getTime());
   });
 

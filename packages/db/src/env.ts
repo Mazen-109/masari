@@ -34,6 +34,7 @@ const adminDbEnvSchema = z.object({
   DATABASE_MIGRATION_URL: postgresUrl,
   DATABASE_URL: postgresUrl,
   APP_URL: httpOrigin.optional(),
+  APP_ENV: z.enum(['development', 'test', 'production']).optional(),
 });
 
 export type DbEnv = z.infer<typeof dbEnvSchema>;
