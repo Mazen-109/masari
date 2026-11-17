@@ -101,3 +101,28 @@ describe('users.findById', () => {
     expect(await users.findById('')).toBeNull();
   });
 });
+
+describe('users.setLocale', () => {
+  it('stores the language of that account only and changes nothing else', async () => {
+    const tenant = await makeTenant();
+    const user = await makeUser(tenant.id);
+    const other = await makeUser(tenant.id);
+    const before = await users.findById(user.id);
+    expect(before?.locale).toBe('ar');
+
+    await users.setLocale(user.id, 'en');
+
+    expect(await users.findById(user.id)).toEqual({ ...before, locale: 'en' });
+    expect((await users.findById(other.id))?.locale).toBe('ar');
+
+    await users.setLocale(user.id, 'ar');
+    expect((await users.findById(user.id))?.locale).toBe('ar');
+  });
+
+  it('is a no-op for an unknown or empty id', async () => {
+    const unknownId = `u_${randomBytes(9).toString('hex')}`;
+    await expect(users.setLocale(unknownId, 'en')).resolves.toBeUndefined();
+    await expect(users.setLocale('', 'en')).resolves.toBeUndefined();
+    expect(await users.findById(unknownId)).toBeNull();
+  });
+});

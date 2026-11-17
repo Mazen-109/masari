@@ -164,18 +164,71 @@ test('the user menu works with the keyboard and passes axe while open', async ({
     );
   }
   await expect(page.getByRole('menuitem', { name: ar.nav.profile })).toBeFocused();
+  // The focused item shows the focus ring (WCAG 2.4.7), not only a background change.
+  await expect(page.getByRole('menuitem', { name: ar.nav.profile })).toHaveCSS(
+    'outline-style',
+    'solid',
+  );
 
   await page.keyboard.press('ArrowDown');
-  await expect(page.getByRole('menuitem', { name: ar.auth.signOut.submit })).toBeFocused();
+  const signOutItem = page.getByRole('menuitem', { name: ar.auth.signOut.submit });
+  await expect(signOutItem).toBeFocused();
+  await expect(signOutItem).toHaveCSS('outline-style', 'solid');
 
   await page.keyboard.press('Escape');
   await expect(menu).toBeHidden();
   await expect(trigger).toBeFocused();
 
   await openUserMenu(page);
-  await page.getByRole('menuitem', { name: ar.auth.signOut.submit }).focus();
+  await signOutItem.focus();
+  // Hold the action's request until the busy state has been checked.
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('/ar/dashboard', async (route) => {
+    if (route.request().method() === 'POST') await held;
+    await route.continue();
+  });
   await page.keyboard.press('Enter');
+  const busyItem = page.locator('[data-slot="user-menu-sign-out"]');
+  await expect(busyItem).toHaveAttribute('aria-busy', 'true');
+  await expect(busyItem).toHaveAttribute('aria-disabled', 'true');
+  await expect(busyItem).toHaveText(ar.common.actions.pending);
+  release();
   await page.waitForURL('/ar/sign-in');
+});
+
+test('a failed sign-out request leaves the user menu usable again', async ({ page }) => {
+  await signInStudent(page);
+  // The sign-out action's request (a POST to the current page) fails as if the network were down.
+  await page.route('/ar/dashboard', async (route) => {
+    if (route.request().method() === 'POST') await route.abort('internetdisconnected');
+    else await route.continue();
+  });
+
+  await openUserMenu(page);
+  const signOutItem = page.locator('[data-slot="user-menu-sign-out"]');
+  await signOutItem.click();
+
+  await expect(signOutItem).toHaveText(ar.auth.signOut.submit);
+  await expect(signOutItem).not.toHaveAttribute('aria-busy');
+  await expect(signOutItem).not.toHaveAttribute('aria-disabled');
+  await expect(page).toHaveURL('/ar/dashboard');
+
+  // With the network back, the same item signs out.
+  await page.unrouteAll();
+  await signOutItem.click();
+  await page.waitForURL('/ar/sign-in');
+});
+
+test('with JavaScript on, the no-JavaScript sign-out form takes no room in the header', async ({
+  page,
+}) => {
+  await signInStudent(page);
+  const fallback = page.getByRole('banner').locator('[data-slot="noscript-sign-out"]');
+  await expect(fallback).toHaveCSS('display', 'none');
+  await expect(fallback.locator('form')).toHaveCount(1);
 });
 
 test.describe('on a phone', () => {

@@ -293,9 +293,9 @@ permissions. **No user-story batch may start before PR-14 is merged.**
 
 ### PR-20 — Language preference · branch `001-pr20-language-preference`
 
-- [ ] T084 [US1] Add `setLocale` to `packages/db/src/repositories/users.ts` (+ case in `packages/db/test/users.int.test.ts`) and create `apps/web/src/features/profile/actions.ts` with `setLocaleAction` (contracts/server-actions.md §5.1) (FR-037)
-- [ ] T085 [US1] Update `apps/web/src/components/shell/locale-switcher.tsx` to call `setLocaleAction` before navigating when a session exists (still a plain link when signed out or without JavaScript)
-- [ ] T086 [US1] Extend `apps/web/e2e/auth.spec.ts`: switch to English on the dashboard → same path under `/en`, `dir="ltr"`; sign out; sign in from `/ar/sign-in` → lands on `/en/dashboard`; a new context (other device) also lands on `/en/dashboard`
+- [x] T084 [US1] Add `setLocale` to `packages/db/src/repositories/users.ts` (+ case in `packages/db/test/users.int.test.ts`) and create `apps/web/src/features/profile/actions.ts` with `setLocaleAction` (contracts/server-actions.md §5.1) (FR-037)
+- [x] T085 [US1] Update `apps/web/src/components/shell/locale-switcher.tsx` to call `setLocaleAction` before navigating when a session exists (still a plain link when signed out or without JavaScript)
+- [x] T086 [US1] Extend `apps/web/e2e/auth.spec.ts`: switch to English on the dashboard → same path under `/en`, `dir="ltr"`; sign out; sign in from `/ar/sign-in` → lands on `/en/dashboard`; a new context (other device) also lands on `/en/dashboard`
 
 **Accept**: US1 acceptance scenario 4 passes · `users.locale` is the only persisted preference (no extra cookie introduced)
 
