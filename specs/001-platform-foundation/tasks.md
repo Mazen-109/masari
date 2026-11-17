@@ -220,9 +220,9 @@ permissions. **No user-story batch may start before PR-14 is merged.**
 
 ### PR-13 — Permissions, module registry, users/sessions repositories · branch `001-pr13-permissions`
 
-- [ ] T056 Create `apps/web/src/modules/registry.ts` (`MODULE_REGISTRY`, `visibleModules`) with `apps/web/src/modules/registry.test.ts` (every role × all-enabled and × one-disabled; order = `MODULE_KEYS`) (FR-016, FR-034, FR-035)
-- [ ] T057 Create `apps/web/src/server/auth/permissions.ts` (`PERMISSIONS`, `Permission`, `can`; `module.*` derived from the registry) with `apps/web/src/server/auth/permissions.test.ts` asserting all 40 cells (10 permissions × 4 roles) of contracts/permissions.md §2 (FR-014)
-- [ ] T058 Create `packages/db/src/repositories/users.ts` (`findByEmail`, `findById`; type `UserSummary` — never returns hashes) and `packages/db/src/repositories/sessions.ts` (`revokeAllForUser`); export namespaces `users`, `sessions`; create `packages/db/test/users.int.test.ts` (lookup, lower-case match) and `packages/db/test/sessions.int.test.ts` (contracts/db-api.md §4)
+- [x] T056 Create `apps/web/src/modules/registry.ts` (`MODULE_REGISTRY`, `visibleModules`) with `apps/web/src/modules/registry.test.ts` (every role × all-enabled and × one-disabled; order = `MODULE_KEYS`) (FR-016, FR-034, FR-035)
+- [x] T057 Create `apps/web/src/server/auth/permissions.ts` (`PERMISSIONS`, `Permission`, `can`; `module.*` derived from the registry) with `apps/web/src/server/auth/permissions.test.ts` asserting all 40 cells (10 permissions × 4 roles) of contracts/permissions.md §2 (FR-014)
+- [x] T058 Create `packages/db/src/repositories/users.ts` (`findByEmail`, `findById`; type `UserSummary` — never returns hashes) and `packages/db/src/repositories/sessions.ts` (`revokeAllForUser`); export namespaces `users`, `sessions`; create `packages/db/test/users.int.test.ts` (lookup, lower-case match) and `packages/db/test/sessions.int.test.ts` (contracts/db-api.md §4)
 
 **Accept**: permission test is table-driven with exactly 40 assertions, every permission has at least one granted and one denied role, and it fails if a row is added to `PERMISSIONS` without a matrix entry · `can()` returns false for an unknown permission string · `revokeAllForUser` deletes only that user's sessions
 

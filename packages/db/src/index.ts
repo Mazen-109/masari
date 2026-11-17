@@ -17,6 +17,7 @@ export type {
   TenantPublic,
   TenantStatus,
   UserStatus,
+  UserSummary,
 } from './constants';
 export { closePool } from './client';
 export { withTenant } from './context';
@@ -29,3 +30,5 @@ export type { TenantSettingsPatch } from './repositories/tenants';
 export * as divisions from './repositories/divisions';
 export type { DivisionCreateResult, DivisionPatch } from './repositories/divisions';
 export * as audit from './repositories/audit';
+export * as users from './repositories/users';
+export * as sessions from './repositories/sessions';
