@@ -13,6 +13,7 @@ export type {
   Locale,
   ModuleKey,
   Role,
+  StudentProfile,
   Tenant,
   TenantPublic,
   TenantStatus,
@@ -29,6 +30,13 @@ export * as tenants from './repositories/tenants';
 export type { TenantSettingsPatch } from './repositories/tenants';
 export * as divisions from './repositories/divisions';
 export type { DivisionCreateResult, DivisionPatch } from './repositories/divisions';
+export * as studentProfiles from './repositories/student-profiles';
+export type {
+  StudentProfileCreateResult,
+  StudentProfileInput,
+  StudentProfilePatch,
+  StudentProfileUpdateResult,
+} from './repositories/student-profiles';
 export * as audit from './repositories/audit';
 export * as users from './repositories/users';
 export * as sessions from './repositories/sessions';

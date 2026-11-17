@@ -75,6 +75,7 @@ test('the language chosen on the dashboard is remembered with the account, on an
   // A working user menu shows the page is hydrated, so the switch below runs its click handler.
   await openUserMenu(page);
   await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu')).toBeHidden();
   const cookiesBefore = (await page.context().cookies()).map((cookie) => cookie.name).sort();
 
   await page.getByRole('banner').getByRole('link', { name: ar.common.switchLanguage }).click();
@@ -82,7 +83,7 @@ test('the language chosen on the dashboard is remembered with the account, on an
   await expect(page).toHaveURL('/en/dashboard');
   await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-  expect((await getUserByEmail(email))?.locale).toBe('en');
+  await expect.poll(async () => (await getUserByEmail(email))?.locale).toBe('en');
   // The account is the only place the choice is kept: no language cookie appears.
   expect((await page.context().cookies()).map((cookie) => cookie.name).sort()).toEqual(
     cookiesBefore,
@@ -103,10 +104,15 @@ test('the language chosen on the dashboard is remembered with the account, on an
     await otherDevice.close();
   }
 
-  // Switching back is remembered too.
+  // Switching back is remembered too. The page was just signed into again, so wait for hydration first
+  // (a working user menu), or the click could land before the switch's handler is attached.
+  await openUserMenu(page, 'en');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu')).toBeHidden();
   await page.getByRole('banner').getByRole('link', { name: en.common.switchLanguage }).click();
   await expect(page).toHaveURL('/ar/dashboard');
-  expect((await getUserByEmail(email))?.locale).toBe('ar');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
+  await expect.poll(async () => (await getUserByEmail(email))?.locale).toBe('ar');
 });
 
 test('a wrong password and an unknown email show the identical generic message', async ({
