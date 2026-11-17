@@ -9,7 +9,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.{ts,tsx}'],
     coverage: {
       provider: 'v8',
       include: [
@@ -20,7 +20,7 @@ export default defineConfig({
         'src/features/**/rules.ts',
       ],
       exclude: [
-        'src/**/*.test.ts',
+        'src/**/*.test.{ts,tsx}',
         'src/server/auth/auth.ts',
         'src/server/auth/session.ts',
         'src/server/auth/action-context.ts',

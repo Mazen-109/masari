@@ -274,7 +274,8 @@ roving-tabindex menu, tab, and radio items, keep the ring.
 `apps/web/src/components/ui/button.tsx` (shadcn/ui, adapted). Variants: `primary` (one per form or
 region), `secondary` (teal wash), `outline` (`input` border on `surface`), `ghost`, `destructive`,
 `link`. Sizes: `default` (min 44 px high, 20 px inline padding), `lg` (48 px), `icon` (44 × 44 px).
-Medium weight (500), 16 px text, colour-only transitions (150 ms), disabled at 50 % opacity. `asChild`
+Medium weight (500), 16 px text, colour-only transitions (150 ms), disabled at 50 % opacity; `aria-disabled` (a submit button while its form is sent) at 70 % with a
+not-allowed cursor, still focusable. `asChild`
 renders a link with button styling. A `<button>` defaults to `type="button"`; submit buttons say
 `type="submit"`.
 
@@ -311,9 +312,17 @@ revert those lines: the tokens above are the only source of colour.
 
 ### Inputs / Fields
 
-Arrive with the form primitives (PR-15): visible label above the control, `input` border, `surface`
-fill, 44 px minimum height, 16 px text, error text in `danger` below the field linked by
-`aria-describedby`.
+`components/ui/{input,select,checkbox,label}.tsx` and `components/forms/field.tsx`: visible label above
+the control (14 px, medium), `input` border, `surface` fill, 44 px minimum height, 16 px text; an invalid
+control gets a `danger` border and `aria-invalid`, and the error text in `danger` below the field is
+linked by `aria-describedby` (error first, then the hint in `muted-foreground`). Checkboxes and selects
+are the native elements styled with tokens (no Radix), so every form works without JavaScript; a checkbox
+field puts the control before its label on one 44 px row. The form-level error summary
+(`components/forms/form-error.tsx`) is an `Alert` with `role="alert"` on `danger-soft`; banners use
+`rounded-lg` and a soft status fill with the matching text token from the contrast table:
+`primary-soft-foreground` on `primary-soft` (info), `danger-soft-foreground` on `danger-soft` (error),
+`success` on `success-soft`, and `warning` on `warning-soft`. The submit button
+(`components/forms/submit-button.tsx`) says it is busy while the form is sent and stays focusable.
 
 ## Do's and Don'ts
 

@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 /**
- * Guard coverage (contracts/permissions.md §3, routes.md §1 "Guards"): every `page.tsx` under
+ * Guard coverage (contracts/permissions.md §3, routes.md §1 "Guards"): every page file (`page.tsx`,
+ * `page.ts`, `page.jsx`, `page.js`) under
  * `[locale]/(app)` and `[locale]/(onboarding)` must call `requireSession(` or `requirePermission(` itself —
  * a layout guard is not enough. Comments do not count as a call.
  */
@@ -13,6 +14,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 const APP_DIR = fileURLToPath(new URL('.', import.meta.url));
 const GUARDED_GROUPS = ['(app)', '(onboarding)'];
 const GUARD_CALL = /\brequire(?:Session|Permission)\(/;
+const PAGE_FILE = /^page\.(t|j)sx?$/;
 
 async function listPages(dir: string): Promise<string[]> {
   let entries;
@@ -24,12 +26,16 @@ async function listPages(dir: string): Promise<string[]> {
     throw error;
   }
   return entries
-    .filter((entry) => entry.isFile() && entry.name === 'page.tsx')
+    .filter((entry) => entry.isFile() && PAGE_FILE.test(entry.name))
     .map((entry) => join(entry.parentPath, entry.name));
 }
 
+/**
+ * Removes block and line comments. A `//` preceded by `:` is kept (a URL such as `https://…` in a string);
+ * any other `//` starts a comment, even directly after code (`foo();//requireSession(`).
+ */
 function withoutComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
 /** Pages under the guarded route groups of `appDir` that contain no guard call, relative to `appDir`. */
@@ -96,6 +102,41 @@ describe('guard coverage', () => {
         "/* requirePermission('x', '/b') */\nexport default 1;",
       );
       expect(await findUnguardedPages(fixture ?? '')).toHaveLength(2);
+    });
+
+    it('does not count a guard in a line comment written directly after code', async () => {
+      await page(
+        '[locale]/(app)/a/page.tsx',
+        "export default 1;//await requireSession('/a');\nconst x = 2;// requirePermission('y', '/a')",
+      );
+      expect(await findUnguardedPages(fixture ?? '')).toEqual([
+        join('[locale]', '(app)', 'a', 'page.tsx'),
+      ]);
+    });
+
+    it('keeps code after a URL in a string (the `//` of `https://` is not a comment)', async () => {
+      await page(
+        '[locale]/(app)/a/page.tsx',
+        "const u = 'https://example.test'; await requireSession('/a');",
+      );
+      expect(await findUnguardedPages(fixture ?? '')).toEqual([]);
+    });
+
+    it('scans page.ts, page.tsx, page.js, and page.jsx, and nothing else', async () => {
+      for (const name of ['page.ts', 'page.tsx', 'page.js', 'page.jsx']) {
+        await page(`[locale]/(app)/${name.replace('.', '-')}/${name}`, 'export default 1;');
+      }
+      await page('[locale]/(app)/other/page.mdx', 'export default 1;');
+      await page('[locale]/(app)/other/page.test.tsx', 'export default 1;');
+      await page('[locale]/(app)/other/my-page.tsx', 'export default 1;');
+      expect(await findUnguardedPages(fixture ?? '')).toEqual(
+        [
+          join('[locale]', '(app)', 'page-js', 'page.js'),
+          join('[locale]', '(app)', 'page-jsx', 'page.jsx'),
+          join('[locale]', '(app)', 'page-ts', 'page.ts'),
+          join('[locale]', '(app)', 'page-tsx', 'page.tsx'),
+        ].sort(),
+      );
     });
 
     it('finds nothing to report when the route groups do not exist', async () => {
