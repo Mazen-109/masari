@@ -17,6 +17,7 @@ const ctx = (role: SessionContext['user']['role']): SessionContext => ({
     enabledModules: [],
     allowedEmailDomains: [],
   },
+  studentProfile: null,
 });
 
 afterEach(() => {

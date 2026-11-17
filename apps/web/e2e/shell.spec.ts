@@ -4,7 +4,7 @@ import { expect, test } from './support/fixtures';
 import {
   CATALOGS,
   openUserMenu,
-  registerConfirmedStudent,
+  registerOnboardedStudent,
   signIn,
   userMenuTrigger,
   type TestLocale,
@@ -21,7 +21,7 @@ const STUDENT_MODULES = ['mueed', 'codejudge', 'kitabi', 'careermap', 'tadreeb']
 
 /** Signs in a new student of the demo college and opens `/{locale}/dashboard`. */
 async function signInStudent(page: Page, locale: TestLocale = 'ar'): Promise<void> {
-  const email = await registerConfirmedStudent(page);
+  const email = await registerOnboardedStudent(page);
   await signIn(page, { email });
   await page.waitForURL('/ar/dashboard');
   if (locale !== 'ar') await page.goto(`/${locale}/dashboard`);

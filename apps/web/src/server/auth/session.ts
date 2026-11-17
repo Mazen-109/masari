@@ -1,4 +1,12 @@
-import { tenants, users, type Locale, type ModuleKey, type Role } from '@masari/db';
+import {
+  studentProfiles,
+  tenants,
+  users,
+  withTenant,
+  type Locale,
+  type ModuleKey,
+  type Role,
+} from '@masari/db';
 import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { getLocale } from 'next-intl/server';
@@ -24,8 +32,29 @@ export type SessionContext = {
     enabledModules: ModuleKey[];
     allowedEmailDomains: string[];
   };
-  // `studentProfile` is added with the student_profiles table (PR-22).
+  /** The academic profile of a student; null for other roles and for a student who has none yet. */
+  studentProfile: StudentProfileSummary | null;
 };
+
+export type StudentProfileSummary = { studentCode: string; level: number; divisionId: string };
+
+/** Only roles that keep an academic profile (`profile.academic.manage_own`, i.e. students) have one. */
+function keepsAcademicProfile(role: Role): boolean {
+  return can(role, 'profile.academic.manage_own');
+}
+
+/** The student's profile read in the college's tenant context, without timestamps or ids it does not need. */
+async function loadStudentProfile(
+  tenantId: string,
+  userId: string,
+): Promise<StudentProfileSummary | null> {
+  const profile = await withTenant({ tenantId, userId }, (tx) =>
+    studentProfiles.findByUserId(tx, userId),
+  );
+  return profile === null
+    ? null
+    : { studentCode: profile.studentCode, level: profile.level, divisionId: profile.divisionId };
+}
 
 export type SessionDenialReason = 'none' | 'account_suspended' | 'tenant_suspended';
 
@@ -49,6 +78,10 @@ const resolveSession = cache(async (): Promise<Resolved> => {
   if (!tenant) return { context: null, denial: 'none' };
   if (tenant.status !== 'active') return { context: null, denial: 'tenant_suspended' };
 
+  const studentProfile = keepsAcademicProfile(user.role)
+    ? await loadStudentProfile(tenant.id, user.id)
+    : null;
+
   return {
     denial: 'none',
     context: {
@@ -68,6 +101,7 @@ const resolveSession = cache(async (): Promise<Resolved> => {
         enabledModules: tenant.enabledModules,
         allowedEmailDomains: tenant.allowedEmailDomains,
       },
+      studentProfile,
     },
   };
 });
@@ -94,19 +128,30 @@ export function signInPath(locale: string, returnTo: string, reason: SessionDeni
 
 /**
  * For pages. Redirects to the sign-in screen (with `next` and, when suspended, `reason`) without a usable
- * session. `returnTo` is the locale-less path (+ query) of the calling page.
+ * session. `returnTo` is the locale-less path (+ query) of the calling page. Redirects a student without an
+ * academic profile to /onboarding (FR-024) unless `allowIncompleteProfile` is true.
  *
- * `allowIncompleteProfile` is accepted now so pages are written against the final signature; the redirect
- * of students without an academic profile to /onboarding is added with the profile (PR-22).
+ * The context is cached per request (React cache), and a request can render a page after a Server Action
+ * created the profile in that same request (the action's redirect). So "no profile" from the cache is never
+ * trusted on its own: the profile is read again, uncached, before redirecting to /onboarding, and the
+ * returned context carries the fresh profile.
  */
 export async function requireSession(
   returnTo: string,
   opts?: { allowIncompleteProfile?: boolean },
 ): Promise<SessionContext> {
-  void opts;
   const { context, denial } = await resolveSession();
   if (context === null) redirect(signInPath(await getLocale(), returnTo, denial));
-  return context;
+  if (
+    opts?.allowIncompleteProfile === true ||
+    context.studentProfile !== null ||
+    !keepsAcademicProfile(context.user.role)
+  ) {
+    return context;
+  }
+  const studentProfile = await loadStudentProfile(context.tenant.id, context.user.id);
+  if (studentProfile === null) redirect(`/${await getLocale()}/onboarding`);
+  return { ...context, studentProfile };
 }
 
 /** requireSession + notFound() when the role lacks the permission (FR-014, FR-015). */

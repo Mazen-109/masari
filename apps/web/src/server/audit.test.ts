@@ -38,6 +38,7 @@ const session: SessionContext = {
     enabledModules: [],
     allowedEmailDomains: [],
   },
+  studentProfile: null,
 };
 
 function arrange(ip: string | null = '203.0.113.5') {

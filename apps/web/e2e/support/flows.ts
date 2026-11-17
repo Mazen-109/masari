@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { expect, type Page } from '@playwright/test';
 import ar from '../../messages/ar.json' with { type: 'json' };
 import en from '../../messages/en.json' with { type: 'json' };
@@ -168,5 +168,74 @@ export async function registerConfirmedStudent(
   await registerStudent(page, { ...input, email, locale });
   await page.waitForURL(`/${locale}/verify-email`);
   await confirmEmail(page, email);
+  return email;
+}
+
+/** A student code no other test uses: `S-` and 10 hex digits (valid: Latin letters, digits, hyphen). */
+export function uniqueStudentCode(): string {
+  return `S-${randomBytes(5).toString('hex')}`;
+}
+
+export type ProfileInput = {
+  /** Default: a new unique code. */
+  studentCode?: string;
+  /** Visible label of the level option; default the first level. */
+  level?: string;
+  /** Visible label of the division option; default the first division offered. */
+  division?: string;
+  locale?: TestLocale;
+};
+
+/** What `completeProfile` entered and chose, as shown on screen. */
+export type CompletedProfile = { studentCode: string; level: string; division: string };
+
+/**
+ * Fills and submits the onboarding form already on screen. Does not wait for the result: callers assert
+ * the URL or the errors. Returns what was entered.
+ */
+export async function completeProfile(
+  page: Page,
+  input: ProfileInput = {},
+): Promise<CompletedProfile> {
+  const t = CATALOGS[input.locale ?? 'ar'].onboarding;
+  const studentCode = input.studentCode ?? uniqueStudentCode();
+  await page.getByLabel(t.studentCode, { exact: true }).fill(studentCode);
+  const level = page.getByLabel(t.level, { exact: true });
+  const division = page.getByLabel(t.division, { exact: true });
+  // Index 0 is the placeholder.
+  const chosenLevel = await level.selectOption(
+    input.level === undefined ? { index: 1 } : { label: input.level },
+  );
+  const chosenDivision = await division.selectOption(
+    input.division === undefined ? { index: 1 } : { label: input.division },
+  );
+  const labelOf = async (select: typeof level, value: string | undefined) =>
+    (await select.locator(`option[value="${value ?? ''}"]`).textContent()) ?? '';
+  const result = {
+    studentCode,
+    level: await labelOf(level, chosenLevel[0]),
+    division: await labelOf(division, chosenDivision[0]),
+  };
+  await page.getByRole('button', { name: t.submit }).click();
+  return result;
+}
+
+/**
+ * A student who can use the app: registers (college `?u=` default `demo`), confirms the address, signs
+ * in, completes the academic profile, and signs out again. Returns the address; the browser is left signed
+ * out on the sign-in screen. Use it wherever a test expects a signed-in student to reach the dashboard.
+ */
+export async function registerOnboardedStudent(
+  page: Page,
+  input: Partial<RegistrationInput> & { profile?: ProfileInput } = {},
+): Promise<string> {
+  const { profile, ...registration } = input;
+  const locale = registration.locale ?? 'ar';
+  const email = await registerConfirmedStudent(page, registration);
+  await signIn(page, { email, locale });
+  await page.waitForURL(new RegExp(`/${locale}/onboarding$`));
+  await completeProfile(page, { locale, ...profile });
+  await page.waitForURL(`/${locale}/dashboard`);
+  await signOut(page, locale);
   return email;
 }
