@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { afterAll, describe, expect, it } from 'vitest';
 import { users } from '../src';
-import { closeTestPools, makeTenant, makeUser, ownerQuery } from './helpers';
+import { closeTestPools, makeTenant, makeUser, ownerQuery, pgErrorCode } from './helpers';
 
 // contracts/db-api.md §1.6 `users` (tasks.md T058): lookups by email and id, run as the runtime role.
 // Later batches extend this file with the tenant-scoped functions (findInTenant, listInTenant, …).
@@ -123,6 +123,35 @@ describe('users.setLocale', () => {
     const unknownId = `u_${randomBytes(9).toString('hex')}`;
     await expect(users.setLocale(unknownId, 'en')).resolves.toBeUndefined();
     await expect(users.setLocale('', 'en')).resolves.toBeUndefined();
+    expect(await users.findById(unknownId)).toBeNull();
+  });
+});
+
+describe('users.setName', () => {
+  it('changes the name of that account only and nothing else', async () => {
+    const tenant = await makeTenant();
+    const user = await makeUser(tenant.id, { name: 'Mona Ali' });
+    const other = await makeUser(tenant.id, { name: 'Omar Said' });
+    const before = await users.findById(user.id);
+
+    await users.setName(user.id, 'منى علي');
+
+    expect(await users.findById(user.id)).toEqual({ ...before, name: 'منى علي' });
+    expect((await users.findById(other.id))?.name).toBe('Omar Said');
+  });
+
+  it('is refused by the database for a name outside 2–100 characters', async () => {
+    const tenant = await makeTenant();
+    const user = await makeUser(tenant.id, { name: 'Mona Ali' });
+    expect(await pgErrorCode(users.setName(user.id, 'M'))).toBe('23514');
+    expect(await pgErrorCode(users.setName(user.id, 'm'.repeat(101)))).toBe('23514');
+    expect((await users.findById(user.id))?.name).toBe('Mona Ali');
+  });
+
+  it('is a no-op for an unknown or empty id', async () => {
+    const unknownId = `u_${randomBytes(9).toString('hex')}`;
+    await expect(users.setName(unknownId, 'Mona Ali')).resolves.toBeUndefined();
+    await expect(users.setName('', 'Mona Ali')).resolves.toBeUndefined();
     expect(await users.findById(unknownId)).toBeNull();
   });
 });

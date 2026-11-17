@@ -1,14 +1,18 @@
 import { randomBytes } from 'node:crypto';
 import {
+  addDivision as addDivisionIn,
   countAuditEvents as countAuditEventsIn,
   countSessionsByEmail as countSessionsByEmailIn,
   createStudentProfile as createStudentProfileIn,
   createTenant,
   getAdminDbEnv,
+  getStudentProfileByEmail as getStudentProfileByEmailIn,
   getUserByEmail as getUserByEmailIn,
   resetRateLimits as resetRateLimitsIn,
   setTenantStatus as setTenantStatusIn,
   withDatabaseName,
+  type DivisionFixture,
+  type StudentProfileDetails,
   type StudentProfileFixture,
   type UserDetails,
 } from '@masari/db/admin';
@@ -40,6 +44,16 @@ export function countSessions(email: string): Promise<number> {
  */
 export function createStudentProfile(email: string, input: StudentProfileFixture): Promise<void> {
   return createStudentProfileIn(ownerUrl(), email, input);
+}
+
+/** The stored academic profile (code, level, division code) of the account with this email, or null. */
+export function getStudentProfile(email: string): Promise<StudentProfileDetails | null> {
+  return getStudentProfileByEmailIn(ownerUrl(), email);
+}
+
+/** Adds a division to the college (no audit row), until the divisions screen exists (PR-36). */
+export function addDivision(tenantId: string, input: DivisionFixture): Promise<void> {
+  return addDivisionIn(ownerUrl(), tenantId, input);
 }
 
 /** Suspends or reactivates a college (as `pnpm tenant:set-status` will); sessions are not touched. */

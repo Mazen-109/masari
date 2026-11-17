@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { nameField } from '@/features/auth/schemas';
 
 /**
  * Field rules of contracts/server-actions.md §3 for the academic profile (FR-024–FR-026). Every issue
@@ -47,3 +48,20 @@ export const studentProfileSchema = z.object({
 });
 
 export type StudentProfileFormInput = z.infer<typeof studentProfileSchema>;
+
+/** The account form of the profile screen (contracts/server-actions.md §5.1 `updateAccountAction`). */
+export const accountSchema = z.object({ name: nameField });
+
+export type AccountFormInput = z.infer<typeof accountSchema>;
+
+/**
+ * The academic part of the profile screen (contracts/server-actions.md §5.1
+ * `updateStudentProfileAction`): level and division only. The student code is not part of it: a
+ * `studentCode` field in the submission is dropped like any other unknown field (FR-027).
+ */
+export const studentProfileUpdateSchema = z.object({
+  level: levelField,
+  divisionId: divisionIdField,
+});
+
+export type StudentProfileUpdateInput = z.infer<typeof studentProfileUpdateSchema>;

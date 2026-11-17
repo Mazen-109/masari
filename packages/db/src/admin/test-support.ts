@@ -65,14 +65,18 @@ export interface StudentProfileFixture {
   studentCode: string;
   /** Default 1. */
   level?: number;
-  /** Code of a division of the account's college; default its first division (sort order, code). */
+  /**
+   * Code of a division of the account's college (active or not); default its first ACTIVE division (sort
+   * order, code) — the one a student could pick on the screens.
+   */
   divisionCode?: string;
 }
 
 /**
  * Gives the account with this email an academic profile directly in the database (e2e fixture: signed-in
  * specs that are not about onboarding skip the screens). No audit row is written. Throws for an unknown
- * email or division, and — before a connection is opened — on any database but a throw-away test one.
+ * email or division (also when no code is given and the college has no active division), and — before a
+ * connection is opened — on any database but a throw-away test one.
  */
 export async function createStudentProfile(
   migrationUrl: string,
@@ -92,7 +96,8 @@ export async function createStudentProfile(
     await setTenantContext(client, account.tenantId);
     // Filtered explicitly: the owner may be a superuser, which bypasses even forced row-level security.
     const division = await client.query<{ id: string }>(
-      `SELECT id FROM divisions WHERE tenant_id = $1 AND ($2::text IS NULL OR code = $2)
+      `SELECT id FROM divisions
+        WHERE tenant_id = $1 AND (CASE WHEN $2::text IS NULL THEN is_active ELSE code = $2 END)
         ORDER BY sort_order, code LIMIT 1`,
       [account.tenantId, input.divisionCode ?? null],
     );
@@ -102,6 +107,68 @@ export async function createStudentProfile(
       `INSERT INTO student_profiles (user_id, student_code, level, division_id)
        VALUES ($1, $2, $3, $4)`,
       [account.id, input.studentCode, input.level ?? 1, divisionId],
+    );
+  });
+}
+
+/** The stored academic profile, with its division's code, as e2e tests compare it before and after. */
+export interface StudentProfileDetails {
+  studentCode: string;
+  level: number;
+  divisionCode: string;
+}
+
+/** The academic profile of the account with this email (input trimmed and lower-cased), or null. */
+export function getStudentProfileByEmail(
+  migrationUrl: string,
+  email: string,
+): Promise<StudentProfileDetails | null> {
+  return withOwnerTransaction(migrationUrl, async (client) => {
+    const user = await client.query<{ id: string; tenantId: string }>(
+      'SELECT id, tenant_id AS "tenantId" FROM users WHERE email = $1',
+      [email.trim().toLowerCase()],
+    );
+    const account = user.rows[0];
+    if (account === undefined) return null;
+    await setTenantContext(client, account.tenantId);
+    const result = await client.query<StudentProfileDetails>(
+      `SELECT p.student_code AS "studentCode", p.level, d.code AS "divisionCode"
+         FROM student_profiles p JOIN divisions d ON d.id = p.division_id
+        WHERE p.tenant_id = $1 AND p.user_id = $2`,
+      [account.tenantId, account.id],
+    );
+    return result.rows[0] ?? null;
+  });
+}
+
+export interface DivisionFixture {
+  code: string;
+  nameAr: string;
+  nameEn: string;
+  /** Default 0. */
+  sortOrder?: number;
+  /** Default true. */
+  isActive?: boolean;
+}
+
+/**
+ * Adds a division to the college with this id (e2e fixture until the divisions screen exists, PR-36). No
+ * audit row is written. Only on a throw-away test database (refused before a connection is opened).
+ */
+export async function addDivision(
+  migrationUrl: string,
+  tenantId: string,
+  input: DivisionFixture,
+): Promise<void> {
+  if (!isThrowAwayUrl(migrationUrl)) {
+    throw new Error('Refusing to add a division outside a test database');
+  }
+  await withOwnerTransaction(migrationUrl, async (client) => {
+    await setTenantContext(client, tenantId);
+    await client.query(
+      `INSERT INTO divisions (code, name_ar, name_en, sort_order, is_active)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [input.code, input.nameAr, input.nameEn, input.sortOrder ?? 0, input.isActive ?? true],
     );
   });
 }

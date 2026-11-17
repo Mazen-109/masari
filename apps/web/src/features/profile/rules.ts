@@ -26,3 +26,20 @@ export function isDivisionSelectable(
 ): boolean {
   return division.isActive || (currentDivisionId !== null && division.id === currentDivisionId);
 }
+
+/** The editable academic fields of a profile (the student code is not one of them, FR-025). */
+export type EditableProfileFields = Readonly<{ level: number; divisionId: string }>;
+
+/**
+ * Only the fields whose value differs from the current profile, in a fixed order (level, divisionId):
+ * the patch to write and, by its keys, the `fields` of the `profile.updated` audit row.
+ */
+export function changedProfileFields(
+  current: EditableProfileFields,
+  next: EditableProfileFields,
+): Partial<EditableProfileFields> {
+  const patch: { level?: number; divisionId?: string } = {};
+  if (next.level !== current.level) patch.level = next.level;
+  if (next.divisionId !== current.divisionId) patch.divisionId = next.divisionId;
+  return patch;
+}
