@@ -72,6 +72,8 @@ pnpm tenant:create --slug <slug> --name-ar "<Arabic name>" --name-en "<English n
 | Missing/invalid argument (slug pattern, name length 1–120, email) | 2 | usage + which argument is invalid |
 | Slug already used | 1 | `A college with slug "<slug>" already exists. Nothing was changed.` |
 | Email already has an account | 1 | `This email already has an account. Nothing was changed.` (the college is not created) |
+| `APP_URL` not set | 1 | `APP_URL is not set; … Nothing was changed.` (checked before connecting; also applies to `db:seed`) |
+| Unexpected error | 1 | `Creating the college failed: <reason>. Nothing was changed.` — database errors are reduced to `database error <SQLSTATE>`, never the server's message |
 
 Creation of the college, its `GEN` division, and the invitation happens in one transaction: the script calls
 `createTenantWithAdmin` (`db-api.md` §3), not `createTenant` + `createAdminInvitation` separately. The
@@ -83,7 +85,9 @@ invitation link is printed once and never stored in plain form.
 pnpm tenant:set-status --slug <slug> --status active|suspended
 ```
 
-Exit 0 with `College <slug> is now <status>`; exit 1 with `College not found`; exit 2 on invalid arguments.
+Exit 0 with `College <slug> is now <status>`; exit 1 with `College not found`; exit 2 on invalid arguments
+(including a malformed slug); unexpected error → exit 1 with `Changing the college status failed: <reason>`
+(database errors reduced to `database error <SQLSTATE>`).
 Suspending does **not** delete sessions: every request re-checks the college status (`permissions.md` §3),
 so existing sessions are refused with the "college suspended" reason while the college is suspended and work
 again after reactivation (until they expire normally).

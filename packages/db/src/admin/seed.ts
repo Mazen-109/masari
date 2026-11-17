@@ -1,6 +1,12 @@
 import type pg from 'pg';
 import { withOwnerTransaction } from './owner';
-import { DEFAULT_DIVISION, ensureDivisions, insertTenant, type DivisionSeed } from './tenants';
+import {
+  DEFAULT_DIVISION,
+  ensureDivisions,
+  insertAdminInvitation,
+  insertTenant,
+  type DivisionSeed,
+} from './tenants';
 
 /**
  * Demo college for local development and e2e (data-model.md §5, contracts/cli.md §3). Idempotent: an existing
@@ -8,6 +14,9 @@ import { DEFAULT_DIVISION, ensureDivisions, insertTenant, type DivisionSeed } fr
  */
 
 export const DEMO_SLUG = 'demo';
+
+/** The demo administrator's invitation address (data-model.md §5); `.test` never receives mail. */
+export const DEMO_ADMIN_EMAIL = 'admin@demo.masari.test';
 
 const DEMO_COLLEGE = {
   slug: DEMO_SLUG,
@@ -25,7 +34,10 @@ export const DEMO_DIVISIONS: readonly DivisionSeed[] = [
 
 export interface SeedResult {
   tenantId: string;
-  /** Link token of a new administrator invitation; always null until invitations exist (PR-26). */
+  /**
+   * Link token of the administrator invitation created by this run; null when nothing was created (the
+   * college already has an administrator, a usable invitation is pending, or the address has an account).
+   */
   adminInvitationToken: string | null;
 }
 
@@ -34,8 +46,19 @@ export function seedDemo(migrationUrl: string): Promise<SeedResult> {
     const created = await insertTenant(client, DEMO_COLLEGE);
     const tenantId = created ?? (await findTenantId(client, DEMO_SLUG));
     await ensureDivisions(client, tenantId, DEMO_DIVISIONS);
-    return { tenantId, adminInvitationToken: null };
+    return { tenantId, adminInvitationToken: await ensureAdminInvitation(client, tenantId) };
   });
+}
+
+/** A pending admin invitation for DEMO_ADMIN_EMAIL when the college has no administrator yet. */
+async function ensureAdminInvitation(client: pg.Client, tenantId: string): Promise<string | null> {
+  const admins = await client.query(
+    `SELECT 1 FROM users WHERE tenant_id = $1 AND role = 'admin' LIMIT 1`,
+    [tenantId],
+  );
+  if ((admins.rowCount ?? 0) > 0) return null;
+  const invitation = await insertAdminInvitation(client, tenantId, DEMO_ADMIN_EMAIL);
+  return invitation.ok ? invitation.token : null;
 }
 
 async function findTenantId(client: pg.Client, slug: string): Promise<string> {

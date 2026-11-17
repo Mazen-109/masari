@@ -31,3 +31,20 @@ function describe(error: unknown, depth: number): string | undefined {
 export function failureReason(error: unknown): string {
   return (describe(error, 0) ?? 'unknown error').replace(URL_PATTERN, '<url>');
 }
+
+/** SQLSTATE of a PostgreSQL server error (pg's DatabaseError carries `severity` and a 5-character code). */
+function sqlState(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('severity' in error)) return undefined;
+  const code = codeOf(error);
+  return code !== undefined && /^[0-9A-Z]{5}$/.test(code) ? code : undefined;
+}
+
+/**
+ * Like failureReason, but for scripts that handle personal data (seed, tenant tools): a PostgreSQL server
+ * error is reduced to its SQLSTATE, because some server messages quote the offending value (e.g. `invalid
+ * input syntax … "<value>"`), which may be an email. Connection errors keep their (value-free) message.
+ */
+export function safeFailureReason(error: unknown): string {
+  const code = sqlState(error);
+  return code !== undefined ? `database error ${code}` : failureReason(error);
+}

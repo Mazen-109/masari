@@ -23,7 +23,9 @@
     "db:down": "docker compose down",
     "db:generate": "pnpm --filter @masari/db generate",
     "db:migrate": "pnpm --filter @masari/db migrate",
-    "db:seed": "pnpm --filter @masari/db seed"
+    "db:seed": "pnpm --filter @masari/db seed",
+    "tenant:create": "pnpm --filter @masari/db tenant:create",
+    "tenant:set-status": "pnpm --filter @masari/db tenant:set-status"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.0",
