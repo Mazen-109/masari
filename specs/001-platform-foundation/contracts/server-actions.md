@@ -147,17 +147,26 @@ Fields: `email`, `password`, `next` (optional).
    `localeLessNext(next)` (`lib/safe-next.ts`: `safeNext`, then a leading `/ar` or `/en` segment removed, so
    `next=/en/dashboard` never becomes `/ar/en/dashboard`).
 
+**Ending the session just created** (steps 4 and the failure path below) is always the same two calls:
+`auth.api.signOut` with that session's cookie (clears the cookie), **then always** `sessions.revokeByToken(token)`
+— the library's sign-out swallows (only logs) a failing session delete, so its success does not prove the row
+is gone; the repository call is idempotent (0 rows when the library already deleted it). Each call's failure is
+logged (`auth.new_session_sign_out_failed`, `auth.new_session_revoke_failed`) and never thrown. The session is
+ended at most once per sign-in: when a later step fails after it was already ended (e.g. revoking a suspended
+account's other sessions), it is not ended again.
+
 Any failure in steps 4–5 (reading the user or college, revoking sessions, the audit) first ends the session
-just created — `auth.api.signOut` with that session's cookie, and if that fails too
-`sessions.revokeByToken(token)` — logs only event and error class names, and returns `fail('internal')`: a
-sign-in is never left signed in without its audit row. A user or college that cannot be found after the
-library signed in is logged as `auth.sign_in_account_missing` (warn) and handled the same way.
+just created as above, logs only event and error class names, and returns `fail('internal')`: a sign-in is
+never left signed in without its audit row. A user or college that cannot be found after the library signed
+in is logged as `auth.sign_in_account_missing` (warn) and handled the same way.
 
 ### 4.4 `signOutAction` (form, no fields) — FR-008
 
-Requires a session (otherwise just redirect). Audit `auth.sign_out` → `auth.api.signOut` →
-`redirect('/{locale}/sign-in')`. A failing audit is logged (`auth.sign_out_audit_failed`) and does not block
-sign-out.
+Audit `auth.sign_out` (only with a usable session) → `auth.api.signOut` → `redirect('/{locale}/sign-in')`.
+`auth.api.signOut` runs also when `getSessionContext()` is `null` (e.g. the account or college was suspended
+after signing in), so any session the library can read from the cookie is still ended; without a session
+cookie it only clears the cookie. A failing audit is logged (`auth.sign_out_audit_failed`) and does not block
+sign-out; a failing library call is logged (`auth.sign_out_failed`) and still redirects.
 
 ### 4.5 `requestPasswordResetAction` (form) — FR-005, FR-009, FR-010
 

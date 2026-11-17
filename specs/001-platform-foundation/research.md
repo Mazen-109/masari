@@ -392,8 +392,9 @@ here, and from then on versions change only through reviewed PRs (Dependabot or 
 | eslint / typescript-eslint / eslint-config-next | latest supported by eslint-config-next 16 | 9.39.5 (+ @eslint/js 9.39.5) / 8.73.0 / 16.4.6 |
 | prettier / prettier-plugin-tailwindcss | 3 / latest | 3.10.1 / 0.7.4 |
 | tsx / dotenv-cli | latest stable | 4.23.15 / 8.0.0 (dotenv-cli also a `@masari/web` devDependency since PR-9; tsx since PR-10) |
-| @fontsource/ibm-plex-sans-arabic / lucide-react | latest stable | 5.3.0 / (not installed yet) |
+| @fontsource/ibm-plex-sans-arabic / lucide-react | latest stable | 5.3.0 / 1.74.0 (`@masari/web`, PR-19) |
 | clsx / tailwind-merge / class-variance-authority / @radix-ui/react-slot (shadcn/ui, PR-8) | latest stable | 2.1.1 / 3.7.0 / 0.7.1 / 1.5.0 |
+| @radix-ui/react-dialog / @radix-ui/react-dropdown-menu (shadcn/ui `sheet`, `dropdown-menu`, PR-19) | latest stable | 1.3.1 / 2.2.1 |
 
 If a newer major of a "binding" package is already stable at T001, stay on the major listed here and
 mention it in the PR; upgrading a major is a separate, reviewed decision.

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import ar from '../../messages/ar.json' with { type: 'json' };
 import en from '../../messages/en.json' with { type: 'json' };
 import { firstLink, waitForEmail } from './emails';
@@ -121,12 +121,37 @@ export async function signIn(page: Page, input: SignInInput): Promise<void> {
   ]);
 }
 
-/** Uses the header's sign-out button and waits for the sign-in screen. */
+/** The user menu's trigger in the signed-in header (named "Account menu: <name>"). */
+export function userMenuTrigger(page: Page, locale: TestLocale = 'ar') {
+  const prefix = CATALOGS[locale].nav.userMenu.split('{name}')[0] ?? '';
+  return page.getByRole('banner').getByRole('button', { name: prefix });
+}
+
+/**
+ * Opens the user menu of the signed-in header and waits for it. Retries the click until the menu is
+ * open, because a click that lands before hydration does nothing.
+ */
+export async function openUserMenu(page: Page, locale: TestLocale = 'ar'): Promise<void> {
+  const menu = page.getByRole('menu');
+  await expect(async () => {
+    if (!(await menu.isVisible())) await userMenuTrigger(page, locale).click();
+    await expect(menu).toBeVisible({ timeout: 1_000 });
+  }).toPass();
+}
+
+/**
+ * Signs out through the header — the user menu's sign-out item, or without JavaScript the plain
+ * sign-out button that replaces the menu — and waits for the sign-in screen.
+ */
 export async function signOut(page: Page, locale: TestLocale = 'ar'): Promise<void> {
-  await page
-    .getByRole('banner')
-    .getByRole('button', { name: CATALOGS[locale].auth.signOut.submit })
-    .click();
+  const label = CATALOGS[locale].auth.signOut.submit;
+  const plainButton = page.getByRole('banner').getByRole('button', { name: label, exact: true });
+  if ((await plainButton.count()) > 0) {
+    await plainButton.click();
+  } else {
+    await openUserMenu(page, locale);
+    await page.getByRole('menuitem', { name: label }).click();
+  }
   await page.waitForURL(new RegExp(`/${locale}/sign-in$`));
 }
 
