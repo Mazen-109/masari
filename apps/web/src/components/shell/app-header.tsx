@@ -18,7 +18,8 @@ type AppHeaderProps = Readonly<{
  * Header of the signed-in shell (contracts/routes.md §4): drawer button (below 1024 px), wordmark, college
  * name in the current language, language switch, user menu. In visual and DOM order alike, so the Tab
  * order follows what is seen in both directions. Without JavaScript the menu button and the user menu are
- * hidden and a plain sign-out button takes the user menu's place.
+ * hidden and a plain sign-out button takes the user menu's place. Signed in, the language switch also
+ * stores the choice with the account (FR-037).
  */
 export function AppHeader({
   collegeNameAr,
@@ -47,9 +48,15 @@ export function AppHeader({
           {locale === 'ar' ? collegeNameAr : collegeNameEn}
         </p>
         <div className="ms-auto flex items-center gap-1 sm:ms-0 sm:gap-2">
-          <LocaleSwitcher className="inline-flex min-h-11 items-center rounded-md px-3 font-medium text-primary underline-offset-4 hover:underline" />
+          <LocaleSwitcher
+            remember
+            className="inline-flex min-h-11 items-center rounded-md px-3 font-medium text-primary underline-offset-4 hover:underline"
+          />
           <UserMenu name={userName} roleLabel={roleLabel} />
-          <SignOutButton className="hidden noscript:inline-flex" />
+          {/* The whole form is hidden with JavaScript on, so it leaves no gap in the row. */}
+          <div className="hidden noscript:block" data-slot="noscript-sign-out">
+            <SignOutButton />
+          </div>
         </div>
       </div>
     </header>

@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getDb } from '../client';
-import type { UserSummary } from '../constants';
+import type { Locale, UserSummary } from '../constants';
 import { users } from '../schema';
 
 /**
@@ -38,4 +38,16 @@ export async function findById(id: string): Promise<UserSummary | null> {
   if (id === '') return null;
   const rows = await getDb().select(summaryColumns).from(users).where(eq(users.id, id)).limit(1);
   return rows[0] ?? null;
+}
+
+/**
+ * Stores the account's language (FR-037), applied after sign-in on any device. An unknown id changes
+ * nothing. A preference, not an audited change (contracts/server-actions.md §5.1).
+ */
+export async function setLocale(userId: string, locale: Locale): Promise<void> {
+  if (userId === '') return;
+  await getDb()
+    .update(users)
+    .set({ locale, updatedAt: sql`now()` })
+    .where(eq(users.id, userId));
 }

@@ -1,8 +1,15 @@
 import type { Page } from '@playwright/test';
-import { countAuditEvents, countSessions, createCollege, setCollegeStatus } from './support/db';
+import {
+  countAuditEvents,
+  countSessions,
+  createCollege,
+  getUserByEmail,
+  setCollegeStatus,
+} from './support/db';
 import { expect, test } from './support/fixtures';
 import {
   CATALOGS,
+  openUserMenu,
   registerConfirmedStudent,
   registerStudent,
   signIn,
@@ -54,6 +61,52 @@ test('signing in from the English screen still lands in the account language', a
   const email = await registerConfirmedStudent(page);
   await signIn(page, { email, locale: 'en' });
   await expect(page).toHaveURL('/ar/dashboard');
+});
+
+test('the language chosen on the dashboard is remembered with the account, on any device', async ({
+  page,
+  browser,
+  baseURL,
+  extraHTTPHeaders,
+}) => {
+  const email = await registerConfirmedStudent(page);
+  await signIn(page, { email });
+  await expect(page).toHaveURL('/ar/dashboard');
+  // A working user menu shows the page is hydrated, so the switch below runs its click handler.
+  await openUserMenu(page);
+  await page.keyboard.press('Escape');
+  const cookiesBefore = (await page.context().cookies()).map((cookie) => cookie.name).sort();
+
+  await page.getByRole('banner').getByRole('link', { name: ar.common.switchLanguage }).click();
+
+  await expect(page).toHaveURL('/en/dashboard');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  expect((await getUserByEmail(email))?.locale).toBe('en');
+  // The account is the only place the choice is kept: no language cookie appears.
+  expect((await page.context().cookies()).map((cookie) => cookie.name).sort()).toEqual(
+    cookiesBefore,
+  );
+
+  await signOut(page, 'en');
+  await signIn(page, { email, locale: 'ar' });
+  await expect(page).toHaveURL('/en/dashboard');
+
+  // Another device: a fresh browser context with no cookies at all.
+  const otherDevice = await browser.newContext({ baseURL, extraHTTPHeaders });
+  try {
+    const otherPage = await otherDevice.newPage();
+    await signIn(otherPage, { email, locale: 'ar' });
+    await expect(otherPage).toHaveURL('/en/dashboard');
+    await expect(otherPage.locator('html')).toHaveAttribute('dir', 'ltr');
+  } finally {
+    await otherDevice.close();
+  }
+
+  // Switching back is remembered too.
+  await page.getByRole('banner').getByRole('link', { name: en.common.switchLanguage }).click();
+  await expect(page).toHaveURL('/ar/dashboard');
+  expect((await getUserByEmail(email))?.locale).toBe('ar');
 });
 
 test('a wrong password and an unknown email show the identical generic message', async ({

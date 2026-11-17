@@ -2,7 +2,7 @@
 
 import { ChevronDown, CircleUser, LogOut, UserRound } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
-import { useState, type MouseEvent } from 'react';
+import { useTransition, type MouseEvent } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,17 +23,28 @@ const SIGN_OUT_FORM_ID = 'user-menu-sign-out';
  * to the profile, and sign-out. The trigger is named "Account menu: <name>"; from 640 px the name is
  * also shown. Sign-out is a form posting to `signOutAction`; the menu stays open while it is sent, and
  * the item then says it is busy (`aria-disabled`, `aria-busy`, "Please wait…") and ignores further
- * activation — like `SubmitButton`, whose `useFormStatus` cannot be used here because the item renders
- * in a portal, outside the form. Hidden without JavaScript, where the header shows a plain sign-out
- * button instead.
+ * activation until the action redirects or fails — like `SubmitButton`, whose `useFormStatus` cannot be
+ * used here because the item renders in a portal, outside the form. Hidden without JavaScript, where the
+ * header shows a plain sign-out button instead.
  */
 export function UserMenu({ name, roleLabel }: Readonly<{ name: string; roleLabel: string }>) {
   const t = useTranslations('nav');
   const tSignOut = useTranslations('auth.signOut');
   const tActions = useTranslations('common.actions');
   const locale = useLocale();
-  // Set when the form is submitted; the action always redirects, so it is never reset.
-  const [signingOut, setSigningOut] = useState(false);
+  // Pending from the submit until the redirect to the sign-in screen. When the action fails without
+  // redirecting (e.g. the network is down) the transition ends and the item can be used again.
+  const [signingOut, startSigningOut] = useTransition();
+
+  function signOut() {
+    startSigningOut(async () => {
+      try {
+        await signOutAction();
+      } catch {
+        // Nothing to show beyond the item becoming usable again; the user is still signed in.
+      }
+    });
+  }
 
   function handleSignOutClick(event: MouseEvent<HTMLButtonElement>) {
     if (signingOut) event.preventDefault();
@@ -42,12 +53,7 @@ export function UserMenu({ name, roleLabel }: Readonly<{ name: string; roleLabel
   return (
     <>
       {/* Outside the menu (which renders in a portal), so the menu keeps only menu items. */}
-      <form
-        id={SIGN_OUT_FORM_ID}
-        action={signOutAction}
-        onSubmit={() => setSigningOut(true)}
-        hidden
-      />
+      <form id={SIGN_OUT_FORM_ID} action={signOut} hidden />
       {/* Non-modal: a modal menu hides the rest of the page with aria-hidden while its links stay
           focusable (axe aria-hidden-focus). Focus still moves into the menu, Tab cannot leave it,
           Escape and an outside click close it, and focus returns to the trigger. */}
