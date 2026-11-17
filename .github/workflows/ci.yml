@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   quality:
-    # Gates 1–3. `pnpm i18n:check` is added in PR-7 and `pnpm rtl:check` in PR-8.
+    # Gates 1–3. `pnpm rtl:check` is added in PR-8.
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -30,6 +30,7 @@ jobs:
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
+      - run: pnpm i18n:check
 
   test:
     # Gate 4. The PostgreSQL service is used from PR-3 on.

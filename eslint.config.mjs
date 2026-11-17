@@ -120,6 +120,14 @@ export default defineConfig([
     rules: { 'no-console': 'off' },
   },
 
+  // No literal user-facing text in components: every string comes from the message catalogs
+  // (research.md §12). Props (className, href, …) are not user-facing text and are ignored.
+  {
+    files: ['apps/web/src/**/*.tsx'],
+    ignores: ['apps/web/src/**/*.test.tsx', 'apps/web/src/components/ui/**'],
+    rules: { 'react/jsx-no-literals': ['error', { noStrings: true, ignoreProps: true }] },
+  },
+
   {
     files: ['apps/web/src/**'],
     rules: { 'no-restricted-imports': webRestrictedImports() },

@@ -1,15 +1,7 @@
-import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import './globals.css';
 
-export const metadata: Metadata = {
-  title: 'Masari',
-};
-
+// The document (`<html lang dir>`) is rendered by `[locale]/layout.tsx`. This pass-through root
+// layout exists only because `app/not-found.tsx` (paths without a valid locale) needs a parent.
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
-  return (
-    <html lang="ar" dir="rtl">
-      <body>{children}</body>
-    </html>
-  );
+  return children;
 }
