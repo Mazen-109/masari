@@ -155,6 +155,16 @@ test('the user menu works with the keyboard and passes axe while open', async ({
   await expect(page.getByRole('menuitem', { name: ar.nav.profile })).toBeFocused();
   await expectNoA11yViolations(page);
 
+  // Tab and Shift+Tab cannot leave the open menu.
+  for (const key of ['Tab', 'Shift+Tab', 'Tab']) {
+    await page.keyboard.press(key);
+    await expect(menu).toBeVisible();
+    expect(await menu.evaluate((element) => element.contains(document.activeElement)), key).toBe(
+      true,
+    );
+  }
+  await expect(page.getByRole('menuitem', { name: ar.nav.profile })).toBeFocused();
+
   await page.keyboard.press('ArrowDown');
   await expect(page.getByRole('menuitem', { name: ar.auth.signOut.submit })).toBeFocused();
 
@@ -207,6 +217,14 @@ test.describe('on a phone', () => {
     await drawerNav.getByRole('link', { name: ar.modules.kitabi.name }).click();
     await expect(page).toHaveURL('/ar/modules/kitabi');
     await expect(drawer).toBeHidden();
+
+    // Widening to the sidebar layout closes an open drawer: one "Main navigation" landmark only.
+    await menuButton.click();
+    await expect(drawer).toBeVisible();
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(drawer).toBeHidden();
+    await expect(page.getByRole('navigation', { name: ar.nav.label })).toHaveCount(1);
+    await expect(mainNav(page)).toBeVisible();
   });
 
   test('@mobile no screen of the shell scrolls horizontally at 320 px', async ({ page }) => {

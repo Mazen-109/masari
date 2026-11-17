@@ -193,7 +193,11 @@ marked `disabled` for assistive technology.
   `figcaption`, `label`, `small`) is `primary` **and underlined** — the base style in `globals.css`
   does it. `primary` against `foreground` text is only about 2:1, so colour alone would not mark the
   link (WCAG 1.4.1; axe `link-in-text-block`). Stand-alone links (navigation, the wordmark, the
-  language switch, button-styled links) carry their own classes and may drop the underline.
+  language switch, button-styled links) carry their own classes and may drop the underline. The base
+  rule also matches links inside `li`, so stand-alone links in lists say `no-underline` explicitly
+  and keep another cue: navigation rows (sidebar, drawer) use the `muted` hover fill, the selected-row
+  colours, and the focus ring; module-card title links are `primary` and underline on hover and
+  keyboard focus.
 
 ## Typography
 

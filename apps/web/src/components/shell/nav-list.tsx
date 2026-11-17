@@ -46,7 +46,9 @@ export function NavList({
                       aria-current={current ? 'page' : undefined}
                       onClick={onNavigate}
                       className={cn(
-                        'flex min-h-11 items-center gap-3 rounded-md px-3 font-medium',
+                        // Stand-alone navigation rows: no underline (DESIGN.md "Underlined-Link
+                        // Rule"); hover fill, selected colours, and the focus ring mark them.
+                        'flex min-h-11 items-center gap-3 rounded-md px-3 font-medium no-underline',
                         current
                           ? 'bg-primary-soft text-primary-soft-foreground'
                           : 'text-foreground hover:bg-muted',

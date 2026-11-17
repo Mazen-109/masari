@@ -32,7 +32,8 @@ export function ModuleCard({ moduleKey }: Readonly<{ moduleKey: ModuleKey }>) {
           <h2>
             <Link
               href={`/modules/${moduleKey}`}
-              className="inline-flex min-h-11 items-center gap-1 rounded-md text-primary after:absolute after:inset-0 after:rounded-lg"
+              // Stand-alone title link: underlined only on hover and keyboard focus.
+              className="inline-flex min-h-11 items-center gap-1 rounded-md text-primary no-underline after:absolute after:inset-0 after:rounded-lg hover:underline focus-visible:underline"
             >
               {t(`${moduleKey}.name`)}
               <ChevronRight aria-hidden="true" className="size-5 rtl:-scale-x-100" />
