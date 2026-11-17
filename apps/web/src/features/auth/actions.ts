@@ -3,7 +3,7 @@
 import { tenants, users } from '@masari/db';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import { getLocale } from 'next-intl/server';
-import { parseForm } from '@/lib/form';
+import { formFields, parseForm } from '@/lib/form';
 import { DEFAULT_LOCALE, isLocale, type Locale } from '@/lib/locale';
 import { fail, ok, type ActionResult } from '@/lib/result';
 import { recordAudit } from '@/server/audit';
@@ -15,7 +15,7 @@ import { log } from '@/server/log';
 import { enforceRateLimit, rateLimitRules } from '@/server/rate-limit';
 import { getClientIp } from '@/server/request';
 import { isEmailDomainAllowed } from './rules';
-import { registerSchema, type RegisterInput } from './schemas';
+import { registerSchema, resendSchema, type RegisterInput } from './schemas';
 
 /** Public account actions (contracts/server-actions.md §4). */
 
@@ -84,20 +84,27 @@ async function createStudent(input: RegisterInput, tenantId: string, locale: Loc
   );
 }
 
-/** Non-secret fields echoed back on a failure (never the password), at most this many characters each. */
-const ENTERED_FIELDS = ['tenantSlug', 'name', 'email', 'consent'] as const;
+/** Non-secret fields echoed back on a failure (never a password), at most this many characters each. */
+const REGISTER_ENTERED_FIELDS = ['tenantSlug', 'name', 'email', 'consent'] as const;
+const RESEND_ENTERED_FIELDS = ['email'] as const;
 const MAX_ENTERED_LENGTH = 254;
 
 /**
- * A failure plus what the user typed in the non-secret fields (`meta.tenantSlug`, `meta.name`,
- * `meta.email`, `meta.consent`), so the form is re-filled also when JavaScript is off and the page is
- * rendered from the action state. The password is never returned.
+ * A failure plus what the user typed in the listed non-secret fields (`meta.<field>`), so the form is
+ * re-filled also when JavaScript is off and the page is rendered from the action state. Values are read
+ * with `formFields`, exactly as `parseForm` read them (first value of a duplicated field), so the echo
+ * always shows the value that was validated.
  */
-function withEnteredValues(result: ActionResult, formData: FormData): ActionResult {
+function withEnteredValues(
+  result: ActionResult,
+  formData: FormData,
+  keys: readonly string[],
+): ActionResult {
   if (result.ok) return result;
+  const fields = formFields(formData);
   const meta: Record<string, string | number> = { ...result.meta };
-  for (const key of ENTERED_FIELDS) {
-    const value = formData.get(key);
+  for (const key of keys) {
+    const value = fields[key];
     if (typeof value === 'string') meta[key] = value.slice(0, MAX_ENTERED_LENGTH);
   }
   return { ...result, meta };
@@ -153,5 +160,52 @@ export async function registerStudentAction(
     result = fail('internal');
   }
   if (result.ok) redirect(`/${locale}/verify-email`);
-  return withEnteredValues(result, formData);
+  return withEnteredValues(result, formData, REGISTER_ENTERED_FIELDS);
+}
+
+/** Validate → rate limit → send only to an existing, unconfirmed account → always `ok`. */
+async function resend(formData: FormData, locale: Locale): Promise<ActionResult> {
+  const parsed = parseForm(resendSchema, formData);
+  if (!parsed.ok) return parsed.failure;
+  const { email } = parsed.data;
+
+  const limited = await enforceRateLimit(
+    rateLimitRules('verify-resend', { email, ip: await getClientIp() }),
+  );
+  if (limited) return limited;
+
+  const user = await users.findByEmail(email);
+  if (user !== null && !user.emailVerified) {
+    try {
+      // The library's hook logs email.sent / email.failed itself.
+      await getAuth().api.sendVerificationEmail({
+        body: { email, callbackURL: `/${locale}/email-verified` },
+      });
+    } catch (error) {
+      // Same answer as for an unknown address: a failure must not reveal that the account exists.
+      log.warn('auth.verification_not_sent', { errorName: errorName(error) });
+    }
+  }
+  return ok(undefined);
+}
+
+/**
+ * "Send the confirmation email again" (contracts/server-actions.md §4.2; FR-004, FR-005, FR-009). The
+ * result is the same whether the address is unknown, already confirmed, or waiting for confirmation, so
+ * the form never reveals whether an account exists.
+ */
+export async function resendVerificationAction(
+  _previous: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const locale = await currentLocale();
+  let result: ActionResult;
+  try {
+    result = await resend(formData, locale);
+  } catch (error) {
+    unstable_rethrow(error);
+    log.error('auth.resend_failed', { errorName: errorName(error) });
+    result = fail('internal');
+  }
+  return withEnteredValues(result, formData, RESEND_ENTERED_FIELDS);
 }

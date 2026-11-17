@@ -79,7 +79,8 @@ The repository needs **no GitHub secrets** for this feature.
 
   The database MUST exist before Playwright starts: Playwright launches `webServer` **before** `globalSetup`,
   and the server exits at start-up when `assertSafeRuntimeRole()` cannot connect (`http-and-env.md` §3).
-  Global setup (`e2e/support/global-setup.ts`) therefore only empties the email capture directory.
+  Global setup (`e2e/support/global-setup.ts`) therefore only empties the email capture directory and the
+  rate-limit counters (`resetRateLimits`, `db-api.md` §3).
   `webServer` (`apps/web/playwright.config.ts`) runs `pnpm start` on port 3100 with `DATABASE_URL` pointing
   at `masari_e2e`, `APP_ENV=test`, `EMAIL_TRANSPORT=capture`,
   `EMAIL_CAPTURE_DIR=.tmp/e2e-emails` (`E2E_EMAIL_CAPTURE_DIR` in `e2e/support/constants.ts`, the directory

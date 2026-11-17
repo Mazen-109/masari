@@ -17,6 +17,11 @@ export function assertIdentifier(name: string, kind: 'role' | 'database'): strin
   return name;
 }
 
+/** True for the name of a throw-away test database (masari_test…, masari_e2e…). */
+export function isThrowAwayDatabase(name: string): boolean {
+  return TEST_DATABASE.test(name);
+}
+
 /** Only throw-away test databases may be dropped and recreated. */
 export function assertRecreatableDatabase(name: string): string {
   assertIdentifier(name, 'database');

@@ -2,9 +2,10 @@ import { randomUUID } from 'node:crypto';
 import type { Page } from '@playwright/test';
 import ar from '../../messages/ar.json' with { type: 'json' };
 import en from '../../messages/en.json' with { type: 'json' };
+import { firstLink, waitForEmail } from './emails';
 
-// User journeys shared by the e2e specs. Every helper drives the real screens; none of them writes to the
-// database directly.
+// User journeys shared by the e2e specs. Every helper drives the real screens (or opens the links of the
+// captured emails); none of them writes to the database directly.
 
 export const CATALOGS = { ar, en } as const;
 export type TestLocale = keyof typeof CATALOGS;
@@ -60,4 +61,28 @@ export async function fillRegistration(page: Page, input: RegistrationInput): Pr
   await page.getByLabel(t.email, { exact: true }).fill(input.email);
   await page.getByLabel(t.password, { exact: true }).fill(input.password ?? TEST_PASSWORD);
   await page.getByRole('checkbox').setChecked(input.consent ?? true);
+}
+
+/** Subject (English part) of the confirmation email (contracts/emails.md §3). */
+export const VERIFY_SUBJECT = 'Confirm your email for Masari';
+
+/** The link of the newest confirmation email captured for `email` (waits up to 10 s for one). */
+export async function confirmationLink(email: string): Promise<string> {
+  const message = await waitForEmail({
+    to: email,
+    subjectIncludes: VERIFY_SUBJECT,
+    since: new Date(0),
+  });
+  return firstLink(message);
+}
+
+/**
+ * Opens the link of the newest confirmation email for `email` and waits for the screen it lands on
+ * (`/{locale}/email-verified`, success or error). Returns the link, so a test can open it again.
+ */
+export async function confirmEmail(page: Page, email: string): Promise<string> {
+  const link = await confirmationLink(email);
+  await page.goto(link);
+  await page.waitForURL(/\/(ar|en)\/email-verified(\?|$)/);
+  return link;
 }

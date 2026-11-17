@@ -4,6 +4,7 @@ import {
   createTenant,
   getAdminDbEnv,
   getUserByEmail as getUserByEmailIn,
+  resetRateLimits as resetRateLimitsIn,
   withDatabaseName,
   type UserDetails,
 } from '@masari/db/admin';
@@ -22,6 +23,11 @@ export function getUserByEmail(email: string): Promise<UserDetails | null> {
 
 export function countAuditEvents(tenantSlug: string, action: string): Promise<number> {
   return countAuditEventsIn(ownerUrl(), tenantSlug, action);
+}
+
+/** Empties the rate-limit counters of the e2e database (global setup: every run starts with fresh buckets). */
+export async function resetRateLimits(): Promise<void> {
+  await resetRateLimitsIn(ownerUrl());
 }
 
 export type College = { tenantId: string; slug: string; nameAr: string; nameEn: string };

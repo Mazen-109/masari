@@ -207,6 +207,9 @@ export function seedDemo(migrationUrl: string): Promise<{ tenantId: string; admi
 export function getUserByEmail(migrationUrl: string, email: string):
   Promise<(UserSummary & { privacyConsentAt: Date | null }) | null>;
 export function countAuditEvents(migrationUrl: string, tenantSlug: string, action: string): Promise<number>;
+/** Deletes rate-limit counters whose key starts with keyPrefix (default: all) → rows removed. Refuses (before
+ *  connecting) a database whose name does not match /^masari_(test|e2e)[a-z0-9_]*$/. e2e global setup. */
+export function resetRateLimits(migrationUrl: string, keyPrefix?: string): Promise<number>;
 export function expireInvitation(migrationUrl: string, email: string): Promise<void>;   // sets expires_at to the past
 ```
 

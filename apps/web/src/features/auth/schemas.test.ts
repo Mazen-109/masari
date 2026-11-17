@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseForm } from '@/lib/form';
-import { registerSchema } from './schemas';
+import { registerSchema, resendSchema } from './schemas';
 
 const PASSWORD = 'Ab1'.repeat(4);
 
@@ -88,8 +88,24 @@ describe('registerSchema', () => {
     ['Mona\nAli', 'invalid_format'],
     ['Mona\tAli', 'invalid_format'],
     ['Mona\u007fAli', 'invalid_format'],
+    ['Mona\u202aAli', 'invalid_format'],
+    ['Mona\u202bAli', 'invalid_format'],
+    ['Mona\u202cAli', 'invalid_format'],
+    ['Mona\u202dAli', 'invalid_format'],
+    ['Mona\u202eAli', 'invalid_format'],
+    ['Mona\u2066Ali', 'invalid_format'],
+    ['Mona\u2067Ali', 'invalid_format'],
+    ['Mona\u2068Ali', 'invalid_format'],
+    ['Mona\u2069Ali', 'invalid_format'],
   ])('name %j → %s', (value, code) => {
     expect(errorFor('name', value)).toBe(code);
+  });
+
+  it('accepts the zero-width joiners used in Arabic and Persian names and the code points next to the bidi ranges', () => {
+    expect(errorFor('name', 'می\u200Cخواهم')).toBeNull();
+    expect(errorFor('name', 'محمد\u200Dعلي')).toBeNull();
+    expect(errorFor('name', 'Mona\u2070Ali')).toBeNull();
+    expect(errorFor('name', 'Mona\u2065Ali')).toBeNull();
   });
 
   it('accepts names of exactly 2 and 100 characters', () => {
@@ -131,5 +147,26 @@ describe('registerSchema', () => {
     ['true', 'consent_required'],
   ])('consent %j → %s', (value, code) => {
     expect(errorFor('consent', value)).toBe(code);
+  });
+});
+
+describe('resendSchema', () => {
+  it('trims and lower-cases the email and drops unknown fields', () => {
+    expect(parseForm(resendSchema, form({ email: ' Mona@Example.EDU ', name: 'x' }))).toStrictEqual(
+      { ok: true, data: { email: 'mona@example.edu' } },
+    );
+  });
+
+  it.each([
+    [undefined, 'required'],
+    ['  ', 'required'],
+    ['not-an-email', 'invalid_email'],
+    [`${'a'.repeat(250)}@example.edu`, 'too_long'],
+  ])('email %j → %s', (value, code) => {
+    const result = parseForm(resendSchema, form({ email: value }));
+    expect(result.ok ? null : result.failure).toMatchObject({
+      code: 'validation',
+      fieldErrors: { email: code },
+    });
   });
 });

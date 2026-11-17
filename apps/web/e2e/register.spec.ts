@@ -1,13 +1,14 @@
 import type { Locator, Page } from '@playwright/test';
 import { expectNoA11yViolations } from './support/axe';
 import { countAuditEvents, createCollege, getUserByEmail } from './support/db';
-import { countEmails, firstLink, waitForEmail } from './support/emails';
+import { expectEmailCountStays, firstLink, waitForEmail } from './support/emails';
 import { expect, test } from './support/fixtures';
 import {
   CATALOGS,
   fillRegistration,
   registerStudent,
   uniqueEmail,
+  VERIFY_SUBJECT,
   type TestLocale,
 } from './support/flows';
 
@@ -15,7 +16,6 @@ import {
 // FR-011, FR-013). Tests that count audit rows register in a college of their own.
 
 const { ar, en } = CATALOGS;
-const VERIFY_SUBJECT = 'Confirm your email for Masari';
 const EXISTS_SUBJECT = 'You already have a Masari account';
 
 type FieldErrorKey = keyof typeof ar.errors;
@@ -36,18 +36,6 @@ async function expectFieldError(
 
 async function expectNoFieldError(control: Locator) {
   await expect(control).not.toHaveAttribute('aria-invalid', 'true');
-}
-
-/**
- * Exactly `count` messages to `to` since `since`, and still so after about a second: a duplicate sent a
- * little later than the first message is caught too.
- */
-async function expectEmailCountStays(to: string, since: Date, count: number) {
-  for (let check = 0; check < 5; check++) {
-    expect(await countEmails({ to, since })).toBe(count);
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  expect(await countEmails({ to, since })).toBe(count);
 }
 
 function controls(page: Page, locale: TestLocale = 'ar') {

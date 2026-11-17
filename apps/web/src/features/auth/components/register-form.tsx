@@ -42,10 +42,12 @@ export function RegisterForm({ college, colleges }: RegisterFormProps) {
   );
   const fieldErrors = result?.ok === false ? result.fieldErrors : undefined;
   const domains = entered(result, 'domains');
-  const tenantSlug = entered(result, 'tenantSlug');
   const consent = entered(result, 'consent') === 'on';
+  const collegeRefused = fieldErrors?.tenantSlug !== undefined;
   // A fixed college that the action refused (e.g. suspended meanwhile): let the visitor choose again.
-  const fixed = fieldErrors?.tenantSlug === undefined ? college : null;
+  const fixed = collegeRefused ? null : college;
+  // A refused college is never preselected again, so the picker starts from its placeholder.
+  const pickerValue = collegeRefused ? '' : entered(result, 'tenantSlug');
 
   return (
     <form action={formAction} noValidate className="flex flex-col gap-6">
@@ -56,10 +58,10 @@ export function RegisterForm({ college, colleges }: RegisterFormProps) {
           {(control) => (
             <Select
               {...control}
-              key={`college-${tenantSlug}`}
+              key={`college-${pickerValue}`}
               name="tenantSlug"
               required
-              defaultValue={tenantSlug}
+              defaultValue={pickerValue}
             >
               <option value="">{t('collegePlaceholder')}</option>
               {colleges.map((option) => (

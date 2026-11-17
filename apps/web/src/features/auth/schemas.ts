@@ -9,14 +9,23 @@ const TENANT_SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 const CONTROL_CHARACTER = /\p{Cc}/u;
 
-/** Trimmed, 2–100 characters, no control characters (line breaks, tabs, NUL, …). */
+/**
+ * Bidirectional embedding/override (U+202A–U+202E) and isolate (U+2066–U+2069) controls: in a name they
+ * can reorder the text around it wherever the name is shown (screens, emails, lists). The joiners
+ * U+200C (ZWNJ) and U+200D (ZWJ) are ordinary parts of Arabic and Persian names and stay allowed.
+ */
+const BIDI_CONTROL = /[\u202A-\u202E\u2066-\u2069]/u;
+
+/** Trimmed, 2–100 characters, no control characters (line breaks, tabs, NUL, …) or bidi controls. */
 export const nameField = z
   .string({ error: 'required' })
   .trim()
   .min(1, { error: 'required' })
   .min(2, { error: 'too_short' })
   .max(100, { error: 'too_long' })
-  .refine((value) => !CONTROL_CHARACTER.test(value), { error: 'invalid_format' });
+  .refine((value) => !CONTROL_CHARACTER.test(value) && !BIDI_CONTROL.test(value), {
+    error: 'invalid_format',
+  });
 
 /** Trimmed, lower-cased, ≤ 254 characters, a valid address. */
 export const emailField = z
@@ -55,3 +64,10 @@ export const registerSchema = z.object({
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;
+
+/** "Send the confirmation email again" (contracts/server-actions.md §4.2). */
+export const resendSchema = z.object({
+  email: emailField,
+});
+
+export type ResendInput = z.infer<typeof resendSchema>;

@@ -1,6 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { expect } from '@playwright/test';
 import type { CapturedEmailFile } from '../../src/server/email/transport';
 import { E2E_BASE_URL, E2E_EMAIL_CAPTURE_DIR } from './constants';
 
@@ -82,4 +83,16 @@ export function firstLink(email: CapturedEmail): string {
 /** Count of captured messages to an address since a time (to assert "no email was sent"). */
 export async function countEmails(opts: { to: string; since: Date }): Promise<number> {
   return (await messagesTo(opts.to, opts.since)).length;
+}
+
+/**
+ * Exactly `count` messages to `to` since `since`, and still so after about a second: a duplicate sent a
+ * little later than the first message is caught too.
+ */
+export async function expectEmailCountStays(to: string, since: Date, count: number): Promise<void> {
+  for (let check = 0; check < 5; check++) {
+    expect(await countEmails({ to, since })).toBe(count);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  expect(await countEmails({ to, since })).toBe(count);
 }
