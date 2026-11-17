@@ -170,8 +170,8 @@ else `count = least(count + 1, limit + 1)`; return `allowed = count <= limit` an
 until the window ends, 0 when allowed). The stored count is capped at `limit + 1` (enough to know the limit is
 exceeded; it never overflows during a flood), so a key MUST always be hit with the same `limit` — one policy
 per key prefix. `limit` is an integer 1–1,000,000 and `windowSeconds` an integer 1–86,400 (one day, the purge
-age below); other values are rejected before the table is touched. Keys contain a purpose prefix and a SHA-256 hash of the email or the IP (no raw
-personal data in this table), e.g. `signin:email:<sha256>`.
+age below); other values are rejected before the table is touched. Keys contain a purpose prefix and a
+SHA-256 hash of the email or the IP (no raw personal data in this table), e.g. `signin:email:<sha256>`.
 
 Cleanup: rows are never needed after their window ends. `purgeExpiredRateLimits()` deletes counters whose
 `window_start` is older than 24 hours; `hitRateLimit` calls it on about 1 in 100 calls (best effort, errors

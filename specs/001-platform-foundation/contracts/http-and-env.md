@@ -89,9 +89,10 @@ EMAIL_FROM="Masari <no-reply@localhost>"
 Parsing
 
 - `apps/web/src/server/env.ts` exports `getEnv()` (Zod-validated, memoised, **lazy**: nothing is validated at
-  import time, so `next build` runs without any variable). `apps/web/src/instrumentation.ts` calls
-  `getEnv()` and `assertSafeRuntimeRole()` at server start; a failure stops the server with a message that
-  names the invalid variables (names only, never values).
+  import time, so `next build` runs without any variable). At server start `apps/web/src/instrumentation.ts`
+  calls `runStartupChecks()` from `apps/web/src/server/startup.ts`, which runs `getEnv()` and
+  `assertSafeRuntimeRole()`; a failure stops the server with a message that names the invalid variables
+  (names only, never values).
 - `packages/db/src/env.ts` exports `getDbEnv()` (`DATABASE_URL`) and `getAdminDbEnv()`
   (`DATABASE_MIGRATION_URL`, `DATABASE_URL`, optional `APP_URL`, optional `APP_ENV`), also lazy.
 - **Nothing that needs the environment exists at module scope.** Importing any module of `apps/web/src` or

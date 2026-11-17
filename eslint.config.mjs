@@ -131,6 +131,12 @@ export default defineConfig([
     files: ['apps/web/src/server/log.ts', 'packages/db/scripts/**'],
     rules: { 'no-console': 'off' },
   },
+  // End-to-end harness: the database preparation script and the script-budget report print to the
+  // terminal, and Playwright fixtures call `use()`, which the React hooks rule mistakes for React's `use`.
+  {
+    files: ['apps/web/e2e/**'],
+    rules: { 'no-console': 'off', 'react-hooks/rules-of-hooks': 'off' },
+  },
 
   // No literal user-facing text in components: every string comes from the message catalogs
   // (research.md §12). Props (className, href, …) are ignored except the user-facing attributes below.

@@ -29,8 +29,8 @@ const PURGE_PROBABILITY = 0.01;
 
 // The stored count is capped at limit + 1: enough to know the limit is exceeded, and it can never overflow
 // however long a flood lasts. The cap uses the limit of the current call, so a key must always be used with
-// the same limit (one policy per key prefix). now() is the statement's start time, used consistently for the reset decision
-// and for retryAfterSeconds.
+// the same limit (one policy per key prefix). now() is the statement's start time, used consistently for
+// the reset decision and for retryAfterSeconds.
 const HIT_SQL = `
   INSERT INTO rate_limit_counters AS r (key, window_start, count)
   VALUES ($1, now(), 1)

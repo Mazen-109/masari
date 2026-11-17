@@ -1,0 +1,27 @@
+# Masari — deployment
+
+This file is completed by task T144 (feature 001, PR-38: pilot on Vercel + Neon + an SMTP provider). Until
+then it records the rules that already bind any deployment.
+
+## Database connections
+
+Masari uses two PostgreSQL URLs (`specs/001-platform-foundation/contracts/http-and-env.md` §3):
+
+- `DATABASE_URL` — the **runtime** login role (`masari_web` locally): `NOSUPERUSER NOBYPASSRLS`, member of
+  `masari_app`. This is the only database URL the web process receives.
+- `DATABASE_MIGRATION_URL` — the **owner** role that owns the schema and runs migrations. It is used only by
+  operator scripts (`pnpm db:migrate`, `pnpm tenant:create`, `pnpm tenant:set-status`) and by tests, run from
+  an operator's machine or a one-off job.
+
+**Production MUST NEVER give the web process the owner/migration URL**: neither as `DATABASE_URL` nor as
+`DATABASE_MIGRATION_URL` in the web app's environment. The owner role owns every table and can alter or drop
+them and their row-level-security policies (and is often a superuser, which bypasses row-level security
+altogether), so a web process holding it would lose tenant isolation (constitution III). The start-up check refuses to run when
+`DATABASE_URL` is a superuser or `BYPASSRLS` role, but an owner URL merely present in the environment is
+not detected — keep it out of the hosting provider's runtime variables entirely.
+
+## Client network address
+
+Every proxy counted in `TRUSTED_PROXY_HOPS` MUST append (or overwrite with) the address it received the
+connection from, and the application port MUST NOT be reachable except through those proxies. Vercel: `1`.
+One nginx/Caddy in front of the container: `1` (`contracts/http-and-env.md` §5).

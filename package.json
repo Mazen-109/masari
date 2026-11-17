@@ -15,6 +15,7 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test && pnpm test:scripts",
     "test:scripts": "node --test \"scripts/*.test.mjs\"",
+    "test:e2e": "pnpm --filter @masari/web test:e2e",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm i18n:check && pnpm rtl:check && pnpm test",
     "i18n:check": "node scripts/check-i18n.mjs",
     "rtl:check": "node scripts/check-rtl.mjs",
