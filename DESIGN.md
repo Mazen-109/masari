@@ -311,9 +311,15 @@ revert those lines: the tokens above are the only source of colour.
 
 ### Inputs / Fields
 
-Arrive with the form primitives (PR-15): visible label above the control, `input` border, `surface`
-fill, 44 px minimum height, 16 px text, error text in `danger` below the field linked by
-`aria-describedby`.
+`components/ui/{input,select,checkbox,label}.tsx` and `components/forms/field.tsx`: visible label above
+the control (14 px, medium), `input` border, `surface` fill, 44 px minimum height, 16 px text; an invalid
+control gets a `danger` border and `aria-invalid`, and the error text in `danger` below the field is
+linked by `aria-describedby` (error first, then the hint in `muted-foreground`). Checkboxes and selects
+are the native elements styled with tokens (no Radix), so every form works without JavaScript; a checkbox
+field puts the control before its label on one 44 px row. The form-level error summary
+(`components/forms/form-error.tsx`) is an `Alert` with `role="alert"` on `danger-soft`; banners use
+`rounded-lg` and a soft status fill with its own `-foreground` text. The submit button
+(`components/forms/submit-button.tsx`) says it is busy while the form is sent and stays focusable.
 
 ## Do's and Don'ts
 

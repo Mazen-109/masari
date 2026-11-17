@@ -247,9 +247,9 @@ permissions. **No user-story batch may start before PR-14 is merged.**
 
 ### PR-15 — Form primitives, public shell, privacy notice · branch `001-pr15-public-shell`
 
-- [ ] T063 [P] [US1] Add shadcn/ui `input`, `label`, `checkbox`, `select`, `alert`, `card` to `apps/web/src/components/ui/` (logical utilities only)
-- [ ] T064 [US1] Create `apps/web/src/components/forms/field.tsx` (label + control slot + hint + error wired with `aria-invalid`/`aria-describedby`), `apps/web/src/components/forms/form-error.tsx` (`role="alert"` summary translating `ErrorCode`, shows retry time for `rate_limited`), `apps/web/src/components/forms/submit-button.tsx` (pending state via `useFormStatus`) (FR-042)
-- [ ] T065 [US1] Create `apps/web/src/app/[locale]/(public)/layout.tsx` (skip link, `public-header`, `<main id="main">`, footer link to the privacy notice) and `apps/web/src/app/[locale]/(public)/privacy/page.tsx` with the notice text in the `privacy` namespace of both catalogs covering the four points of FR-011; add `/privacy` to `PUBLIC_SCREENS` in `apps/web/e2e/a11y.spec.ts` (FR-011)
+- [x] T063 [P] [US1] Add shadcn/ui `input`, `label`, `checkbox`, `select`, `alert`, `card` to `apps/web/src/components/ui/` (logical utilities only)
+- [x] T064 [US1] Create `apps/web/src/components/forms/field.tsx` (label + control slot + hint + error wired with `aria-invalid`/`aria-describedby`), `apps/web/src/components/forms/form-error.tsx` (`role="alert"` summary translating `ErrorCode`, shows retry time for `rate_limited`), `apps/web/src/components/forms/submit-button.tsx` (pending state via `useFormStatus`) (FR-042)
+- [x] T065 [US1] Create `apps/web/src/app/[locale]/(public)/layout.tsx` (skip link, `public-header`, `<main id="main">`, footer link to the privacy notice) and `apps/web/src/app/[locale]/(public)/privacy/page.tsx` with the notice text in the `privacy` namespace of both catalogs covering the four points of FR-011; add `/privacy` to `PUBLIC_SCREENS` in `apps/web/e2e/a11y.spec.ts` (FR-011)
 
 **Accept**: `/ar/privacy` and `/en/privacy` pass axe · `Field` wires `aria-invalid` and `aria-describedby` (asserted end-to-end in PR-16, where it is first used) · PR description flags the privacy text as a draft for owner review (spec D17)
 

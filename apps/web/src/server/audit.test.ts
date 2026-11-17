@@ -132,6 +132,39 @@ describe('recordAudit', () => {
     expect(db.record.mock.calls[0]?.[1].metadata).toEqual({ fields: ['nameAr', 'levelsCount'] });
   });
 
+  it('leaves out metadata keys whose value is undefined instead of rejecting them', async () => {
+    arrange();
+    const changed: string[] = [];
+    await recordAudit(
+      session,
+      {
+        action: 'profile.updated',
+        targetId: TARGET_ID,
+        metadata: { fields: changed.length > 0 ? changed : undefined },
+      },
+      callerTx,
+    );
+    expect(db.record).toHaveBeenCalledOnce();
+    expect(db.record.mock.calls[0]?.[1].metadata).toEqual({});
+    expect(Object.keys(db.record.mock.calls[0]?.[1].metadata ?? {})).toEqual([]);
+  });
+
+  it('skips an undefined value before the key check, since nothing is written for it', async () => {
+    arrange();
+    await expect(
+      recordAudit(
+        session,
+        {
+          action: 'auth.sign_in',
+          targetId: USER_ID,
+          metadata: { email: undefined },
+        } as unknown as AuditEvent,
+        callerTx,
+      ),
+    ).resolves.toBeUndefined();
+    expect(db.record.mock.calls[0]?.[1].metadata).toEqual({});
+  });
+
   it(`accepts a metadata string of exactly ${MAX_METADATA_STRING_LENGTH} characters`, async () => {
     arrange();
     const value = 'a'.repeat(MAX_METADATA_STRING_LENGTH);

@@ -43,7 +43,8 @@
       "previous": "Previous",
       "search": "Search",
       "tryAgain": "Try again",
-      "goHome": "Go to the home page"
+      "goHome": "Go to the home page",
+      "pending": "Please wait…"
     },
     "notFound": {
       "title": "Page not found",
@@ -52,7 +53,8 @@
     "error": {
       "title": "Something went wrong",
       "body": "We couldn't complete your request right now. Please try again in a moment."
-    }
+    },
+    "privacyNotice": "Privacy notice"
   },
   "errors": {
     "validation": "Check what you entered and correct the highlighted fields.",
@@ -82,15 +84,44 @@
     "student_code_taken": "This student code is already registered at the college.",
     "code_taken": "This code is already in use.",
     "levels_in_use": "The number of levels can't be reduced while students are registered in higher levels.",
-    "too_many": "This is more than allowed."
+    "too_many": "This is more than allowed.",
+    "retryAfter": "{count, plural, one {You can try again in {minutes} minute.} other {You can try again in {minutes} minutes.}}"
   },
   "home": {
     "title": "Your companion through college, from the first day to graduation",
     "lead": "One platform for students, faculty members, Student Affairs, and college administration."
   },
+  "privacy": {
+    "title": "Privacy notice",
+    "intro": "This notice explains what Masari keeps about you, why, who can see it, and how to ask for it to be corrected or deleted. You are asked to accept it when you create your account, and we record the date and time you accepted.",
+    "collected": {
+      "title": "What we keep",
+      "account": "Account details: your name, email address, and password. The password is stored hashed, so nobody can read it — not even the Masari team.",
+      "academic": "Study details: your college, student code, level, and division.",
+      "preferences": "Your preferences: the interface language, and the date and time you accepted this notice.",
+      "security": "Security details: the internet (IP) address you connect from, and a log of important actions such as signing in and role changes."
+    },
+    "purpose": {
+      "title": "Why we keep it",
+      "body": "To create your account and sign you in, to link you to your college, level, and division so you see the services meant for you, to send account emails (such as email confirmation and password recovery), and to protect your account from misuse. We do not use your data for advertising, and we do not sell it."
+    },
+    "access": {
+      "title": "Who can see it",
+      "you": "You: everything is shown on your profile page.",
+      "college": "Your college administration and Student Affairs: as much as their work needs, such as managing accounts and correcting study details.",
+      "staff": "Faculty members: only what the services your college turns on need.",
+      "nobodyElse": "No other college can see your data, and we do not share it with anyone outside unless the law requires us to."
+    },
+    "rights": {
+      "title": "How to ask for a correction or deletion",
+      "correct": "You can change your name and interface language yourself on your profile page. To correct your student code, level, or division, contact Student Affairs at your college.",
+      "delete": "To ask for your account to be deleted or for a copy of your data, contact your college administration, who will handle your request."
+    }
+  },
   "meta": {
     "titleTemplate": "%s · Masari",
     "home": "Masari",
-    "notFound": "Page not found"
+    "notFound": "Page not found",
+    "privacy": "Privacy notice"
   }
 }

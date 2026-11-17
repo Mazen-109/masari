@@ -47,7 +47,8 @@ export type AuditEvent<A extends AuditAction = AuditAction> = {
   action: A;
   /** Id of the affected row; the target type comes from the catalogue. */
   targetId: string;
-  metadata?: Partial<Record<MetadataKey<A>, AuditMetadataValue>>;
+  /** Keys whose value is `undefined` are left out, so optional metadata can be written inline. */
+  metadata?: Partial<Record<MetadataKey<A>, AuditMetadataValue | undefined>>;
 };
 
 /** Who acts and in which college: a session context, or explicit ids (userId null = system). */
@@ -74,6 +75,7 @@ export function assertValidAuditEvent(event: AuditEvent): void {
   }
   const allowed: readonly string[] = AUDIT_CATALOGUE[event.action].keys;
   for (const [key, value] of Object.entries(event.metadata ?? {})) {
+    if (value === undefined) continue;
     if (!allowed.includes(key)) throw new AuditEventError(`metadata key "${key}" not allowed`);
     const valid =
       typeof value === 'number'
@@ -85,6 +87,15 @@ export function assertValidAuditEvent(event: AuditEvent): void {
             value.every((item) => isShortString(item)));
     if (!valid) throw new AuditEventError(`metadata "${key}" is not a short ID or enumeration`);
   }
+}
+
+/** The event's metadata without the keys whose value is `undefined`. */
+function definedMetadata(event: AuditEvent): Record<string, AuditMetadataValue> {
+  const metadata: Record<string, AuditMetadataValue> = {};
+  for (const [key, value] of Object.entries(event.metadata ?? {})) {
+    if (value !== undefined) metadata[key] = value;
+  }
+  return metadata;
 }
 
 async function clientIpOrNull(): Promise<string | null> {
@@ -114,7 +125,7 @@ export async function recordAudit<A extends AuditAction>(
     action: event.action,
     targetType: AUDIT_CATALOGUE[event.action].target,
     targetId: event.targetId,
-    metadata: { ...event.metadata },
+    metadata: definedMetadata(event),
     ip: await clientIpOrNull(),
   };
   if (tx !== undefined) {

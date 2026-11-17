@@ -1,0 +1,45 @@
+import { useLocale, useTranslations } from 'next-intl';
+import { Alert } from '@/components/ui/alert';
+import { formatNumber } from '@/lib/format';
+import type { ActionResult } from '@/lib/result';
+import { retryAfterMinutes } from '@/lib/retry-after';
+
+type FormErrorProps = Readonly<{
+  /** The form action's last result (`useActionState`); nothing is shown unless it is a failure. */
+  result: ActionResult<unknown> | null | undefined;
+  className?: string;
+}>;
+
+/**
+ * Form-level error summary (FR-042, contracts/routes.md §7): a `role="alert"` banner with the translated
+ * `ErrorCode` (`errors` namespace). For `rate_limited` it adds when the user may try again, in whole
+ * minutes written with Western digits (FR-041).
+ */
+export function FormError({ result, className }: FormErrorProps) {
+  const t = useTranslations('errors');
+  const locale = useLocale();
+  if (result === null || result === undefined || result.ok) return null;
+
+  const minutes =
+    result.code === 'rate_limited' ? retryAfterMinutes(result.retryAfterSeconds) : null;
+
+  return (
+    <Alert
+      variant="destructive"
+      role="alert"
+      data-slot="form-error"
+      data-code={result.code}
+      className={className}
+    >
+      <p>{t(result.code)}</p>
+      {minutes !== null && (
+        <p className="mt-1">
+          {t('retryAfter', {
+            count: minutes,
+            minutes: formatNumber(minutes, locale),
+          })}
+        </p>
+      )}
+    </Alert>
+  );
+}

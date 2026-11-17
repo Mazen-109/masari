@@ -2,6 +2,9 @@
  * The `next` parameter rule (contracts/routes.md §1): a same-site, locale-less path is honoured only if it
  * starts with a single `/`, does not start with `//` or `/\`, contains no scheme, and is at most 512
  * characters. Returns the path, or null when it must be ignored. Pure: safe in client and server code.
+ *
+ * Callers MUST always redirect to `'/' + locale + next` (e.g. `/ar/dashboard`), never to `next` alone:
+ * the returned path is locale-less, and the locale prefix keeps the target inside the app's routes.
  */
 
 export const MAX_NEXT_LENGTH = 512;
