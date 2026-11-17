@@ -318,7 +318,9 @@ linked by `aria-describedby` (error first, then the hint in `muted-foreground`).
 are the native elements styled with tokens (no Radix), so every form works without JavaScript; a checkbox
 field puts the control before its label on one 44 px row. The form-level error summary
 (`components/forms/form-error.tsx`) is an `Alert` with `role="alert"` on `danger-soft`; banners use
-`rounded-lg` and a soft status fill with its own `-foreground` text. The submit button
+`rounded-lg` and a soft status fill with the matching text token from the contrast table:
+`primary-soft-foreground` on `primary-soft` (info), `danger-soft-foreground` on `danger-soft` (error),
+`success` on `success-soft`, and `warning` on `warning-soft`. The submit button
 (`components/forms/submit-button.tsx`) says it is busy while the form is sent and stays focusable.
 
 ## Do's and Don'ts

@@ -12,11 +12,12 @@ type FormErrorProps = Readonly<{
 
 /**
  * Form-level error summary (FR-042, contracts/routes.md §7): a `role="alert"` banner with the translated
- * `ErrorCode` (`errors` namespace). For `rate_limited` it adds when the user may try again, in whole
- * minutes written with Western digits (FR-041).
+ * `ErrorCode` (`errors` namespace). For `rate_limited` it adds when the user may try again
+ * (`common.retryAfter`), in whole minutes written with Western digits (FR-041).
  */
 export function FormError({ result, className }: FormErrorProps) {
   const t = useTranslations('errors');
+  const tCommon = useTranslations('common');
   const locale = useLocale();
   if (result === null || result === undefined || result.ok) return null;
 
@@ -34,7 +35,7 @@ export function FormError({ result, className }: FormErrorProps) {
       <p>{t(result.code)}</p>
       {minutes !== null && (
         <p className="mt-1">
-          {t('retryAfter', {
+          {tCommon('retryAfter', {
             count: minutes,
             minutes: formatNumber(minutes, locale),
           })}

@@ -1,13 +1,28 @@
 import { NextIntlClientProvider } from 'next-intl';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fail, ok } from '@/lib/result';
 import ar from '../../../messages/ar.json';
 import en from '../../../messages/en.json';
 import { Field, type FieldControlProps } from './field';
 import { FormError } from './form-error';
 import { SubmitButton } from './submit-button';
+
+// `useFormStatus` is mocked so the pending state can be rendered without submitting a form; the rest of
+// react-dom is the real module.
+const formStatus = vi.hoisted(() => ({ pending: false }));
+vi.mock('react-dom', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-dom')>();
+  return {
+    ...actual,
+    useFormStatus: () => ({ ...actual.useFormStatus(), pending: formStatus.pending }),
+  };
+});
+
+afterEach(() => {
+  formStatus.pending = false;
+});
 
 function render(node: ReactNode, locale: 'ar' | 'en' = 'en'): string {
   return renderToStaticMarkup(
@@ -158,5 +173,25 @@ describe('SubmitButton', () => {
     expect(html).toContain('Create account');
     expect(html).not.toContain('aria-disabled');
     expect(html).not.toContain(en.common.actions.pending);
+    expect(html).not.toContain('aria-busy');
   });
+
+  it.each([
+    ['en', en],
+    ['ar', ar],
+  ] as const)(
+    'says "please wait" and is marked busy while the form is sent (%s)',
+    (locale, catalog) => {
+      formStatus.pending = true;
+      const html = render(<SubmitButton>Create account</SubmitButton>, locale);
+      const button = /^<button\b[^>]*>/.exec(html)?.[0] ?? '';
+      expect(button).toContain('type="submit"');
+      expect(button).toContain('aria-disabled="true"');
+      expect(button).toContain('aria-busy="true"');
+      // Stays focusable: marked aria-disabled, never the disabled attribute.
+      expect(button).not.toMatch(/\sdisabled(=|\s|>)/);
+      expect(html).toContain(catalog.common.actions.pending);
+      expect(html).not.toContain('Create account');
+    },
+  );
 });

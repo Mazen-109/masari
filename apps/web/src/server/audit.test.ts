@@ -149,7 +149,7 @@ describe('recordAudit', () => {
     expect(Object.keys(db.record.mock.calls[0]?.[1].metadata ?? {})).toEqual([]);
   });
 
-  it('skips an undefined value before the key check, since nothing is written for it', async () => {
+  it('rejects a key outside the catalogue entry even when its value is undefined', async () => {
     arrange();
     await expect(
       recordAudit(
@@ -161,8 +161,8 @@ describe('recordAudit', () => {
         } as unknown as AuditEvent,
         callerTx,
       ),
-    ).resolves.toBeUndefined();
-    expect(db.record.mock.calls[0]?.[1].metadata).toEqual({});
+    ).rejects.toBeInstanceOf(AuditEventError);
+    expect(db.record).not.toHaveBeenCalled();
   });
 
   it(`accepts a metadata string of exactly ${MAX_METADATA_STRING_LENGTH} characters`, async () => {

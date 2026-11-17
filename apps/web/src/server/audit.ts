@@ -47,7 +47,10 @@ export type AuditEvent<A extends AuditAction = AuditAction> = {
   action: A;
   /** Id of the affected row; the target type comes from the catalogue. */
   targetId: string;
-  /** Keys whose value is `undefined` are left out, so optional metadata can be written inline. */
+  /**
+   * Keys whose value is `undefined` are left out, so optional metadata can be written inline; the key
+   * must still be one the catalogue allows for the action.
+   */
   metadata?: Partial<Record<MetadataKey<A>, AuditMetadataValue | undefined>>;
 };
 
@@ -75,8 +78,8 @@ export function assertValidAuditEvent(event: AuditEvent): void {
   }
   const allowed: readonly string[] = AUDIT_CATALOGUE[event.action].keys;
   for (const [key, value] of Object.entries(event.metadata ?? {})) {
-    if (value === undefined) continue;
     if (!allowed.includes(key)) throw new AuditEventError(`metadata key "${key}" not allowed`);
+    if (value === undefined) continue;
     const valid =
       typeof value === 'number'
         ? Number.isFinite(value)
