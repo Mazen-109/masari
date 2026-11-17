@@ -167,9 +167,55 @@
       "delete": "تواصل مع إدارة كليتك بشأن حذف حسابك أو الحصول على نسخة من بياناتك."
     }
   },
+  "nav": {
+    "label": "التنقل الرئيسي",
+    "menuTitle": "القائمة",
+    "openMenu": "فتح القائمة",
+    "closeMenu": "إغلاق القائمة",
+    "home": "الرئيسية",
+    "adminSection": "الإدارة",
+    "admin": {
+      "users": "المستخدمون",
+      "invitations": "الدعوات",
+      "divisions": "الشعب",
+      "settings": "إعدادات الكلية"
+    },
+    "userMenu": "قائمة الحساب: {name}",
+    "profile": "الملف الشخصي"
+  },
   "dashboard": {
     "greeting": "أهلًا، <bdi>{name}</bdi>",
-    "college": "كليتك: {college}"
+    "college": "كليتك: {college}",
+    "modulesLabel": "الخدمات المتاحة لك",
+    "noModules": "لا توجد خدمات متاحة لك حاليًا.",
+    "comingSoon": "قريبًا"
+  },
+  "modules": {
+    "mueed": {
+      "name": "معيد",
+      "description": "اسأل عن لائحة الكلية واعرف جدولك الدراسي."
+    },
+    "codejudge": {
+      "name": "CodeJudge",
+      "description": "سلّم تكليفات البرمجة واحصل على تقييم فوري."
+    },
+    "mizan": {
+      "name": "ميزان",
+      "description": "تأكد أن الامتحان متوازن ويغطي المقرر."
+    },
+    "kitabi": {
+      "name": "كتابي",
+      "description": "احصل على كتبك الدراسية وأكواد الوصول عبر الإنترنت."
+    },
+    "careermap": {
+      "name": "CareerMap",
+      "description": "اعرف المهارات التي تحتاجها للوظيفة التي تريدها."
+    },
+    "tadreeb": {
+      "name": "تدريب",
+      "description": "ابحث عن فرص تدريب تناسبك وتابعها."
+    },
+    "comingSoonBody": "هذه الخدمة غير متاحة بعد، وستظهر هنا عندما تصبح جاهزة."
   },
   "meta": {
     "titleTemplate": "%s · مساري",

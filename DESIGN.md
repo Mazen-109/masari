@@ -242,7 +242,8 @@ Headings use `text-balance`; body text is limited to about 60–75 characters pe
 - **Spacing rhythm** on Tailwind's 4 px grid: 4 · 8 · 12 · 16 · 24 · 32 · 48 · 64 · 96 px. Tight inside a
   group (8–12), generous between groups (24–48), more space above a heading than below it.
 - **Container:** content and header share `max-w-5xl` (64 rem) centred, with 16 px side padding on phones
-  and 24 px from 640 px.
+  and 24 px from 640 px. Signed-in screens widen the shared container to `max-w-7xl` (80 rem) to fit the
+  16 rem sidebar beside the same `max-w-5xl` content column.
 - **Breakpoints:** Tailwind defaults; designed at 320 px first. No horizontal scrolling at 320 px; usable
   at 200 % zoom. Signed-in navigation is a sidebar from 1024 px and a drawer below.
 - **Touch targets:** every interactive element is at least 44 × 44 px (`min-h-11` / `size-11`).
@@ -309,6 +310,24 @@ revert those lines: the tokens above are the only source of colour.
 - **Public header** (`components/shell/public-header.tsx`): white `surface` band with a bottom rule line,
   64 px high; the wordmark (app name in the current language, 24 px bold, `primary`) at the start links
   home; the language switch at the end is written in the target language with its own `lang`/`dir`.
+- **Signed-in shell** (`components/shell/app-header.tsx`, `app-sidebar.tsx`, `mobile-nav.tsx`,
+  `user-menu.tsx`): the header band is the public header plus the college name (`muted-foreground`;
+  on its own line below 640 px), and a user menu (account icon, name from 640 px) at the end. Header and
+  body share `max-w-7xl`: from 1024 px a 16 rem sidebar (rule line at its inline end) sits beside a
+  `max-w-5xl` main column; below 1024 px a ghost icon button at the start of the header opens the same
+  entries in a drawer (sheet) from the inline-start edge. Entries are 44 px rows with an icon and the
+  name; the current one has `aria-current="page"` and the selected-row colours (`primary-soft` /
+  `primary-soft-foreground`). Without JavaScript the sidebar shows at every width and a plain sign-out
+  button replaces the user menu (Tailwind `noscript:`).
+- **Menus and drawers** (`components/ui/dropdown-menu.tsx`, `sheet.tsx`, Radix): `surface` panels with a
+  rule line and `shadow-md`; menu items 44 px with the `muted` highlight; the drawer overlay is
+  `foreground` at 40 %. No animation library. Focus is trapped while open, Escape closes, and focus
+  returns to the trigger.
+- **Module cards** (`features/dashboard/components/module-card.tsx`): a card with the module icon on a
+  `primary-soft` tile, a "coming soon" badge (`components/ui/badge.tsx`, `rounded-sm`, soft fill with
+  its `-foreground` token), the name as an `<h2>` link whose hit area covers the card (border turns
+  `primary` on hover/focus), and the one-sentence description. Directional arrows mirror in Arabic
+  (`rtl:-scale-x-100`).
 
 ### Inputs / Fields
 

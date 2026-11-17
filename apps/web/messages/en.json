@@ -167,9 +167,55 @@
       "delete": "Contact your college administration about deleting your account or getting a copy of your data."
     }
   },
+  "nav": {
+    "label": "Main navigation",
+    "menuTitle": "Menu",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "home": "Home",
+    "adminSection": "Administration",
+    "admin": {
+      "users": "People",
+      "invitations": "Invitations",
+      "divisions": "Divisions",
+      "settings": "College settings"
+    },
+    "userMenu": "Account menu: {name}",
+    "profile": "Profile"
+  },
   "dashboard": {
     "greeting": "Welcome, <bdi>{name}</bdi>",
-    "college": "Your college: {college}"
+    "college": "Your college: {college}",
+    "modulesLabel": "Modules available to you",
+    "noModules": "No modules are available to you yet.",
+    "comingSoon": "Coming soon"
+  },
+  "modules": {
+    "mueed": {
+      "name": "Mu'eed",
+      "description": "Ask about the college regulations and see your timetable."
+    },
+    "codejudge": {
+      "name": "CodeJudge",
+      "description": "Submit programming assignments and get instant feedback."
+    },
+    "mizan": {
+      "name": "Mizan",
+      "description": "Check that an exam is balanced and covers the course."
+    },
+    "kitabi": {
+      "name": "Kitabi",
+      "description": "Get your textbooks and access codes online."
+    },
+    "careermap": {
+      "name": "CareerMap",
+      "description": "See which skills you need for the job you want."
+    },
+    "tadreeb": {
+      "name": "Tadreeb",
+      "description": "Find and track internships that fit you."
+    },
+    "comingSoonBody": "This module is not available yet. It will appear here when it is ready."
   },
   "meta": {
     "titleTemplate": "%s · Masari",

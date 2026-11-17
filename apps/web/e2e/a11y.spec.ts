@@ -24,6 +24,7 @@ export const PUBLIC_SCREENS: readonly string[] = [
 
 export const SIGNED_IN_SCREENS: readonly { path: string; roles: readonly string[] }[] = [
   { path: '/dashboard', roles: ['student'] },
+  { path: '/modules/mueed', roles: ['student'] },
 ];
 
 /**

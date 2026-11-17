@@ -431,8 +431,9 @@ describe('signInAction', () => {
       ok: false,
       code: 'account_suspended',
     });
-    const [call] = mocks.signOut.mock.calls[0] as [{ headers: Headers }];
-    expect(call.headers.get('cookie')).toBe(SESSION_COOKIE);
+    expect(signOutCookie()).toBe(SESSION_COOKIE);
+    expect(mocks.revokeByToken).toHaveBeenCalledTimes(1);
+    expect(mocks.revokeByToken).toHaveBeenCalledWith(SESSION_TOKEN);
     expect(mocks.revokeAllForUser).toHaveBeenCalledWith(USER_ID);
     expect(mocks.recordAudit).not.toHaveBeenCalled();
   });
@@ -443,9 +444,23 @@ describe('signInAction', () => {
       ok: false,
       code: 'tenant_suspended',
     });
-    expect(mocks.signOut).toHaveBeenCalledTimes(1);
+    expect(signOutCookie()).toBe(SESSION_COOKIE);
+    expect(mocks.revokeByToken).toHaveBeenCalledTimes(1);
+    expect(mocks.revokeByToken).toHaveBeenCalledWith(SESSION_TOKEN);
     expect(mocks.revokeAllForUser).not.toHaveBeenCalled();
     expect(mocks.recordAudit).not.toHaveBeenCalled();
+  });
+
+  it('always deletes the new session row too, because the library swallows a failing delete', async () => {
+    // The library answers success even when its own session delete failed (it only logs it).
+    mocks.findTenantById.mockResolvedValue({ id: TENANT_ID, status: 'suspended' });
+    mocks.signOut.mockResolvedValue({ success: true });
+    mocks.revokeByToken.mockResolvedValue(0);
+    await expect(runSignIn(signInForm())).resolves.toMatchObject({ code: 'tenant_suspended' });
+    expect(signOutCookie()).toBe(SESSION_COOKIE);
+    expect(mocks.revokeByToken).toHaveBeenCalledTimes(1);
+    expect(mocks.revokeByToken).toHaveBeenCalledWith(SESSION_TOKEN);
+    expect(mocks.log.error).not.toHaveBeenCalled();
   });
 
   /** The Cookie header of the (only) library sign-out call. */
@@ -468,7 +483,8 @@ describe('signInAction', () => {
     mocks.recordAudit.mockRejectedValue(new Error('db down'));
     await expect(runSignIn(signInForm())).resolves.toMatchObject({ ok: false, code: 'internal' });
     expect(signOutCookie()).toBe(SESSION_COOKIE);
-    expect(mocks.revokeByToken).not.toHaveBeenCalled();
+    expect(mocks.revokeByToken).toHaveBeenCalledTimes(1);
+    expect(mocks.revokeByToken).toHaveBeenCalledWith(SESSION_TOKEN);
     expect(mocks.log.error).toHaveBeenCalledWith('auth.sign_in_failed', { errorName: 'Error' });
     expectLogsWithoutPersonalData();
   });
@@ -505,6 +521,7 @@ describe('signInAction', () => {
       ok: false,
       code: 'account_suspended',
     });
+    expect(mocks.revokeByToken).toHaveBeenCalledTimes(1);
     expect(mocks.revokeByToken).toHaveBeenCalledWith(SESSION_TOKEN);
     expect(mocks.revokeAllForUser).toHaveBeenCalledWith(USER_ID);
     expect(mocks.log.error).toHaveBeenCalledWith('auth.new_session_sign_out_failed', {
@@ -517,9 +534,11 @@ describe('signInAction', () => {
     mocks.findUserById.mockResolvedValue({ ...ACTIVE_USER, status: 'suspended' });
     mocks.revokeAllForUser.mockRejectedValue(new Error('db down'));
     await expect(runSignIn(signInForm())).resolves.toMatchObject({ ok: false, code: 'internal' });
-    expect(mocks.signOut).toHaveBeenCalled();
-    const [first] = mocks.signOut.mock.calls[0] as [{ headers: Headers }];
-    expect(first.headers.get('cookie')).toBe(SESSION_COOKIE);
+    // The new session was ended once before the failure; the failure path does not end it again.
+    expect(signOutCookie()).toBe(SESSION_COOKIE);
+    expect(mocks.revokeByToken).toHaveBeenCalledTimes(1);
+    expect(mocks.revokeByToken).toHaveBeenCalledWith(SESSION_TOKEN);
+    expect(mocks.log.error).toHaveBeenCalledWith('auth.sign_in_failed', { errorName: 'Error' });
   });
 
   it('still answers internal when neither the library nor the repository can end the session', async () => {
@@ -586,11 +605,24 @@ describe('signOutAction', () => {
     expect(call.headers.get('cookie')).toBe('session=current');
   });
 
-  it('only redirects without a session', async () => {
+  it('still ends the session the library can read when there is no usable session, without auditing', async () => {
+    // e.g. the account or the college was suspended after signing in.
     mocks.getSessionContext.mockResolvedValue(null);
+    mocks.signOut.mockResolvedValue({ success: true });
     await expect(runSignOut()).resolves.toEqual({ redirect: '/en/sign-in' });
     expect(mocks.recordAudit).not.toHaveBeenCalled();
-    expect(mocks.signOut).not.toHaveBeenCalled();
+    expect(mocks.signOut).toHaveBeenCalledTimes(1);
+    const [call] = mocks.signOut.mock.calls[0] as [{ headers: Headers }];
+    expect(call.headers.get('cookie')).toBe('session=current');
+  });
+
+  it('still redirects when the library cannot end the session', async () => {
+    mocks.getSessionContext.mockResolvedValue(null);
+    mocks.signOut.mockRejectedValue(new TypeError('connection refused'));
+    await expect(runSignOut()).resolves.toEqual({ redirect: '/en/sign-in' });
+    expect(mocks.log.error).toHaveBeenCalledWith('auth.sign_out_failed', {
+      errorName: 'TypeError',
+    });
   });
 
   it('still ends the session when the audit fails', async () => {

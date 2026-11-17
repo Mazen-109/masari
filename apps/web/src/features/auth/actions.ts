@@ -257,20 +257,26 @@ async function signInWithLibrary(email: string, password: string) {
   }
 }
 
-/** The session the library just created in this action (its token never leaves the server). */
-type NewSession = { userId: string; token: string; responseHeaders: Headers };
+/**
+ * The session the library just created in this action (its token never leaves the server). `ended` makes
+ * ending it idempotent: once it has been ended, later calls do nothing.
+ */
+type NewSession = { userId: string; token: string; responseHeaders: Headers; ended?: boolean };
 
 /**
- * Ends the session created by this action, best effort and without throwing: through the library (which
- * also clears the cookie it just set), and if that fails, by deleting the session row directly. Logs only
- * event names and error class names.
+ * Ends the session created by this action, best effort, without throwing, and at most once. First
+ * through the library, which also clears the cookie it just set. The library's sign-out swallows (and
+ * only logs) a failing session delete, so its success does not prove the row is gone: the session row is
+ * therefore always deleted directly afterwards as well (idempotent — 0 rows when the library already
+ * deleted it). Logs only event names and error class names.
  */
 async function endNewSession(session: NewSession): Promise<void> {
+  if (session.ended === true) return;
+  session.ended = true;
   try {
     await getAuth().api.signOut({
       headers: new Headers({ cookie: cookieHeaderFrom(session.responseHeaders) }),
     });
-    return;
   } catch (error) {
     log.error('auth.new_session_sign_out_failed', { errorName: errorName(error) });
   }
@@ -367,9 +373,11 @@ export async function signInAction(
 }
 
 /**
- * Sign-out (contracts/server-actions.md §4.4; FR-008): audit `auth.sign_out`, end the session through
- * the library (which clears the cookie), then go to the sign-in screen. Without a usable session it only
- * redirects. A failing audit is logged and does not keep the user signed in.
+ * Sign-out (contracts/server-actions.md §4.4; FR-008): audit `auth.sign_out` when the session is usable,
+ * end the session through the library (which clears the cookie), then go to the sign-in screen. The
+ * library's sign-out also runs without a usable session — e.g. the account or the college was suspended
+ * meanwhile — so any session the library can read from the cookie still ends; without a session cookie
+ * it only clears the cookie. A failing audit is logged and does not keep the user signed in.
  */
 export async function signOutAction(): Promise<void> {
   const locale = await currentLocale();
@@ -380,11 +388,11 @@ export async function signOutAction(): Promise<void> {
     } catch (error) {
       log.error('auth.sign_out_audit_failed', { errorName: errorName(error) });
     }
-    try {
-      await getAuth().api.signOut({ headers: await headers() });
-    } catch (error) {
-      log.error('auth.sign_out_failed', { errorName: errorName(error) });
-    }
+  }
+  try {
+    await getAuth().api.signOut({ headers: await headers() });
+  } catch (error) {
+    log.error('auth.sign_out_failed', { errorName: errorName(error) });
   }
   redirect(`/${locale}/sign-in`);
 }

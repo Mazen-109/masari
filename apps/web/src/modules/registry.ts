@@ -7,7 +7,7 @@ import { MODULE_KEYS, type ModuleKey, type Role } from '@masari/db';
  */
 export const MODULE_REGISTRY: Record<ModuleKey, { roles: readonly Role[]; icon: string }> = {
   mueed: { roles: ['student', 'student_affairs'], icon: 'MessagesSquare' },
-  codejudge: { roles: ['student', 'faculty'], icon: 'Code2' },
+  codejudge: { roles: ['student', 'faculty'], icon: 'CodeXml' },
   mizan: { roles: ['faculty'], icon: 'Scale' },
   kitabi: { roles: ['student', 'admin'], icon: 'BookOpen' },
   careermap: { roles: ['student'], icon: 'Compass' },
