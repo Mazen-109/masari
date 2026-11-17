@@ -86,3 +86,62 @@ export async function confirmEmail(page: Page, email: string): Promise<string> {
   await page.waitForURL(/\/(ar|en)\/email-verified(\?|$)/);
   return link;
 }
+
+export type SignInInput = {
+  email: string;
+  password?: string;
+  /** Language of the sign-in screen; default `ar`. */
+  locale?: TestLocale;
+  /** Query of the sign-in screen, e.g. `next=%2Fprivacy`; default none. */
+  query?: string;
+  /** Open the sign-in screen first (default true); false submits the form already on screen. */
+  open?: boolean;
+};
+
+/**
+ * Fills and submits the sign-in form and waits for the action's answer (a redirect or the re-rendered
+ * form). Callers assert where it landed.
+ */
+export async function signIn(page: Page, input: SignInInput): Promise<void> {
+  const locale = input.locale ?? 'ar';
+  const t = CATALOGS[locale].auth.signIn;
+  if (input.open ?? true) {
+    await page.goto(`/${locale}/sign-in${input.query === undefined ? '' : `?${input.query}`}`);
+  }
+  await page.getByLabel(t.email, { exact: true }).fill(input.email);
+  await page.getByLabel(t.password, { exact: true }).fill(input.password ?? TEST_PASSWORD);
+  // Only the form's own POST (to the sign-in screen, with or without JavaScript) ends the wait.
+  const signInPath = `/${locale}/sign-in`;
+  await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' && new URL(response.url()).pathname === signInPath,
+    ),
+    page.getByRole('button', { name: t.submit, exact: true }).click(),
+  ]);
+}
+
+/** Uses the header's sign-out button and waits for the sign-in screen. */
+export async function signOut(page: Page, locale: TestLocale = 'ar'): Promise<void> {
+  await page
+    .getByRole('banner')
+    .getByRole('button', { name: CATALOGS[locale].auth.signOut.submit })
+    .click();
+  await page.waitForURL(new RegExp(`/${locale}/sign-in$`));
+}
+
+/**
+ * Registers a new student through the screens (college `?u=` default `demo`), opens the confirmation
+ * link, and returns the address. The browser is left signed out on the confirmation screen.
+ */
+export async function registerConfirmedStudent(
+  page: Page,
+  input: Partial<RegistrationInput> = {},
+): Promise<string> {
+  const email = input.email ?? uniqueEmail();
+  const locale = input.locale ?? 'ar';
+  await registerStudent(page, { ...input, email, locale });
+  await page.waitForURL(`/${locale}/verify-email`);
+  await confirmEmail(page, email);
+  return email;
+}

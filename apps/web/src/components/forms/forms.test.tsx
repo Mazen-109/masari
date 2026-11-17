@@ -128,6 +128,12 @@ describe('FormError', () => {
     expect(render(<FormError result={ok(undefined)} />)).toBe('');
   });
 
+  it('renders nothing while the next request is pending, so a repeated error is inserted again', () => {
+    const limited = fail('rate_limited', { retryAfterSeconds: 60 });
+    expect(render(<FormError result={limited} pending />)).toBe('');
+    expect(render(<FormError result={limited} pending={false} />)).toContain('role="alert"');
+  });
+
   it('shows the translated error code in a role="alert" summary', () => {
     const html = render(<FormError result={fail('invalid_credentials')} />, 'ar');
     expect(html).toContain('role="alert"');

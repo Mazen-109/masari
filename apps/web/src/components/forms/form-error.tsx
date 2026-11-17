@@ -7,6 +7,11 @@ import { retryAfterMinutes } from '@/lib/retry-after';
 type FormErrorProps = Readonly<{
   /** The form action's last result (`useActionState`); nothing is shown unless it is a failure. */
   result: ActionResult<unknown> | null | undefined;
+  /**
+   * True while the form's next request is being sent (`useActionState`). The previous error is removed
+   * meanwhile, so the same error coming back (e.g. `rate_limited` twice) is inserted, and announced, again.
+   */
+  pending?: boolean;
   className?: string;
 }>;
 
@@ -15,11 +20,11 @@ type FormErrorProps = Readonly<{
  * `ErrorCode` (`errors` namespace). For `rate_limited` it adds when the user may try again
  * (`common.retryAfter`), in whole minutes written with Western digits (FR-041).
  */
-export function FormError({ result, className }: FormErrorProps) {
+export function FormError({ result, pending = false, className }: FormErrorProps) {
   const t = useTranslations('errors');
   const tCommon = useTranslations('common');
   const locale = useLocale();
-  if (result === null || result === undefined || result.ok) return null;
+  if (pending || result === null || result === undefined || result.ok) return null;
 
   const minutes =
     result.code === 'rate_limited' ? retryAfterMinutes(result.retryAfterSeconds) : null;

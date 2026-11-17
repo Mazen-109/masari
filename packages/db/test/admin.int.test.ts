@@ -5,12 +5,12 @@ import { promisify } from 'node:util';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DEMO_SLUG, seedDemo } from '../src/admin/seed';
-import { createTenant } from '../src/admin/tenants';
+import { createTenant, setTenantStatus } from '../src/admin/tenants';
 import { withDatabaseName } from '../src/admin/database';
 import { withTenant } from '../src/context';
 import { getAdminDbEnv } from '../src/env';
 import * as divisions from '../src/repositories/divisions';
-import { closeTestPools, ownerQuery, randomSlug } from './helpers';
+import { closeTestPools, makeTenant, makeUser, ownerQuery, randomSlug } from './helpers';
 
 // contracts/db-api.md §4 (the parts delivered in PR-6): createTenant defaults + GEN division; duplicate slug;
 // seedDemo is idempotent; `pnpm db:seed` twice leaves one demo college with five divisions. Tenant-scoped
@@ -188,6 +188,45 @@ describe('createTenant under a non-superuser owner (forced RLS applies)', () => 
     expect(second).toEqual(first);
     expect(await divisionCodes(second.tenantId)).toEqual(['GEN', 'CS', 'IS', 'IT', 'AI']);
     expect(await countTenants(DEMO_SLUG)).toBe(1);
+  });
+});
+
+describe('setTenantStatus', () => {
+  async function statusOf(slug: string): Promise<string | undefined> {
+    const result = await ownerQuery<{ status: string }>(
+      'SELECT status FROM tenants WHERE slug = $1',
+      [slug],
+    );
+    return result.rows[0]?.status;
+  }
+
+  it('suspends and reactivates a college and leaves its session rows in place', async () => {
+    const tenant = await makeTenant();
+    const other = await makeTenant();
+    const user = await makeUser(tenant.id);
+    const sessionId = `s_${randomBytes(9).toString('hex')}`;
+    await ownerQuery(
+      `INSERT INTO sessions (id, expires_at, token, user_id)
+       VALUES ($1, now() + interval '1 day', $2, $3)`,
+      [sessionId, randomBytes(16).toString('hex'), user.id],
+    );
+
+    await expect(setTenantStatus(migrationUrl(), tenant.slug, 'suspended')).resolves.toBe(
+      'updated',
+    );
+    expect(await statusOf(tenant.slug)).toBe('suspended');
+    expect(await statusOf(other.slug)).toBe('active');
+    const left = await ownerQuery('SELECT 1 FROM sessions WHERE id = $1', [sessionId]);
+    expect(left.rowCount).toBe(1);
+
+    await expect(setTenantStatus(migrationUrl(), tenant.slug, 'active')).resolves.toBe('updated');
+    expect(await statusOf(tenant.slug)).toBe('active');
+  });
+
+  it('answers not_found for an unknown slug', async () => {
+    await expect(setTenantStatus(migrationUrl(), randomSlug('none'), 'suspended')).resolves.toBe(
+      'not_found',
+    );
   });
 });
 

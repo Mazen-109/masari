@@ -1,6 +1,12 @@
+import { randomBytes } from 'node:crypto';
 import { afterAll, describe, expect, it } from 'vitest';
 import { withDatabaseName } from '../src/admin/database';
-import { countAuditEvents, getUserByEmail, resetRateLimits } from '../src/admin/test-support';
+import {
+  countAuditEvents,
+  countSessionsByEmail,
+  getUserByEmail,
+  resetRateLimits,
+} from '../src/admin/test-support';
 import { withTenant } from '../src/context';
 import { getAdminDbEnv } from '../src/env';
 import * as audit from '../src/repositories/audit';
@@ -69,6 +75,36 @@ describe('countAuditEvents', () => {
   it('returns 0 for an unknown college', async () => {
     await expect(
       countAuditEvents(migrationUrl(), randomSlug('none'), 'user.registered'),
+    ).resolves.toBe(0);
+  });
+});
+
+describe('countSessionsByEmail', () => {
+  async function addSession(userId: string): Promise<void> {
+    await ownerQuery(
+      `INSERT INTO sessions (id, expires_at, token, user_id)
+       VALUES ($1, now() + interval '1 day', $2, $3)`,
+      [`s_${randomBytes(9).toString('hex')}`, randomBytes(16).toString('hex'), userId],
+    );
+  }
+
+  it("counts only that account's sessions, matching the email case-insensitively", async () => {
+    const tenant = await makeTenant();
+    const user = await makeUser(tenant.id);
+    const other = await makeUser(tenant.id);
+    await addSession(user.id);
+    await addSession(user.id);
+    await addSession(other.id);
+
+    await expect(
+      countSessionsByEmail(migrationUrl(), ` ${user.email.toUpperCase()} `),
+    ).resolves.toBe(2);
+    await expect(countSessionsByEmail(migrationUrl(), other.email)).resolves.toBe(1);
+  });
+
+  it('returns 0 for an unknown email', async () => {
+    await expect(
+      countSessionsByEmail(migrationUrl(), `${randomSlug('none')}@example.test`),
     ).resolves.toBe(0);
   });
 });

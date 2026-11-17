@@ -56,6 +56,15 @@ describe('guard coverage', () => {
     expect(await findUnguardedPages(APP_DIR)).toEqual([]);
   });
 
+  // An empty scan would pass vacuously (e.g. after a route group is renamed or moved).
+  it('scans at least one real page', async () => {
+    let scanned = 0;
+    for (const group of GUARDED_GROUPS) {
+      scanned += (await listPages(join(APP_DIR, '[locale]', group))).length;
+    }
+    expect(scanned).toBeGreaterThanOrEqual(1);
+  });
+
   // The scan itself, on a throw-away app directory: proves the test above fails when a page without a
   // guard is added.
   describe('scanner', () => {

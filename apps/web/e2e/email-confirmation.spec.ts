@@ -77,9 +77,16 @@ test('a tampered link shows the invalid screen with a resend form that sends a n
   await registerNew(page, email);
   const url = new URL(await confirmationLink(email));
   const token = url.searchParams.get('token') ?? '';
-  expect(token.length).toBeGreaterThan(8);
-  const ending = token.endsWith('AAAA') ? 'BBBB' : 'AAAA';
-  url.searchParams.set('token', `${token.slice(0, -4)}${ending}`);
+  // The token is a signed JWT (header.payload.signature). One character in the middle of the signature
+  // is changed: its last characters can carry unused bits, so changing them may not change the bytes.
+  const signatureStart = token.lastIndexOf('.') + 1;
+  expect(signatureStart).toBeGreaterThan(0);
+  expect(token.length - signatureStart).toBeGreaterThan(8);
+  const middle = signatureStart + Math.floor((token.length - signatureStart) / 2);
+  const replacement = token[middle] === 'A' ? 'B' : 'A';
+  const tampered = `${token.slice(0, middle)}${replacement}${token.slice(middle + 1)}`;
+  expect(tampered).not.toBe(token);
+  url.searchParams.set('token', tampered);
 
   await page.goto(url.toString());
 

@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fail, ok } from '@/lib/result';
-import { registerStudentAction, resendVerificationAction } from './actions';
+import {
+  registerStudentAction,
+  resendVerificationAction,
+  signInAction,
+  signOutAction,
+} from './actions';
 
 // Branches of registerStudentAction and resendVerificationAction that the e2e tests cannot reach
 // (contracts/server-actions.md §4.1–4.2): suspended or unknown college, the domain rule (end-to-end in
@@ -10,7 +15,14 @@ import { registerStudentAction, resendVerificationAction } from './actions';
 const mocks = vi.hoisted(() => ({
   findBySlug: vi.fn(),
   findByEmail: vi.fn(),
+  findUserById: vi.fn(),
+  findTenantById: vi.fn(),
+  revokeAllForUser: vi.fn(),
+  revokeByToken: vi.fn(),
   signUpEmail: vi.fn(),
+  signInEmail: vi.fn(),
+  signOut: vi.fn(),
+  getSessionContext: vi.fn(),
   sendVerificationEmail: vi.fn(),
   sendEmail: vi.fn(),
   recordAudit: vi.fn(),
@@ -25,10 +37,26 @@ class RedirectSignal extends Error {
   }
 }
 
+/** Stands in for the auth library's APIError (matched by name, like the library's isAPIError). */
+class FakeAPIError extends Error {
+  override name = 'APIError';
+  constructor(readonly body: { code: string }) {
+    super(body.code);
+  }
+}
+
 vi.mock('@masari/db', () => ({
-  tenants: { findBySlug: mocks.findBySlug },
-  users: { findByEmail: mocks.findByEmail },
+  tenants: { findBySlug: mocks.findBySlug, findById: mocks.findTenantById },
+  users: { findByEmail: mocks.findByEmail, findById: mocks.findUserById },
+  sessions: { revokeAllForUser: mocks.revokeAllForUser, revokeByToken: mocks.revokeByToken },
 }));
+vi.mock('better-auth/api', () => ({
+  isAPIError: (error: unknown) => error instanceof Error && error.name === 'APIError',
+}));
+vi.mock('next/headers', () => ({
+  headers: () => Promise.resolve(new Headers({ cookie: 'session=current' })),
+}));
+vi.mock('@/server/auth/session', () => ({ getSessionContext: mocks.getSessionContext }));
 vi.mock('next/navigation', () => ({
   redirect: (url: string) => {
     throw new RedirectSignal(url);
@@ -40,7 +68,12 @@ vi.mock('next/navigation', () => ({
 vi.mock('next-intl/server', () => ({ getLocale: () => Promise.resolve('en') }));
 vi.mock('@/server/auth/auth', () => ({
   getAuth: () => ({
-    api: { signUpEmail: mocks.signUpEmail, sendVerificationEmail: mocks.sendVerificationEmail },
+    api: {
+      signUpEmail: mocks.signUpEmail,
+      sendVerificationEmail: mocks.sendVerificationEmail,
+      signInEmail: mocks.signInEmail,
+      signOut: mocks.signOut,
+    },
   }),
 }));
 vi.mock('@/server/email/send', () => ({ sendEmail: mocks.sendEmail }));
@@ -305,5 +338,268 @@ describe('resendVerificationAction', () => {
       fail('internal', { meta: { email: 'mona@example.edu' } }),
     );
     expect(mocks.log.error).toHaveBeenCalledWith('auth.resend_failed', { errorName: 'TypeError' });
+  });
+});
+
+describe('signInAction', () => {
+  const SESSION_TOKEN = 'Tk9'.repeat(4);
+  const SESSION_COOKIE = `better-auth.session_token=${SESSION_TOKEN}.sig`;
+  const ACTIVE_USER = { id: USER_ID, tenantId: TENANT_ID, status: 'active', locale: 'ar' };
+
+  function signInForm(fields: Record<string, string> = {}): FormData {
+    const data = new FormData();
+    const all = { email: ' Mona@Example.EDU ', password: 'Ab1'.repeat(4), ...fields };
+    for (const [key, value] of Object.entries(all)) data.append(key, value);
+    return data;
+  }
+
+  async function runSignIn(data: FormData): Promise<unknown> {
+    try {
+      return await signInAction(null, data);
+    } catch (error) {
+      if (error instanceof RedirectSignal) return { redirect: error.url };
+      throw error;
+    }
+  }
+
+  beforeEach(() => {
+    const responseHeaders = new Headers();
+    responseHeaders.append('set-cookie', `${SESSION_COOKIE}; Path=/; HttpOnly; SameSite=Lax`);
+    mocks.signInEmail.mockResolvedValue({
+      headers: responseHeaders,
+      response: { token: SESSION_TOKEN, user: { id: USER_ID } },
+    });
+    mocks.signOut.mockResolvedValue({ success: true });
+    mocks.revokeByToken.mockResolvedValue(1);
+    mocks.findUserById.mockResolvedValue(ACTIVE_USER);
+    mocks.findTenantById.mockResolvedValue({ id: TENANT_ID, status: 'active' });
+    mocks.revokeAllForUser.mockResolvedValue(1);
+  });
+
+  it('signs in, audits auth.sign_in, and lands on the dashboard in the user’s language', async () => {
+    await expect(runSignIn(signInForm())).resolves.toEqual({ redirect: '/ar/dashboard' });
+    expect(mocks.rateLimitRules).toHaveBeenCalledWith('signin', {
+      email: 'mona@example.edu',
+      ip: '198.18.0.1',
+    });
+    expect(mocks.signInEmail).toHaveBeenCalledWith({
+      body: { email: 'mona@example.edu', password: 'Ab1'.repeat(4) },
+      returnHeaders: true,
+      returnStatus: false,
+    });
+    expect(mocks.recordAudit).toHaveBeenCalledWith(
+      { tenantId: TENANT_ID, userId: USER_ID },
+      { action: 'auth.sign_in', targetId: USER_ID },
+    );
+    expect(mocks.signOut).not.toHaveBeenCalled();
+  });
+
+  it('honours a safe next under the user’s language and ignores an unsafe one', async () => {
+    mocks.findUserById.mockResolvedValue({ ...ACTIVE_USER, locale: 'en' });
+    await expect(runSignIn(signInForm({ next: '/profile?tab=1' }))).resolves.toEqual({
+      redirect: '/en/profile?tab=1',
+    });
+    await expect(runSignIn(signInForm({ next: '//evil.test' }))).resolves.toEqual({
+      redirect: '/en/dashboard',
+    });
+  });
+
+  it.each([
+    ['a wrong password', 'INVALID_EMAIL_OR_PASSWORD'],
+    ['an unknown email', 'INVALID_EMAIL_OR_PASSWORD'],
+    ['any other library refusal', 'PASSWORD_TOO_LONG'],
+  ])('returns the same invalid_credentials for %s', async (_case, code) => {
+    mocks.signInEmail.mockRejectedValue(new FakeAPIError({ code }));
+    await expect(runSignIn(signInForm())).resolves.toStrictEqual(
+      fail('invalid_credentials', { meta: { email: ' Mona@Example.EDU ' } }),
+    );
+    expect(mocks.findUserById).not.toHaveBeenCalled();
+    expect(mocks.recordAudit).not.toHaveBeenCalled();
+  });
+
+  it('returns email_not_verified for a correct password of an unconfirmed address', async () => {
+    mocks.signInEmail.mockRejectedValue(new FakeAPIError({ code: 'EMAIL_NOT_VERIFIED' }));
+    await expect(runSignIn(signInForm())).resolves.toMatchObject({
+      ok: false,
+      code: 'email_not_verified',
+    });
+  });
+
+  it('ends the new session and every other session of a suspended account', async () => {
+    mocks.findUserById.mockResolvedValue({ ...ACTIVE_USER, status: 'suspended' });
+    await expect(runSignIn(signInForm())).resolves.toMatchObject({
+      ok: false,
+      code: 'account_suspended',
+    });
+    const [call] = mocks.signOut.mock.calls[0] as [{ headers: Headers }];
+    expect(call.headers.get('cookie')).toBe(SESSION_COOKIE);
+    expect(mocks.revokeAllForUser).toHaveBeenCalledWith(USER_ID);
+    expect(mocks.recordAudit).not.toHaveBeenCalled();
+  });
+
+  it('ends only the new session when the college is suspended', async () => {
+    mocks.findTenantById.mockResolvedValue({ id: TENANT_ID, status: 'suspended' });
+    await expect(runSignIn(signInForm())).resolves.toMatchObject({
+      ok: false,
+      code: 'tenant_suspended',
+    });
+    expect(mocks.signOut).toHaveBeenCalledTimes(1);
+    expect(mocks.revokeAllForUser).not.toHaveBeenCalled();
+    expect(mocks.recordAudit).not.toHaveBeenCalled();
+  });
+
+  /** The Cookie header of the (only) library sign-out call. */
+  function signOutCookie(): string | null {
+    expect(mocks.signOut).toHaveBeenCalledTimes(1);
+    const [call] = mocks.signOut.mock.calls[0] as [{ headers: Headers }];
+    return call.headers.get('cookie');
+  }
+
+  /** No log call carries anything but an event name and an error class name. */
+  function expectLogsWithoutPersonalData(): void {
+    for (const level of [mocks.log.info, mocks.log.warn, mocks.log.error]) {
+      for (const call of level.mock.calls as unknown[][]) {
+        expect(JSON.stringify(call)).not.toMatch(/mona|example\.edu|Tk9|Ab1/i);
+      }
+    }
+  }
+
+  it('ends the new session and answers internal when the audit fails', async () => {
+    mocks.recordAudit.mockRejectedValue(new Error('db down'));
+    await expect(runSignIn(signInForm())).resolves.toMatchObject({ ok: false, code: 'internal' });
+    expect(signOutCookie()).toBe(SESSION_COOKIE);
+    expect(mocks.revokeByToken).not.toHaveBeenCalled();
+    expect(mocks.log.error).toHaveBeenCalledWith('auth.sign_in_failed', { errorName: 'Error' });
+    expectLogsWithoutPersonalData();
+  });
+
+  it('ends the new session and answers internal when reading the account fails', async () => {
+    mocks.findUserById.mockRejectedValue(new TypeError('connection refused'));
+    await expect(runSignIn(signInForm())).resolves.toMatchObject({ ok: false, code: 'internal' });
+    expect(signOutCookie()).toBe(SESSION_COOKIE);
+    expect(mocks.recordAudit).not.toHaveBeenCalled();
+  });
+
+  it('ends the new session and answers internal when reading the college fails', async () => {
+    mocks.findTenantById.mockRejectedValue(new TypeError('connection refused'));
+    await expect(runSignIn(signInForm())).resolves.toMatchObject({ ok: false, code: 'internal' });
+    expect(signOutCookie()).toBe(SESSION_COOKIE);
+  });
+
+  it.each([
+    ['account', () => mocks.findUserById.mockResolvedValue(null)],
+    ['college', () => mocks.findTenantById.mockResolvedValue(null)],
+  ])('warns and ends the new session when the %s is missing', async (_case, arrange) => {
+    arrange();
+    await expect(runSignIn(signInForm())).resolves.toMatchObject({ ok: false, code: 'internal' });
+    expect(mocks.log.warn).toHaveBeenCalledWith('auth.sign_in_account_missing');
+    expect(signOutCookie()).toBe(SESSION_COOKIE);
+    expect(mocks.recordAudit).not.toHaveBeenCalled();
+    expectLogsWithoutPersonalData();
+  });
+
+  it('deletes the new session row when the library cannot end it (suspended account)', async () => {
+    mocks.findUserById.mockResolvedValue({ ...ACTIVE_USER, status: 'suspended' });
+    mocks.signOut.mockRejectedValue(new Error('library down'));
+    await expect(runSignIn(signInForm())).resolves.toMatchObject({
+      ok: false,
+      code: 'account_suspended',
+    });
+    expect(mocks.revokeByToken).toHaveBeenCalledWith(SESSION_TOKEN);
+    expect(mocks.revokeAllForUser).toHaveBeenCalledWith(USER_ID);
+    expect(mocks.log.error).toHaveBeenCalledWith('auth.new_session_sign_out_failed', {
+      errorName: 'Error',
+    });
+    expectLogsWithoutPersonalData();
+  });
+
+  it('answers internal when revoking a suspended account’s sessions fails, after ending the new one', async () => {
+    mocks.findUserById.mockResolvedValue({ ...ACTIVE_USER, status: 'suspended' });
+    mocks.revokeAllForUser.mockRejectedValue(new Error('db down'));
+    await expect(runSignIn(signInForm())).resolves.toMatchObject({ ok: false, code: 'internal' });
+    expect(mocks.signOut).toHaveBeenCalled();
+    const [first] = mocks.signOut.mock.calls[0] as [{ headers: Headers }];
+    expect(first.headers.get('cookie')).toBe(SESSION_COOKIE);
+  });
+
+  it('still answers internal when neither the library nor the repository can end the session', async () => {
+    mocks.recordAudit.mockRejectedValue(new Error('db down'));
+    mocks.signOut.mockRejectedValue(new Error('library down'));
+    mocks.revokeByToken.mockRejectedValue(new Error('db down'));
+    await expect(runSignIn(signInForm())).resolves.toMatchObject({ ok: false, code: 'internal' });
+    expect(mocks.log.error).toHaveBeenCalledWith('auth.new_session_revoke_failed', {
+      errorName: 'Error',
+    });
+    expectLogsWithoutPersonalData();
+  });
+
+  it('returns validation errors before rate limiting, never echoing the password', async () => {
+    await expect(runSignIn(signInForm({ email: 'nope', password: '' }))).resolves.toStrictEqual(
+      fail('validation', {
+        fieldErrors: { email: 'invalid_email', password: 'required' },
+        meta: { email: 'nope' },
+      }),
+    );
+    expect(mocks.enforceRateLimit).not.toHaveBeenCalled();
+  });
+
+  it('returns the rate-limit refusal before asking the library', async () => {
+    mocks.enforceRateLimit.mockResolvedValue(fail('rate_limited', { retryAfterSeconds: 600 }));
+    await expect(runSignIn(signInForm())).resolves.toMatchObject({
+      code: 'rate_limited',
+      retryAfterSeconds: 600,
+    });
+    expect(mocks.signInEmail).not.toHaveBeenCalled();
+  });
+
+  it('returns internal on an unexpected error without leaking it', async () => {
+    mocks.signInEmail.mockRejectedValue(new TypeError('connection refused'));
+    await expect(runSignIn(signInForm())).resolves.toMatchObject({ code: 'internal' });
+    expect(mocks.log.error).toHaveBeenCalledWith('auth.sign_in_failed', {
+      errorName: 'TypeError',
+    });
+  });
+});
+
+describe('signOutAction', () => {
+  const CTX = { user: { id: USER_ID }, tenant: { id: TENANT_ID } };
+
+  async function runSignOut(): Promise<unknown> {
+    try {
+      await signOutAction();
+      return null;
+    } catch (error) {
+      if (error instanceof RedirectSignal) return { redirect: error.url };
+      throw error;
+    }
+  }
+
+  it('audits auth.sign_out, ends the current session, and goes to sign-in', async () => {
+    mocks.getSessionContext.mockResolvedValue(CTX);
+    mocks.signOut.mockResolvedValue({ success: true });
+    await expect(runSignOut()).resolves.toEqual({ redirect: '/en/sign-in' });
+    expect(mocks.recordAudit).toHaveBeenCalledWith(CTX, {
+      action: 'auth.sign_out',
+      targetId: USER_ID,
+    });
+    const [call] = mocks.signOut.mock.calls[0] as [{ headers: Headers }];
+    expect(call.headers.get('cookie')).toBe('session=current');
+  });
+
+  it('only redirects without a session', async () => {
+    mocks.getSessionContext.mockResolvedValue(null);
+    await expect(runSignOut()).resolves.toEqual({ redirect: '/en/sign-in' });
+    expect(mocks.recordAudit).not.toHaveBeenCalled();
+    expect(mocks.signOut).not.toHaveBeenCalled();
+  });
+
+  it('still ends the session when the audit fails', async () => {
+    mocks.getSessionContext.mockResolvedValue(CTX);
+    mocks.recordAudit.mockRejectedValue(new Error('db down'));
+    await expect(runSignOut()).resolves.toEqual({ redirect: '/en/sign-in' });
+    expect(mocks.signOut).toHaveBeenCalledTimes(1);
+    expect(mocks.log.error).toHaveBeenCalledWith('auth.sign_out_audit_failed', {
+      errorName: 'Error',
+    });
   });
 });

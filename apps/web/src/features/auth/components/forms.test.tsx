@@ -6,6 +6,7 @@ import { fail, ok, type ActionResult } from '@/lib/result';
 import en from '../../../../messages/en.json';
 import { RegisterForm } from './register-form';
 import { ResendVerificationForm } from './resend-verification-form';
+import { SignInForm } from './sign-in-form';
 
 // The account forms rendered from a given action state. `useActionState` is mocked to return that state
 // (the rest of React is real); the Server Actions and the locale-aware Link are replaced by stubs.
@@ -23,6 +24,7 @@ vi.mock('react', async (importOriginal) => {
 vi.mock('../actions', () => ({
   registerStudentAction: () => undefined,
   resendVerificationAction: () => undefined,
+  signInAction: () => undefined,
 }));
 vi.mock('@/i18n/navigation', () => ({
   Link: ({ href, children }: { href: string; children: ReactNode }) => (
@@ -136,5 +138,66 @@ describe('ResendVerificationForm', () => {
     );
     expect(html).toContain(en.errors.rate_limited);
     expect(html).toContain('You can try again in 60 minutes.');
+  });
+
+  it('starts with the given email', () => {
+    const html = render(<ResendVerificationForm id="r" defaultEmail="mona@example.edu" />, null);
+    expect(html).toMatch(/<input[^>]*id="r"[^>]*value="mona@example.edu"/);
+  });
+
+  it('removes a previous error while a new request is pending, so it is announced again', () => {
+    actionState.pending = true;
+    const html = render(
+      <ResendVerificationForm />,
+      fail('rate_limited', { retryAfterSeconds: 3600 }),
+    );
+    expect(html).not.toContain('data-slot="form-error"');
+  });
+});
+
+describe('SignInForm', () => {
+  it('sends a safe next back as a hidden field, and none without one', () => {
+    expect(render(<SignInForm next="/profile" />, null)).toContain(
+      '<input type="hidden" name="next" value="/profile"/>',
+    );
+    expect(render(<SignInForm next={null} />, null)).not.toContain('name="next"');
+  });
+
+  it('labels the fields for sign-in, with dir="ltr" inputs and the right autocomplete', () => {
+    const html = render(<SignInForm next={null} />, null);
+    expect(html).toMatch(/<input[^>]*id="sign-in-email"[^>]*dir="ltr"[^>]*autoComplete="email"/);
+    expect(html).toMatch(
+      /<input[^>]*id="sign-in-password"[^>]*dir="ltr"[^>]*autoComplete="current-password"/,
+    );
+    expect(html).toContain('href="/forgot-password"');
+    expect(html).not.toContain('data-slot="form-error"');
+  });
+
+  it('shows the generic message and keeps the email, never the password', () => {
+    const html = render(
+      <SignInForm next={null} />,
+      fail('invalid_credentials', { meta: { email: 'mona@example.edu' } }),
+    );
+    expect(html).toContain('data-code="invalid_credentials"');
+    expect(html).toContain(en.errors.invalid_credentials);
+    expect(html).toMatch(/<input[^>]*id="sign-in-email"[^>]*value="mona@example.edu"/);
+    expect(html).not.toMatch(/<input[^>]*type="password"[^>]*value=/);
+    expect(html).not.toContain('sign-in-resend');
+  });
+
+  it('offers the resend form, prefilled, for an unconfirmed address', () => {
+    const html = render(
+      <SignInForm next={null} />,
+      fail('email_not_verified', { meta: { email: 'mona@example.edu' } }),
+    );
+    expect(html).toContain('data-code="email_not_verified"');
+    expect(html).toContain('<h2 id="sign-in-resend-title"');
+    expect(html).toMatch(/<input[^>]*id="sign-in-resend"[^>]*value="mona@example.edu"/);
+  });
+
+  it('removes the previous error while the next attempt is pending', () => {
+    actionState.pending = true;
+    const html = render(<SignInForm next={null} />, fail('invalid_credentials'));
+    expect(html).not.toContain('data-slot="form-error"');
   });
 });
