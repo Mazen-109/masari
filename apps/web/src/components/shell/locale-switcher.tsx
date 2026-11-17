@@ -9,29 +9,38 @@ import { dirOf, otherLocale } from '@/lib/locale';
 // Links to the same path + query in the other locale (contracts/routes.md §1). The label is
 // written in the target language (`common.switchLanguage` holds the other language's own name)
 // and carries that language's `lang` and `dir`, so screen readers announce it correctly.
-function SwitchLink({ search }: Readonly<{ search: string }>) {
+type SwitchLinkProps = Readonly<{ search: string; className?: string }>;
+
+function SwitchLink({ search, className }: SwitchLinkProps) {
   const t = useTranslations('common');
   const target = otherLocale(useLocale());
   const pathname = usePathname();
   const href = search ? `${pathname}?${search}` : pathname;
 
   return (
-    <Link href={href} locale={target} hrefLang={target} lang={target} dir={dirOf(target)}>
+    <Link
+      href={href}
+      locale={target}
+      hrefLang={target}
+      lang={target}
+      dir={dirOf(target)}
+      className={className}
+    >
       {t('switchLanguage')}
     </Link>
   );
 }
 
-function SwitchLinkWithQuery() {
+function SwitchLinkWithQuery({ className }: Readonly<{ className?: string }>) {
   const search = useSearchParams().toString();
-  return <SwitchLink search={search} />;
+  return <SwitchLink search={search} className={className} />;
 }
 
-export function LocaleSwitcher() {
+export function LocaleSwitcher({ className }: Readonly<{ className?: string }>) {
   // Statically rendered pages have no query at build time; the query is filled in on the client.
   return (
-    <Suspense fallback={<SwitchLink search="" />}>
-      <SwitchLinkWithQuery />
+    <Suspense fallback={<SwitchLink search="" className={className} />}>
+      <SwitchLinkWithQuery className={className} />
     </Suspense>
   );
 }

@@ -173,11 +173,11 @@ permissions. **No user-story batch may start before PR-14 is merged.**
 
 ### PR-8 — Design tokens, fonts, RTL check, base UI · branch `001-pr08-design-base`
 
-- [ ] T034 Create `PRODUCT.md` and `DESIGN.md` at the repository root per research.md §22 (users and tone; "Operate" mode; colour roles, type scale, spacing, radii, focus ring; Arabic typography and RTL rules) — follow the Impeccable skill, light theme only
-- [ ] T035 Implement the tokens in `apps/web/src/app/globals.css` (Tailwind 4 `@theme`; focus ring; `prefers-reduced-motion`; Arabic body line-height 1.7; no letter-spacing on Arabic) and load IBM Plex Sans Arabic 400/500/600/700 from `@fontsource/ibm-plex-sans-arabic` in `apps/web/src/app/[locale]/layout.tsx` with a system fallback stack
-- [ ] T036 Initialise shadcn/ui: `apps/web/components.json`, `apps/web/src/lib/utils.ts` (`cn`), `apps/web/src/components/ui/button.tsx` (logical utilities only)
-- [ ] T037 [P] Create `apps/web/src/components/shell/skip-link.tsx` and `apps/web/src/components/shell/public-header.tsx` (wordmark «مساري», `locale-switcher`), and use both on `apps/web/src/app/[locale]/page.tsx` with a `<main id="main">`
-- [ ] T038 Create `scripts/check-rtl.mjs` (patterns, exemption marker, and output format of contracts/cli.md §1), root script `rtl:check`, add it to `check` and to the `quality` job in `.github/workflows/ci.yml`
+- [x] T034 Create `PRODUCT.md` and `DESIGN.md` at the repository root per research.md §22 (users and tone; "Operate" mode; colour roles, type scale, spacing, radii, focus ring; Arabic typography and RTL rules) — follow the Impeccable skill, light theme only
+- [x] T035 Implement the tokens in `apps/web/src/app/globals.css` (Tailwind 4 `@theme`; focus ring; `prefers-reduced-motion`; Arabic body line-height 1.7; no letter-spacing on Arabic) and load IBM Plex Sans Arabic 400/500/600/700 from `@fontsource/ibm-plex-sans-arabic` in `apps/web/src/app/[locale]/layout.tsx` with a system fallback stack
+- [x] T036 Initialise shadcn/ui: `apps/web/components.json`, `apps/web/src/lib/utils.ts` (`cn`), `apps/web/src/components/ui/button.tsx` (logical utilities only)
+- [x] T037 [P] Create `apps/web/src/components/shell/skip-link.tsx` and `apps/web/src/components/shell/public-header.tsx` (wordmark «مساري», `locale-switcher`), and use both on `apps/web/src/app/[locale]/page.tsx` with a `<main id="main">`
+- [x] T038 Create `scripts/check-rtl.mjs` (patterns, exemption marker, and output format of contracts/cli.md §1), root script `rtl:check`, add it to `check` and to the `quality` job in `.github/workflows/ci.yml`
 
 **Accept**: adding `ml-2` to any file in `apps/web/src` makes `pnpm rtl:check` exit 1 with `file:line` and the logical equivalent · every text/background token pair listed in `DESIGN.md` states its contrast ratio ≥ 4.5:1 (≥ 3:1 for large text/UI) · no network request to a font CDN (fonts served from the app) · skip link is the first focusable element and moves focus to `main` · PR includes ar + en screenshots of the temporary home page
 
