@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { hasLocale } from 'next-intl';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
+import { ResendVerificationForm } from '@/features/auth/components/resend-verification-form';
 import { routing } from '@/i18n/routing';
 
 type Props = Readonly<{ params: Promise<{ locale: string }> }>;
@@ -15,7 +16,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 /**
  * "Check your email" (contracts/routes.md §2): shown after every registration attempt, whether or not the
- * address already had an account (FR-005). The resend form is added in PR-17.
+ * address already had an account (FR-005), with the form to send the confirmation email again (FR-004).
  */
 export default async function VerifyEmailPage({ params }: Props) {
   const { locale } = await params;
@@ -30,6 +31,9 @@ export default async function VerifyEmailPage({ params }: Props) {
       <h1 className="text-3xl font-bold text-balance">{t('title')}</h1>
       <p className="mt-4 text-lg">{t('body')}</p>
       <p className="mt-3 text-muted-foreground">{t('spam')}</p>
+      <div className="mt-10 border-t border-border pt-8">
+        <ResendVerificationForm variant="missing" />
+      </div>
     </div>
   );
 }

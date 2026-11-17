@@ -110,6 +110,21 @@
       "title": "Check your email",
       "body": "We sent a message to the email address you entered. Open the link in it to confirm your account, then sign in.",
       "spam": "If the message does not arrive within a few minutes, look for it in your spam folder."
+    },
+    "resend": {
+      "titleMissing": "Didn't get the email?",
+      "titleInvalid": "Request a new confirmation link",
+      "lead": "Enter your email address and we will send you a new confirmation email.",
+      "email": "Email",
+      "submit": "Send confirmation email",
+      "sent": "If an account with this email address needs confirmation, we have sent it a new email."
+    },
+    "emailVerified": {
+      "successTitle": "Your email is confirmed",
+      "successBody": "Your account is ready. Sign in to continue.",
+      "signIn": "Sign in",
+      "errorTitle": "This confirmation link doesn't work",
+      "errorBody": "The link may have expired (it is valid for one day only) or part of it may have changed. Request a new link with the form below."
     }
   },
   "privacy": {
@@ -147,6 +162,7 @@
     "notFound": "Page not found",
     "privacy": "Privacy notice",
     "register": "Create an account",
-    "verifyEmail": "Check your email"
+    "verifyEmail": "Check your email",
+    "emailVerified": "Email confirmation"
   }
 }

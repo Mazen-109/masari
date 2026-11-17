@@ -265,10 +265,10 @@ permissions. **No user-story batch may start before PR-14 is merged.**
 
 ### PR-17 — Email confirmation and resend · branch `001-pr17-email-confirmation`
 
-- [ ] T071 [US1] Add `resendVerificationAction` to `apps/web/src/features/auth/actions.ts` and `resendSchema` to `apps/web/src/features/auth/schemas.ts` (+ test) (contracts/server-actions.md §4.2) (FR-004, FR-005, FR-009)
-- [ ] T072 [US1] Create `apps/web/src/features/auth/components/resend-verification-form.tsx`; use it on `apps/web/src/app/[locale]/(public)/verify-email/page.tsx`
-- [ ] T073 [US1] Create `apps/web/src/app/[locale]/(public)/email-verified/page.tsx` (no `error` param → success + link to sign-in; `error` present → invalid/expired text + resend form; never signs the user in) (FR-004)
-- [ ] T074 [US1] Extend `apps/web/e2e/support/flows.ts` (`confirmEmail(page, email)`) and create `apps/web/e2e/email-confirmation.spec.ts`: link → success screen, not signed in; same link opened twice → success both times; tampered token → invalid screen; resend for an unconfirmed account → new message; resend for an unknown email → same confirmation text and zero messages; 4th resend within an hour → `rate_limited` message; add `/email-verified` to `PUBLIC_SCREENS`
+- [x] T071 [US1] Add `resendVerificationAction` to `apps/web/src/features/auth/actions.ts` and `resendSchema` to `apps/web/src/features/auth/schemas.ts` (+ test) (contracts/server-actions.md §4.2) (FR-004, FR-005, FR-009)
+- [x] T072 [US1] Create `apps/web/src/features/auth/components/resend-verification-form.tsx`; use it on `apps/web/src/app/[locale]/(public)/verify-email/page.tsx`
+- [x] T073 [US1] Create `apps/web/src/app/[locale]/(public)/email-verified/page.tsx` (no `error` param → success + link to sign-in; `error` present → invalid/expired text + resend form; never signs the user in) (FR-004)
+- [x] T074 [US1] Extend `apps/web/e2e/support/flows.ts` (`confirmEmail(page, email)`) and create `apps/web/e2e/email-confirmation.spec.ts`: link → success screen, not signed in; same link opened twice → success both times; tampered token → invalid screen; resend for an unconfirmed account → new message; resend for an unknown email → same confirmation text and zero messages; 4th resend within an hour → `rate_limited` message; add `/email-verified` to `PUBLIC_SCREENS`
 
 **Accept**: US1 acceptance scenario 2 passes · resend never reveals whether the email exists (same text asserted for both cases) · rate-limit message shows a retry time
 

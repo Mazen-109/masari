@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
-import { countAuditEvents, getUserByEmail } from '../src/admin/test-support';
+import { withDatabaseName } from '../src/admin/database';
+import { countAuditEvents, getUserByEmail, resetRateLimits } from '../src/admin/test-support';
 import { withTenant } from '../src/context';
 import { getAdminDbEnv } from '../src/env';
 import * as audit from '../src/repositories/audit';
@@ -69,5 +70,41 @@ describe('countAuditEvents', () => {
     await expect(
       countAuditEvents(migrationUrl(), randomSlug('none'), 'user.registered'),
     ).resolves.toBe(0);
+  });
+});
+
+describe('resetRateLimits', () => {
+  async function storedKeys(prefix: string): Promise<string[]> {
+    const result = await ownerQuery<{ key: string }>(
+      'SELECT key FROM rate_limit_counters WHERE starts_with(key, $1) ORDER BY key',
+      [prefix],
+    );
+    return result.rows.map((row) => row.key);
+  }
+
+  it('deletes only the counters with the given key prefix', async () => {
+    // Other test files use the table at the same time: this test only touches keys of its own.
+    const prefix = `${randomSlug('reset')}:`;
+    const neighbour = `${randomSlug('keep')}:`;
+    for (const key of [`${prefix}a`, `${prefix}b`, `${neighbour}a`]) {
+      await ownerQuery(
+        'INSERT INTO rate_limit_counters (key, window_start, count) VALUES ($1, now(), 1)',
+        [key],
+      );
+    }
+
+    await expect(resetRateLimits(migrationUrl(), prefix)).resolves.toBe(2);
+    expect(await storedKeys(prefix)).toEqual([]);
+    expect(await storedKeys(neighbour)).toEqual([`${neighbour}a`]);
+    await resetRateLimits(migrationUrl(), neighbour);
+  });
+
+  it('refuses a database that is not a throw-away test database, before connecting', async () => {
+    // Nothing listens on port 1: a connection attempt would fail with a different error.
+    const unreachable = 'postgres://owner:owner-pw@127.0.0.1:1/masari';
+    await expect(resetRateLimits(unreachable)).rejects.toThrow('outside a test database');
+    await expect(resetRateLimits(withDatabaseName(unreachable, 'masari_dev'))).rejects.toThrow(
+      'outside a test database',
+    );
   });
 });

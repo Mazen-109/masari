@@ -1,4 +1,5 @@
 import type { UserSummary } from '../constants';
+import { isThrowAwayDatabase } from './identifiers';
 import { setTenantContext, withOwnerTransaction } from './owner';
 
 /**
@@ -39,5 +40,24 @@ export function countAuditEvents(
       [tenantId, action],
     );
     return result.rows[0]?.count ?? 0;
+  });
+}
+
+/**
+ * Deletes the rate-limit counters whose key starts with `keyPrefix` (all of them by default) and returns
+ * how many were removed. Only on a throw-away test database (masari_test…, masari_e2e…): any other
+ * database name in migrationUrl is refused before a connection is opened.
+ */
+export async function resetRateLimits(migrationUrl: string, keyPrefix = ''): Promise<number> {
+  const database = decodeURIComponent(new URL(migrationUrl).pathname.slice(1));
+  if (!isThrowAwayDatabase(database)) {
+    throw new Error('Refusing to reset rate limits outside a test database');
+  }
+  return withOwnerTransaction(migrationUrl, async (client) => {
+    const result = await client.query(
+      'DELETE FROM rate_limit_counters WHERE starts_with(key, $1)',
+      [keyPrefix],
+    );
+    return result.rowCount ?? 0;
   });
 }

@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fail } from '@/lib/result';
-import { registerStudentAction } from './actions';
+import { fail, ok } from '@/lib/result';
+import { registerStudentAction, resendVerificationAction } from './actions';
 
-// Branches of registerStudentAction that the e2e tests cannot reach (contracts/server-actions.md §4.1):
-// suspended or unknown college, the domain rule (end-to-end in PR-35), failing emails, and unexpected
-// errors. Every collaborator is mocked; redirect() throws like Next.js does.
+// Branches of registerStudentAction and resendVerificationAction that the e2e tests cannot reach
+// (contracts/server-actions.md §4.1–4.2): suspended or unknown college, the domain rule (end-to-end in
+// PR-35), already-confirmed accounts, failing emails, and unexpected errors. Every collaborator is
+// mocked; redirect() throws like Next.js does.
 
 const mocks = vi.hoisted(() => ({
   findBySlug: vi.fn(),
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   sendEmail: vi.fn(),
   recordAudit: vi.fn(),
   enforceRateLimit: vi.fn(),
+  rateLimitRules: vi.fn(),
   log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
@@ -47,7 +49,7 @@ vi.mock('@/server/env', () => ({ getEnv: () => ({ APP_URL: 'https://masari.examp
 vi.mock('@/server/log', () => ({ log: mocks.log }));
 vi.mock('@/server/request', () => ({ getClientIp: () => Promise.resolve('198.18.0.1') }));
 vi.mock('@/server/rate-limit', () => ({
-  rateLimitRules: () => [],
+  rateLimitRules: mocks.rateLimitRules,
   enforceRateLimit: mocks.enforceRateLimit,
 }));
 
@@ -89,6 +91,7 @@ async function run(data: FormData): Promise<unknown> {
 
 beforeEach(() => {
   mocks.enforceRateLimit.mockResolvedValue(null);
+  mocks.rateLimitRules.mockReturnValue([]);
   mocks.findBySlug.mockResolvedValue(COLLEGE);
   mocks.findByEmail.mockResolvedValue(null);
   mocks.signUpEmail.mockImplementation(() => {
@@ -137,6 +140,18 @@ describe('registerStudentAction', () => {
     );
     expect(JSON.stringify(result)).not.toContain('Ab1'.repeat(4));
     expect(mocks.enforceRateLimit).not.toHaveBeenCalled();
+  });
+
+  it('echoes the first value of a duplicated field, the one that was validated', async () => {
+    const data = form({ name: 'M' });
+    data.append('name', 'A valid second name');
+    data.append('tenantSlug', 'other');
+    const result = await run(data);
+    expect(result).toMatchObject({
+      code: 'validation',
+      fieldErrors: { name: 'too_short' },
+      meta: { name: 'M', tenantSlug: 'demo' },
+    });
   });
 
   it('echoes at most 254 characters per field and skips missing fields', async () => {
@@ -219,5 +234,76 @@ describe('registerStudentAction', () => {
     expect(mocks.log.error).toHaveBeenCalledWith('auth.register_failed', {
       errorName: 'TypeError',
     });
+  });
+});
+
+describe('resendVerificationAction', () => {
+  function resendForm(email: string): FormData {
+    const data = new FormData();
+    data.append('email', email);
+    return data;
+  }
+
+  it('sends a new confirmation to an unconfirmed account, with the page locale', async () => {
+    mocks.findByEmail.mockResolvedValue({ id: USER_ID, tenantId: TENANT_ID, emailVerified: false });
+    await expect(resendVerificationAction(null, resendForm(' Mona@Example.EDU '))).resolves.toEqual(
+      ok(undefined),
+    );
+    expect(mocks.rateLimitRules).toHaveBeenCalledWith('verify-resend', {
+      email: 'mona@example.edu',
+      ip: '198.18.0.1',
+    });
+    expect(mocks.findByEmail).toHaveBeenCalledWith('mona@example.edu');
+    expect(mocks.sendVerificationEmail).toHaveBeenCalledWith({
+      body: { email: 'mona@example.edu', callbackURL: '/en/email-verified' },
+    });
+  });
+
+  it.each([
+    ['an unknown address', null],
+    ['a confirmed account', { id: USER_ID, tenantId: TENANT_ID, emailVerified: true }],
+  ])('answers the same and sends nothing for %s', async (_case, user) => {
+    mocks.findByEmail.mockResolvedValue(user);
+    await expect(resendVerificationAction(null, resendForm('mona@example.edu'))).resolves.toEqual(
+      ok(undefined),
+    );
+    expect(mocks.sendVerificationEmail).not.toHaveBeenCalled();
+  });
+
+  it('answers the same when the email cannot be sent', async () => {
+    mocks.findByEmail.mockResolvedValue({ id: USER_ID, tenantId: TENANT_ID, emailVerified: false });
+    mocks.sendVerificationEmail.mockRejectedValue(new Error('smtp down'));
+    await expect(resendVerificationAction(null, resendForm('mona@example.edu'))).resolves.toEqual(
+      ok(undefined),
+    );
+    expect(mocks.log.warn).toHaveBeenCalledWith('auth.verification_not_sent', {
+      errorName: 'Error',
+    });
+  });
+
+  it('returns validation errors with the entered email, before rate limiting', async () => {
+    await expect(resendVerificationAction(null, resendForm('not-an-email'))).resolves.toEqual(
+      fail('validation', {
+        fieldErrors: { email: 'invalid_email' },
+        meta: { email: 'not-an-email' },
+      }),
+    );
+    expect(mocks.enforceRateLimit).not.toHaveBeenCalled();
+  });
+
+  it('returns the rate-limit refusal before looking up the account', async () => {
+    mocks.enforceRateLimit.mockResolvedValue(fail('rate_limited', { retryAfterSeconds: 3600 }));
+    await expect(resendVerificationAction(null, resendForm('mona@example.edu'))).resolves.toEqual(
+      fail('rate_limited', { retryAfterSeconds: 3600, meta: { email: 'mona@example.edu' } }),
+    );
+    expect(mocks.findByEmail).not.toHaveBeenCalled();
+  });
+
+  it('returns internal on an unexpected error without leaking it', async () => {
+    mocks.findByEmail.mockRejectedValue(new TypeError('connection refused'));
+    await expect(resendVerificationAction(null, resendForm('mona@example.edu'))).resolves.toEqual(
+      fail('internal', { meta: { email: 'mona@example.edu' } }),
+    );
+    expect(mocks.log.error).toHaveBeenCalledWith('auth.resend_failed', { errorName: 'TypeError' });
   });
 });
