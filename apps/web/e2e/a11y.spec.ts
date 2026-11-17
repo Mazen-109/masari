@@ -23,6 +23,10 @@ export const PUBLIC_SCREENS: readonly string[] = [
   '/verify-email',
   '/email-verified',
   '/email-verified?error=invalid_token',
+  '/forgot-password',
+  '/reset-password',
+  '/reset-password?error=INVALID_TOKEN',
+  `/reset-password?token=${'Tk9'.repeat(8)}`,
 ];
 
 export const SIGNED_IN_SCREENS: readonly { path: string; roles: readonly string[] }[] = [
@@ -102,6 +106,31 @@ for (const locale of LOCALES) {
     await expect(
       page.getByRole('heading', { level: 2, name: CATALOGS[locale].auth.resend.titleMissing }),
     ).toBeVisible();
+    await expectNoA11yViolations(page);
+  });
+
+  test(`no serious or critical violations on the forgot-password confirmation (${locale})`, async ({
+    page,
+  }) => {
+    const t = CATALOGS[locale].auth.forgotPassword;
+    await page.goto(localized(locale, '/forgot-password'));
+    await page.getByLabel(t.email, { exact: true }).fill(uniqueEmail('nobody'));
+    await page.getByRole('button', { name: t.submit }).click();
+    await expect(page.locator('main [data-slot="form-status"]')).toHaveText(t.sent);
+    await expectNoA11yViolations(page);
+  });
+
+  test(`no serious or critical violations on a refused reset link (${locale})`, async ({
+    page,
+  }) => {
+    const t = CATALOGS[locale].auth.resetPassword;
+    await page.goto(localized(locale, `/reset-password?token=${'Tk9'.repeat(8)}`));
+    await page.getByLabel(t.password, { exact: true }).fill('Xy7'.repeat(4));
+    await page.getByRole('button', { name: t.submit }).click();
+    await expect(page.locator('main [data-slot="form-error"]')).toHaveAttribute(
+      'data-code',
+      'token_invalid',
+    );
     await expectNoA11yViolations(page);
   });
 

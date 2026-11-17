@@ -134,6 +134,24 @@
       "errorTitle": "This confirmation link doesn't work",
       "errorBody": "The link may have expired (it is valid for one day only) or part of it may have changed. Request a new link with the form below."
     },
+    "forgotPassword": {
+      "title": "Reset your password",
+      "lead": "Enter the email address of your account. We will send you a link to choose a new password. The link is valid for one hour.",
+      "email": "Email",
+      "submit": "Send reset link",
+      "sent": "If an account uses this email address, we have sent it a link to reset the password. Check your inbox and your spam folder.",
+      "backToSignIn": "Back to sign in"
+    },
+    "resetPassword": {
+      "title": "Choose a new password",
+      "lead": "After you save it, you will be signed out on every device and can sign in with the new password.",
+      "password": "New password",
+      "passwordHint": "10 to 128 characters.",
+      "submit": "Save new password",
+      "invalidTitle": "This reset link doesn't work",
+      "invalidBody": "The link may have expired (it is valid for one hour only), may have been used already, or part of it may have changed.",
+      "requestNew": "Request a new link"
+    },
     "signOut": {
       "submit": "Sign out"
     }
@@ -267,6 +285,8 @@
     "verifyEmail": "Check your email",
     "emailVerified": "Email confirmation",
     "signIn": "Sign in",
+    "forgotPassword": "Reset your password",
+    "resetPassword": "Choose a new password",
     "dashboard": "Home",
     "onboarding": "Complete your profile",
     "profile": "Your profile"

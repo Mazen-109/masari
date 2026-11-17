@@ -174,11 +174,14 @@ sign-out; a failing library call is logged (`auth.sign_out_failed`) and still re
 Fields: `email`. Validate → rate limit `reset-request` → ask the auth library to send the reset email
 (redirect target `/{locale}/reset-password`) → if the user exists (`users.findByEmail(email)`, which also
 gives the college for the audit), audit `auth.password_reset_requested` → always `ok(undefined)`.
+After the rate limit, the library request, the user lookup and the audit run in Next's `after()`, so the
+response and its timing do not depend on whether the account exists (FR-005).
 
 ### 4.6 `resetPasswordAction` (form) — FR-007, FR-010
 
 Fields: `token`, `password` (new). Validate → `auth.api.resetPassword`; invalid/expired/used token →
-`fail('token_invalid')`. On success all sessions of the account are revoked (library option; verified by an
+`fail('token_invalid')`; a missing or malformed token (the field is hidden) is also `fail('token_invalid')`,
+not a field error. On success all sessions of the account are revoked (library option; verified by an
 e2e test), audit `auth.password_reset`, `redirect('/{locale}/sign-in?reset=1')`.
 
 Source of the audit's user and college: `auth.api.resetPassword` does not return the user, so the event is

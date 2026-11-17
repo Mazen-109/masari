@@ -91,3 +91,31 @@ export const signInSchema = z.object({
 });
 
 export type SignInInput = z.infer<typeof signInSchema>;
+
+/** "Forgot your password?" (contracts/server-actions.md §4.5). */
+export const forgotPasswordSchema = z.object({
+  email: emailField,
+});
+
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+
+/**
+ * The reset token from the emailed link (the auth library makes it of 24 letters and digits). Only its
+ * shape is checked here; whether it is valid, unexpired, and unused is decided by the library.
+ */
+const RESET_TOKEN = /^[A-Za-z0-9_-]{1,256}$/;
+
+/**
+ * Setting a new password from the emailed link (contracts/server-actions.md §4.6). The action reports a
+ * missing or malformed `token` as `token_invalid`, never as a field error (the field is hidden).
+ */
+export const resetPasswordSchema = z.object({
+  token: z
+    .string({ error: 'required' })
+    .trim()
+    .min(1, { error: 'required' })
+    .regex(RESET_TOKEN, { error: 'invalid_format' }),
+  password: newPasswordField,
+});
+
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
