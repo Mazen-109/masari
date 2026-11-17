@@ -76,7 +76,7 @@
     "password_too_short": "The password is too short.",
     "password_too_long": "The password is too long.",
     "consent_required": "You need to accept the privacy notice to continue.",
-    "domain_not_allowed": "Use your college university email address.",
+    "domain_not_allowed": "Use your college email address.",
     "email_unavailable": "This email address can't be used.",
     "student_code_taken": "This student code is already registered at the college.",
     "code_taken": "This code is already in use.",

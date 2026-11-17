@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 // pnpm i18n:check — contracts/cli.md §1.
-// Compares apps/web/messages/ar.json and en.json and exits 1 on any difference:
-// missing keys on either side, keys that are a message on one side and a group on the other,
-// empty values, invalid ICU messages, and messages whose ICU arguments or rich-text tags differ.
+// Compares apps/web/messages/ar.json and en.json and exits 1 on any difference: missing keys on
+// either side, duplicate keys, keys that are a message on one side and a group on the other, empty
+// values, invalid ICU messages, and messages whose ICU arguments or rich-text tags differ.
+// FR-041 (Western digits): messages never let ICU format numbers or dates — `{x, number}`,
+// `{x, date}`, `{x, time}`, and `#` inside plural/selectordinal are rejected; pass values
+// pre-formatted with `apps/web/src/lib/format.ts`.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -10,11 +13,54 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MESSAGES_DIR = path.join(ROOT, 'apps/web/messages');
-const LOCALES = ['ar', 'en'];
+export const LOCALES = ['ar', 'en'];
 
-/** @param {string} file */
-function readCatalog(file) {
-  return JSON.parse(readFileSync(file, 'utf8'));
+const PLURAL_TYPES = new Set(['plural', 'selectordinal']);
+const SELECT_TYPES = new Set(['plural', 'select', 'selectordinal']);
+const FORMATTED_TYPES = new Set(['number', 'date', 'time']);
+
+/**
+ * Returns the dotted paths of keys that appear more than once in the same JSON object
+ * (`JSON.parse` silently keeps the last one). Assumes `text` is valid JSON.
+ * @param {string} text
+ */
+export function findDuplicateKeys(text) {
+  const duplicates = [];
+  /** @type {Array<{ keys: Set<string>, path: string, isObject: boolean, lastKey: string }>} */
+  const stack = [];
+  let i = 0;
+  const readString = () => {
+    const start = i;
+    i++; // opening quote
+    while (text[i] !== '"') i += text[i] === '\\' ? 2 : 1;
+    i++;
+    return JSON.parse(text.slice(start, i));
+  };
+  while (i < text.length) {
+    const c = text[i];
+    const top = stack[stack.length - 1];
+    if (c === '{' || c === '[') {
+      const parentPath = top ? (top.isObject ? top.lastKey : top.path) : '';
+      stack.push({ keys: new Set(), path: parentPath, isObject: c === '{', lastKey: '' });
+      i++;
+    } else if (c === '}' || c === ']') {
+      stack.pop();
+      i++;
+    } else if (c === '"') {
+      const value = readString();
+      let j = i;
+      while (/\s/.test(text[j] ?? '')) j++;
+      if (top?.isObject && text[j] === ':') {
+        const keyPath = top.path ? `${top.path}.${value}` : value;
+        if (top.keys.has(value)) duplicates.push(keyPath);
+        top.keys.add(value);
+        top.lastKey = keyPath;
+      }
+    } else {
+      i++;
+    }
+  }
+  return duplicates;
 }
 
 /**
@@ -34,12 +80,10 @@ function flatten(node, prefix, out) {
   return out;
 }
 
-const PLURAL_TYPES = new Set(['plural', 'select', 'selectordinal']);
-
 /**
  * Returns the sorted argument names (`name`) and tags (`<tag>`) of an ICU message.
- * Throws on unbalanced braces. Apostrophe quoting follows ICU: `'` starts a quote only before
- * `{`, `}`, `#`, `|`, or another `'`.
+ * Throws on unbalanced braces and on number/date formatting (FR-041). Apostrophe quoting follows
+ * ICU: `'` starts a quote only before `{`, `}`, `#`, `|`, or another `'`.
  * @param {string} message
  */
 export function icuArguments(message) {
@@ -57,7 +101,7 @@ export function icuArguments(message) {
   };
 
   // Parses message text until an unmatched `}` (nested) or the end (top level).
-  const parseText = (nested) => {
+  const parseText = (nested, inPlural) => {
     while (i < message.length) {
       const c = message[i];
       if (c === "'") {
@@ -73,10 +117,12 @@ export function icuArguments(message) {
         }
       } else if (c === '{') {
         i++;
-        parseArgument();
+        parseArgument(inPlural);
       } else if (c === '}') {
         if (!nested) throw new Error('unexpected "}"');
         return;
+      } else if (c === '#' && inPlural) {
+        throw new Error('"#" formats the count with ICU; pass a pre-formatted value (FR-041)');
       } else if (c === '<') {
         const tag = /^<\/?([A-Za-z][\w-]*)\s*\/?>/.exec(message.slice(i));
         if (tag) {
@@ -93,7 +139,7 @@ export function icuArguments(message) {
   };
 
   // Called after `{`; consumes through the matching `}`.
-  const parseArgument = () => {
+  const parseArgument = (inPlural) => {
     const name = readUntil([',', '}']);
     if (!/^[\p{L}\p{N}_]+$/u.test(name)) throw new Error(`invalid argument name "${name}"`);
     names.add(name);
@@ -104,51 +150,49 @@ export function icuArguments(message) {
     if (message[i] !== ',') throw new Error('missing "}"');
     i++;
     const type = readUntil([',', '}']);
-    if (message[i] === '}') {
-      i++;
-      return;
+    if (FORMATTED_TYPES.has(type)) {
+      throw new Error(
+        `"{${name}, ${type}}" formats with ICU; pass a value pre-formatted with lib/format (FR-041)`,
+      );
     }
-    if (message[i] !== ',') throw new Error('missing "}"');
+    if (!SELECT_TYPES.has(type)) throw new Error(`unknown argument type "${type}"`);
+    if (message[i] !== ',') throw new Error(`"${type}" of "${name}" needs options`);
     i++;
-    if (PLURAL_TYPES.has(type)) {
-      for (;;) {
-        skipSpace();
-        if (i >= message.length) throw new Error('missing "}"');
-        if (message[i] === '}') {
-          i++;
-          return;
-        }
-        const selector = readUntil(['{', '}', ' ', '\n', '\t', '\r']);
-        skipSpace();
-        if (selector.startsWith('offset:')) continue;
-        if (!selector || message[i] !== '{') throw new Error(`invalid option in "${name}"`);
+    const optionsInPlural = inPlural || PLURAL_TYPES.has(type);
+    for (;;) {
+      skipSpace();
+      if (i >= message.length) throw new Error('missing "}"');
+      if (message[i] === '}') {
         i++;
-        parseText(true);
-        i++; // the option's closing `}`
+        return;
       }
-    }
-    // number/date/time style: skip to the matching `}`.
-    let depth = 1;
-    while (i < message.length && depth > 0) {
-      if (message[i] === '{') depth++;
-      else if (message[i] === '}') depth--;
+      const selector = readUntil(['{', '}', ' ', '\n', '\t', '\r']);
+      skipSpace();
+      if (selector.startsWith('offset:')) continue;
+      if (!selector || message[i] !== '{') throw new Error(`invalid option in "${name}"`);
       i++;
+      parseText(true, optionsInPlural);
+      i++; // the option's closing `}`
     }
-    if (depth > 0) throw new Error('missing "}"');
   };
 
-  parseText(false);
+  parseText(false, false);
   return [...names].sort();
 }
 
-function main() {
-  const flat = Object.fromEntries(
-    LOCALES.map((locale) => [
-      locale,
-      flatten(readCatalog(path.join(MESSAGES_DIR, `${locale}.json`)), '', new Map()),
-    ]),
-  );
+/**
+ * Checks the catalogs given as raw JSON text per locale; returns the list of problems.
+ * @param {Record<string, string>} sources
+ */
+export function checkCatalogs(sources) {
   const problems = [];
+  const flat = {};
+  for (const locale of LOCALES) {
+    for (const key of findDuplicateKeys(sources[locale])) {
+      problems.push(`${locale}.json: duplicate key "${key}"`);
+    }
+    flat[locale] = flatten(JSON.parse(sources[locale]), '', new Map());
+  }
   const [base, other] = LOCALES;
 
   for (const [locale, otherSide] of [
@@ -191,6 +235,25 @@ function main() {
     }
   }
 
+  return { problems, keyCount: flat[base].size };
+}
+
+function main() {
+  const sources = Object.fromEntries(
+    LOCALES.map((locale) => [
+      locale,
+      readFileSync(path.join(MESSAGES_DIR, `${locale}.json`), 'utf8'),
+    ]),
+  );
+  let result;
+  try {
+    result = checkCatalogs(sources);
+  } catch (error) {
+    process.stderr.write(`i18n check failed: ${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  const { problems, keyCount } = result;
   if (problems.length > 0) {
     process.stderr.write(
       `i18n check failed (${problems.length}):\n${problems.map((p) => `  ${p}`).join('\n')}\n`,
@@ -198,7 +261,7 @@ function main() {
     process.exitCode = 1;
     return;
   }
-  process.stdout.write(`i18n check passed: ${flat[base].size} keys in ${LOCALES.join(', ')}\n`);
+  process.stdout.write(`i18n check passed: ${keyCount} keys in ${LOCALES.join(', ')}\n`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

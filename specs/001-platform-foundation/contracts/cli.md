@@ -15,7 +15,7 @@ in the environment when there is no `.env` (CI, production).
 | `pnpm lint` | `eslint . --max-warnings 0` | Root flat config covers all packages |
 | `pnpm format` / `pnpm format:check` | `prettier --write .` / `prettier --check .` | |
 | `pnpm typecheck` | `pnpm -r typecheck` | each package: `tsc --noEmit` |
-| `pnpm test` | `pnpm -r test` | each package: `vitest run --coverage`; needs PostgreSQL for `@masari/db` |
+| `pnpm test` | `pnpm -r test` → `pnpm test:scripts` | each package: `vitest run --coverage`; needs PostgreSQL for `@masari/db`. `test:scripts` = `node --test "scripts/*.test.mjs"` (repository scripts, e.g. the i18n gate) |
 | `pnpm test:e2e` | `pnpm --filter @masari/web test:e2e` | `next build` → prepare database `masari_e2e` (`ci.md` §3) → `playwright test`; needs PostgreSQL |
 | `pnpm i18n:check` | `node scripts/check-i18n.mjs` | exit 1 on any difference between `ar.json` and `en.json` (keys, empty values, ICU arguments) |
 | `pnpm rtl:check` | `node scripts/check-rtl.mjs` | exit 1 on physical-direction utilities in `apps/web/src/**/*.{ts,tsx,css}` |

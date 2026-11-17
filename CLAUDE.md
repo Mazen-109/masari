@@ -69,6 +69,8 @@ No Docker (e.g. cloud sessions)? Use the machine's PostgreSQL 16+ as described i
   `components/`. Pure logic is unit-tested; repositories are integration-tested; flows are e2e-tested.
 - **i18n**: no literal user-facing text in components. Add every key to both `apps/web/messages/ar.json`
   and `en.json`. Arabic is written natively (الفرقة، الشعبة، شئون الطلاب، كود الطالب).
+  Messages never use ICU number/date/plural formatting (`{x, number}`, `{x, date}`, `#`): pass values
+  pre-formatted with `src/lib/format.ts` (Western digits, FR-041); `pnpm i18n:check` rejects them.
 - **RTL**: logical utilities only (`ms-`, `me-`, `ps-`, `pe-`, `start-`, `end-`, `text-start`); wrap
   emails/codes/URLs in `dir="ltr"` or `<bdi>`; mirror directional icons.
 - **Accessibility**: semantic HTML, labelled controls, visible focus, keyboard-complete flows; add every new

@@ -10,7 +10,7 @@ locale prefix (`/sign-in` means `/ar/sign-in` and `/en/sign-in`).
 | Rule | Behaviour |
 |---|---|
 | `/` | Redirect to `/ar` (no browser-language detection). |
-| Unknown locale segment (e.g. `/fr/sign-in`) | 404. |
+| Unknown locale segment (e.g. `/fr/sign-in`) | 404, answered directly (no redirect): `proxy.ts` passes any first segment shaped like a language tag that is not `ar`/`en` through to `[locale]/layout.tsx` (`bypassesLocaleRouting` in `lib/locale.ts`). Locales are case-sensitive, so `/AR/…` is also a 404 (no normalisation to `/ar`). Consequence: no screen may use a top-level path of 2–3 letters (e.g. `/faq`) — such paths are never locale-prefixed. |
 | `<html>` | `lang` = locale; `dir="rtl"` for `ar`, `dir="ltr"` for `en`. |
 | Language switch | Present on every screen; navigates to the same path + query in the other locale. When signed in it also calls `setLocaleAction`. |
 | Signed-out request to a signed-in screen | Redirect to `/{locale}/sign-in?next=<locale-less path+query>`. |
@@ -79,10 +79,12 @@ Query parameters of `/admin/users`: `q` (≤ 100 chars, trimmed), `role` (one of
 | File | Behaviour |
 |---|---|
 | `src/app/[locale]/layout.tsx` | Root layout: `<html lang dir>`, fonts, `NextIntlClientProvider`, base metadata. Validates the locale (`notFound()` otherwise). |
+| `src/app/[locale]/[...rest]/page.tsx` | Catch-all for unknown paths under a valid locale: calls `notFound()` so `[locale]/not-found.tsx` renders inside the locale layout; its `generateMetadata` sets the localized 404 title (`meta.notFound`). Added in PR-7. |
 | `src/app/[locale]/not-found.tsx` | Localized 404 with a link to home, for public paths and unknown paths (rendered in the root layout, without the signed-in shell). |
 | `src/app/[locale]/(app)/not-found.tsx` | The same localized 404 content rendered inside the `(app)` layout, so that `notFound()` thrown by an `(app)` page (missing permission, disabled or unknown module) keeps the header and navigation. Added in PR-19. |
 | `src/app/[locale]/error.tsx` | Localized generic error with "try again"; never shows error details. |
 | `src/app/not-found.tsx` (+ whatever root file the pinned next-intl requires) | Fallback 404 for paths without a valid locale. |
+| `src/app/global-error.tsx` | Last-resort error page when the locale layout itself fails: static bilingual text (no message catalog available), "try again", no error details. |
 | `src/app/robots.ts` | `Disallow: /` for all user agents. |
 | `src/proxy.ts` | next-intl locale routing only; matcher excludes `/api`, `/_next`, and static files. No authorisation logic. |
 

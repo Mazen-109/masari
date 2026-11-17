@@ -9,4 +9,6 @@ export const routing = defineRouting({
   localePrefix: 'always',
   localeDetection: false,
   localeCookie: false,
+  // The site is noindex; no hreflang `Link` response header.
+  alternateLinks: false,
 });
