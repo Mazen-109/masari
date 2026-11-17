@@ -50,6 +50,19 @@ export interface Division {
 }
 
 /**
+ * The academic profile of a student (data-model.md §3.6). `studentCode` is personal data: never log it.
+ */
+export interface StudentProfile {
+  userId: string;
+  tenantId: string;
+  studentCode: string;
+  level: number;
+  divisionId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
  * An account as the application sees it (contracts/db-api.md §1.6). Never carries the password hash
  * (`accounts.password`) or session tokens.
  */

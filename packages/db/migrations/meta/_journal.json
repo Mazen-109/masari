@@ -64,6 +64,20 @@
       "when": 1794896276112,
       "tag": "0008_auth_security",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794931392389,
+      "tag": "0009_student_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794931393351,
+      "tag": "0010_student_profiles_security",
+      "breakpoints": true
     }
   ]
 }

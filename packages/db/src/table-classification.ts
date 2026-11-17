@@ -74,6 +74,12 @@ export const TABLE_CLASSIFICATION: Readonly<Record<string, TableClassification>>
     policies: ['tenant_isolation'],
     privileges: ['SELECT', 'INSERT', 'UPDATE'],
   },
+  student_profiles: {
+    scope: 'tenant',
+    rls: 'forced',
+    policies: ['tenant_isolation'],
+    privileges: ['SELECT', 'INSERT', 'UPDATE'],
+  },
   audit_events: {
     scope: 'tenant',
     rls: 'forced',

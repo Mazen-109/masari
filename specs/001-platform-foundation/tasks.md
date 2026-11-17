@@ -311,9 +311,9 @@ permissions. **No user-story batch may start before PR-14 is merged.**
 
 ### PR-21 — Student profile data layer · branch `001-pr21-profile-data`
 
-- [ ] T087 [US2] Create `packages/db/src/schema/student-profiles.ts` (data-model.md §3.6: PK `user_id` FK CASCADE, `tenant_id` default `app_tenant_id()`, `CHECK (student_code ~ '^[A-Za-z0-9-]{3,20}$')`, `CHECK (level BETWEEN 1 AND 7)`, `UNIQUE (tenant_id, student_code)`, composite FK `(tenant_id, division_id)` → `divisions (tenant_id, id)` RESTRICT), generated migration, custom SQL migration `student_profiles_security` (RLS enabled + forced, `tenant_isolation`, grants `SELECT, INSERT, UPDATE`), classification entry
-- [ ] T088 [US2] Create `packages/db/src/repositories/student-profiles.ts` (`findByUserId`, `create`, `update`, `maxLevelInUse` with the typed conflict results of contracts/db-api.md §1.6) and export namespace `studentProfiles` (FR-024–FR-026)
-- [ ] T089 [US2] Create `packages/db/test/student-profiles.int.test.ts` covering every statement listed for it in contracts/db-api.md §4
+- [x] T087 [US2] Create `packages/db/src/schema/student-profiles.ts` (data-model.md §3.6: PK `user_id` FK CASCADE, `tenant_id` default `app_tenant_id()`, `CHECK (student_code ~ '^[A-Za-z0-9-]{3,20}$')`, `CHECK (level BETWEEN 1 AND 7)`, `UNIQUE (tenant_id, student_code)`, composite FK `(tenant_id, division_id)` → `divisions (tenant_id, id)` RESTRICT), generated migration, custom SQL migration `student_profiles_security` (RLS enabled + forced, `tenant_isolation`, grants `SELECT, INSERT, UPDATE`), classification entry
+- [x] T088 [US2] Create `packages/db/src/repositories/student-profiles.ts` (`findByUserId`, `create`, `update`, `maxLevelInUse` with the typed conflict results of contracts/db-api.md §1.6) and export namespace `studentProfiles` (FR-024–FR-026)
+- [x] T089 [US2] Create `packages/db/test/student-profiles.int.test.ts` covering every statement listed for it in contracts/db-api.md §4
 
 **Accept**: two concurrent `create` calls with the same code in one college → exactly one `ok` · same code in two colleges → both `ok` · a division id from another college → `invalid_division` · rls-meta passes
 

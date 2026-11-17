@@ -15,6 +15,7 @@ import {
 import { signOutAction } from '@/features/auth/actions';
 import { Link } from '@/i18n/navigation';
 import { dirOf, isLocale } from '@/lib/locale';
+import { runSignOut } from './sign-out';
 
 const SIGN_OUT_FORM_ID = 'user-menu-sign-out';
 
@@ -37,13 +38,9 @@ export function UserMenu({ name, roleLabel }: Readonly<{ name: string; roleLabel
   const [signingOut, startSigningOut] = useTransition();
 
   function signOut() {
-    startSigningOut(async () => {
-      try {
-        await signOutAction();
-      } catch {
-        // Nothing to show beyond the item becoming usable again; the user is still signed in.
-      }
-    });
+    // runSignOut rethrows the redirect to the sign-in screen (and any other Next.js control-flow error)
+    // for the router, and swallows only real failures, after which the item is usable again.
+    startSigningOut(() => runSignOut(signOutAction));
   }
 
   function handleSignOutClick(event: MouseEvent<HTMLButtonElement>) {
