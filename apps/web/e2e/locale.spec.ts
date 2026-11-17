@@ -56,6 +56,7 @@ for (const { path, title, lang } of NOT_FOUND_CASES) {
     const response = await page.goto(path);
     expect(response?.status()).toBe(404);
     await expect(page).toHaveTitle(title);
+    await expect(page.locator('title')).toHaveCount(1);
     await expect(page.locator('html')).toHaveAttribute('lang', lang);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });

@@ -131,11 +131,15 @@ export default defineConfig([
     files: ['apps/web/src/server/log.ts', 'packages/db/scripts/**'],
     rules: { 'no-console': 'off' },
   },
-  // End-to-end harness: the database preparation script and the script-budget report print to the
-  // terminal, and Playwright fixtures call `use()`, which the React hooks rule mistakes for React's `use`.
+  // End-to-end harness: Playwright fixtures call `use()`, which the React hooks rule mistakes for
+  // React's `use`; only the database preparation script and the script-budget report print to the terminal.
   {
     files: ['apps/web/e2e/**'],
-    rules: { 'no-console': 'off', 'react-hooks/rules-of-hooks': 'off' },
+    rules: { 'react-hooks/rules-of-hooks': 'off' },
+  },
+  {
+    files: ['apps/web/e2e/support/prepare-db.ts', 'apps/web/e2e/perf-budget.spec.ts'],
+    rules: { 'no-console': 'off' },
   },
 
   // No literal user-facing text in components: every string comes from the message catalogs

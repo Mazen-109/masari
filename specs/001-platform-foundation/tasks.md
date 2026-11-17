@@ -202,10 +202,10 @@ permissions. **No user-story batch may start before PR-14 is merged.**
 
 ### PR-11 — Email module and templates · branch `001-pr11-email`
 
-- [ ] T048 Create `apps/web/src/server/email/transport.ts` (`smtp` and `capture` transports; capture file format and the development-only link printing of contracts/emails.md §1, with a test that nothing is printed when `APP_ENV=test`) and `apps/web/src/server/email/send.ts` (`sendEmail`, `EmailMessage` with its `template` name, `EmailTemplateName`)
-- [ ] T049 Create `apps/web/src/server/email/templates/layout.ts` (bilingual frame, HTML escaping helper, button + visible URL) with `apps/web/src/server/email/templates/layout.test.ts` (FR-038)
-- [ ] T050 [P] Create `apps/web/src/server/email/templates/verify-email.ts`, `account-exists.ts`, `invitation-pending.ts`, `reset-password.ts`, `invitation.ts` in the same folder, with subjects/inputs/content of contracts/emails.md §3, and one test file `apps/web/src/server/email/templates/templates.test.ts` applying the four checks of contracts/emails.md §2 to all five
-- [ ] T051 Create `apps/web/e2e/support/emails.ts` (`waitForEmail`, `firstLink`, `countEmails` — contracts/emails.md §4)
+- [x] T048 Create `apps/web/src/server/email/transport.ts` (`smtp` and `capture` transports; capture file format and the development-only link printing of contracts/emails.md §1, with a test that nothing is printed when `APP_ENV=test`) and `apps/web/src/server/email/send.ts` (`sendEmail`, `EmailMessage` with its `template` name, `EmailTemplateName`)
+- [x] T049 Create `apps/web/src/server/email/templates/layout.ts` (bilingual frame, HTML escaping helper, button + visible URL) with `apps/web/src/server/email/templates/layout.test.ts` (FR-038)
+- [x] T050 [P] Create `apps/web/src/server/email/templates/verify-email.ts`, `account-exists.ts`, `invitation-pending.ts`, `reset-password.ts`, `invitation.ts` in the same folder, with subjects/inputs/content of contracts/emails.md §3, and one test file `apps/web/src/server/email/templates/templates.test.ts` applying the four checks of contracts/emails.md §2 to all five
+- [x] T051 Create `apps/web/e2e/support/emails.ts` (`waitForEmail`, `firstLink`, `countEmails` — contracts/emails.md §4)
 
 **Accept**: every template's `html` has the Arabic `dir="rtl"` block before the English `dir="ltr"` block and `text` has Arabic first · `<script>` in any input is escaped · subjects are `"<Arabic> | <English>"` · `invitation-pending` contains no URL · capture mode writes one JSON file per message under `apps/web/.tmp/emails/` and logs only the template name · no email address appears in logs (test)
 
@@ -505,7 +505,7 @@ permissions. **No user-story batch may start before PR-14 is merged.**
 ### PR-38 — Final sweep and documentation · branch `001-pr38-final-sweep`
 
 - [ ] T143 Complete the lists in `apps/web/e2e/a11y.spec.ts` and `apps/web/e2e/perf-budget.spec.ts` so every screen of contracts/routes.md §2–4 is scanned in both locales (signed-in screens with the appropriate role) and budgets cover `/ar/sign-in`, `/ar/register`, `/ar/dashboard`, `/ar/admin/users`; add an `@mobile` check that no screen scrolls horizontally at 320 px and that every screen is usable at 200% zoom (viewport 640×400 at device scale factor 2) (FR-042, FR-043)
-- [ ] T144 [P] Create `docs/deployment.md` per research.md §21 (pilot on Vercel + Neon + SMTP provider: environment variables including `TRUSTED_PROXY_HOPS` and the proxy rule of contracts/http-and-env.md §5, two database URLs, running `pnpm db:migrate` and `pnpm tenant:create` against the hosted database, what the owner must create and keep secret, smoke test with `/api/health`)
+- [ ] T144 [P] Complete `docs/deployment.md` per research.md §21 (pilot on Vercel + Neon + SMTP provider: environment variables including `TRUSTED_PROXY_HOPS` and the proxy rule of contracts/http-and-env.md §5, two database URLs, running `pnpm db:migrate` and `pnpm tenant:create` against the hosted database, what the owner must create and keep secret, smoke test with `/api/health`)
 - [ ] T145 [P] Update `README.md` (status, links), verify `CLAUDE.md` commands/conventions against the final code and correct any drift, and make sure `.env.example` lists every variable read by `getEnv()`/`getDbEnv()`/`getAdminDbEnv()` (add a unit test `apps/web/src/server/env-example.test.ts` that parses `.env.example` and fails on a missing variable)
 - [ ] T146 Run quickstart.md end to end on a clean clone (Option A or B) and V1–V8 by hand; run Lighthouse (mobile preset) on `/ar/sign-in` and `/ar/dashboard` against the production build; record timings (setup minutes; LCP, INP/TBT, CLS) in the PR description; fix or report anything outside SC-006/SC-008 (FR-047)
 

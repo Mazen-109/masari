@@ -1,26 +1,21 @@
 import type { Metadata } from 'next';
-import { hasLocale } from 'next-intl';
 import { getTranslations } from 'next-intl/server';
 import { LocaleSwitcher } from '@/components/shell/locale-switcher';
 import { Link } from '@/i18n/navigation';
-import { routing } from '@/i18n/routing';
-import { FALLBACK_NOT_FOUND_TITLE } from '@/lib/fallback-text';
+import type { Locale } from '@/lib/locale';
 
 // On a 404 render Next.js takes the title from the layouts plus the deepest `not-found` file of the
 // matched tree, not from the page that called `notFound()` — so the localized 404 title
-// (`<Screen> · مساري`, contracts/routes.md §1) is set here. For an unknown locale it returns the
-// bilingual fallback title; the `/fr` page itself gets its title from the `<title>` element of
-// `app/not-found.tsx`, because no metadata title is emitted when the layout calls `notFound()`.
+// (`<Screen> · مساري`, contracts/routes.md §1) is set here. The locale is always valid at this point:
+// for an unknown locale (`/fr`) `[locale]/layout.tsx` calls `notFound()` itself, Next.js emits no
+// metadata title, and `app/not-found.tsx` renders the bilingual `<title>` element instead (routes.md §5).
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
   const { locale } = await params;
-  if (!hasLocale(routing.locales, locale)) {
-    return { title: { absolute: FALLBACK_NOT_FOUND_TITLE } };
-  }
-  const t = await getTranslations({ locale, namespace: 'meta' });
+  const t = await getTranslations({ locale: locale as Locale, namespace: 'meta' });
   return { title: t('notFound') };
 }
 

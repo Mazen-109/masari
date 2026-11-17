@@ -81,7 +81,9 @@ The repository needs **no GitHub secrets** for this feature.
   and the server exits at start-up when `assertSafeRuntimeRole()` cannot connect (`http-and-env.md` §3).
   Global setup (`e2e/support/global-setup.ts`) therefore only empties the email capture directory.
   `webServer` (`apps/web/playwright.config.ts`) runs `pnpm start` on port 3100 with `DATABASE_URL` pointing
-  at `masari_e2e`, `APP_ENV=test`, `EMAIL_TRANSPORT=capture`, `APP_URL=http://localhost:3100`,
+  at `masari_e2e`, `APP_ENV=test`, `EMAIL_TRANSPORT=capture`,
+  `EMAIL_CAPTURE_DIR=.tmp/e2e-emails` (`E2E_EMAIL_CAPTURE_DIR` in `e2e/support/constants.ts`, the directory
+  global setup empties and `e2e/support/emails.ts` reads), `APP_URL=http://localhost:3100`,
   `TRUSTED_PROXY_HOPS=1` (`http-and-env.md` §5), and `reuseExistingServer: false`. Projects: `desktop`
   (Chromium, 1280×800) and `mobile` (Pixel-class device, runs the specs tagged `@mobile`). `retries: 1` on
   CI, `0` locally; `forbidOnly` on CI; `workers: 2` on CI.
