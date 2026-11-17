@@ -1,10 +1,10 @@
 import { notFound } from 'next/navigation';
 import { hasLocale } from 'next-intl';
-import { getTranslations, setRequestLocale } from 'next-intl/server';
+import { setRequestLocale } from 'next-intl/server';
 import type { ReactNode } from 'react';
+import { PrivacyLink } from '@/components/shell/privacy-link';
 import { PublicHeader } from '@/components/shell/public-header';
 import { SkipLink } from '@/components/shell/skip-link';
-import { Link } from '@/i18n/navigation';
 import { routing } from '@/i18n/routing';
 
 type Props = Readonly<{
@@ -20,7 +20,6 @@ export default async function PublicLayout({ children, params }: Props) {
     notFound();
   }
   setRequestLocale(locale);
-  const t = await getTranslations('common');
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -35,12 +34,7 @@ export default async function PublicLayout({ children, params }: Props) {
       </main>
       <footer className="border-t border-border">
         <div className="mx-auto flex w-full max-w-5xl items-center px-4 py-4 sm:px-6">
-          <Link
-            href="/privacy"
-            className="inline-flex min-h-11 items-center rounded-md text-primary underline underline-offset-4"
-          >
-            {t('privacyNotice')}
-          </Link>
+          <PrivacyLink className="inline-flex min-h-11 items-center rounded-md text-primary underline underline-offset-4" />
         </div>
       </footer>
     </div>

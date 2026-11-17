@@ -91,6 +91,26 @@
     "title": "Your companion through college, from the first day to graduation",
     "lead": "One platform for students, faculty members, Student Affairs, and college administration."
   },
+  "auth": {
+    "register": {
+      "title": "Create an account",
+      "lead": "Create your Masari student account. We will send you an email to confirm your address.",
+      "college": "College",
+      "collegePlaceholder": "Choose your college",
+      "name": "Full name",
+      "email": "Email",
+      "password": "Password",
+      "passwordHint": "10 to 128 characters.",
+      "allowedDomains": "Accepted domains:",
+      "consent": "I have read and accept the <link>privacy notice</link>.",
+      "submit": "Create account"
+    },
+    "verifyEmail": {
+      "title": "Check your email",
+      "body": "We sent a message to the email address you entered. Open the link in it to confirm your account, then sign in.",
+      "spam": "If the message does not arrive within a few minutes, look for it in your spam folder."
+    }
+  },
   "privacy": {
     "title": "Privacy notice",
     "intro": "This notice explains what Masari keeps about you, why, who can see it, and how to ask for it to be corrected or deleted. You are asked to accept it when you create your account, and we record the date and time you accepted.",
@@ -124,6 +144,8 @@
     "titleTemplate": "%s · Masari",
     "home": "Masari",
     "notFound": "Page not found",
-    "privacy": "Privacy notice"
+    "privacy": "Privacy notice",
+    "register": "Create an account",
+    "verifyEmail": "Check your email"
   }
 }

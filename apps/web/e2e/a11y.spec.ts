@@ -4,7 +4,7 @@ import { expect, test } from './support/fixtures';
 // Accessibility scan of every screen in both languages (contracts/ci.md §5, FR-042). Every batch that adds
 // a screen appends it here: public screens to PUBLIC_SCREENS; signed-in screens (scanned once per role
 // that can open them, from PR-18 on when signing in exists) to SIGNED_IN_SCREENS.
-export const PUBLIC_SCREENS: readonly string[] = ['/', '/privacy'];
+export const PUBLIC_SCREENS: readonly string[] = ['/', '/privacy', '/register', '/verify-email'];
 
 export const SIGNED_IN_SCREENS: readonly { path: string; roles: readonly string[] }[] = [];
 
