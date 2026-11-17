@@ -12,7 +12,11 @@ import { getAdminDbEnv } from '../src/env';
 let ownerPool: pg.Pool | undefined;
 
 function getOwnerPool(): pg.Pool {
-  ownerPool ??= new pg.Pool({ connectionString: getAdminDbEnv().DATABASE_MIGRATION_URL, max: 4 });
+  if (!ownerPool) {
+    ownerPool = new pg.Pool({ connectionString: getAdminDbEnv().DATABASE_MIGRATION_URL, max: 4 });
+    // An idle client that fails is discarded by the pool; the listener only prevents a crash.
+    ownerPool.on('error', () => undefined);
+  }
   return ownerPool;
 }
 
@@ -35,6 +39,11 @@ export async function ownerTenantQuery<T extends pg.QueryResultRow = pg.QueryRes
   params: unknown[] = [],
 ): Promise<pg.QueryResult<T>> {
   const client = await getOwnerPool().connect();
+  // Errors of a checked-out client are emitted on the client, not the pool; without a listener a dropped
+  // connection would crash the test worker instead of failing the query.
+  const onError = (): void => undefined;
+  client.on('error', onError);
+  let broken = false;
   try {
     await client.query('BEGIN');
     await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
@@ -42,10 +51,14 @@ export async function ownerTenantQuery<T extends pg.QueryResultRow = pg.QueryRes
     await client.query('COMMIT');
     return result;
   } catch (error) {
-    await client.query('ROLLBACK');
+    // Keep the original error; a failed ROLLBACK means the connection is unusable, so it is destroyed.
+    await client.query('ROLLBACK').catch(() => {
+      broken = true;
+    });
     throw error;
   } finally {
-    client.release();
+    client.off('error', onError);
+    client.release(broken);
   }
 }
 

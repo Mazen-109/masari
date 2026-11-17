@@ -148,7 +148,7 @@ pnpm tenant:create --slug sci-demo --name-ar "كلية العلوم (تجريب�
 
 | Symptom | Cause / fix |
 |---|---|
-| Server exits: "runtime database role can bypass row-level security" | `DATABASE_URL` uses the owner role. Use the `masari_web` URL from `.env.example` and run `pnpm db:migrate`. |
+| Server exits: "The runtime database role can bypass row-level security" (log event `startup.failed`) | `DATABASE_URL` uses the owner role. Use the `masari_web` URL from `.env.example` and run `pnpm db:migrate`. |
 | Server exits naming environment variables | Missing/invalid values in `.env`; compare with `.env.example`. |
 | `pnpm test` fails to connect | PostgreSQL is not running (`pnpm db:up` or start the system service) or `DATABASE_MIGRATION_URL` is wrong. |
 | No email arrives | Development uses capture mode: look in `apps/web/.tmp/emails/` or the dev-server terminal. |

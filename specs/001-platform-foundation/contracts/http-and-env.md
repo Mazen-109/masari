@@ -62,7 +62,7 @@ list every variable below with a safe placeholder or local-only development valu
 
 | Variable | Used by | Required | Rule / default |
 |---|---|---|---|
-| `APP_ENV` | web | yes | `development` \| `test` \| `production` |
+| `APP_ENV` | web, db scripts | yes (web; `pnpm db:seed`) | `development` \| `test` \| `production`. Also read (optional) by `getAdminDbEnv()`; `pnpm db:seed` refuses to run unless it is `development` or `test` (`cli.md` §3) |
 | `APP_URL` | web, db scripts | yes | Absolute origin without trailing slash, e.g. `http://localhost:3000`; MUST be `https://…` when `APP_ENV=production` |
 | `DATABASE_URL` | web, db | yes | PostgreSQL URL of the **runtime** login role (e.g. `masari_web`) |
 | `DATABASE_MIGRATION_URL` | db scripts, tests, e2e setup | scripts/tests only | PostgreSQL URL of the **owner** role; MUST NOT be read by `apps/web/src/**` |
@@ -93,7 +93,7 @@ Parsing
   `getEnv()` and `assertSafeRuntimeRole()` at server start; a failure stops the server with a message that
   names the invalid variables (names only, never values).
 - `packages/db/src/env.ts` exports `getDbEnv()` (`DATABASE_URL`) and `getAdminDbEnv()`
-  (`DATABASE_MIGRATION_URL`, `DATABASE_URL`, optional `APP_URL`), also lazy.
+  (`DATABASE_MIGRATION_URL`, `DATABASE_URL`, optional `APP_URL`, optional `APP_ENV`), also lazy.
 - **Nothing that needs the environment exists at module scope.** Importing any module of `apps/web/src` or
   `@masari/db` MUST NOT read a variable, open a connection, or construct the auth instance. The database
   pool, `getAuthDb()` (`db-api.md` §2), and the auth instance (`getAuth()` in `server/auth/auth.ts`) are

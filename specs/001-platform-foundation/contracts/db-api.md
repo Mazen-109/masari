@@ -49,7 +49,8 @@ export function ping(): Promise<void>;                    // SELECT 1; throws on
 /** Throws if the connected role is superuser, has BYPASSRLS or REPLICATION, or owns a table in schema
  *  public directly or through any role membership — inherited or not, including a membership granted
  *  WITH INHERIT FALSE (the member can still SET ROLE to the owner). A table owner bypasses the non-forced
- *  RLS of `tenants`. */
+ *  RLS of `tenants`. Throws UnsafeRuntimeRoleError (exported), whose message names the problem and never
+ *  a URL, so the web app's start-up check can print it; any other error (e.g. no connection) propagates. */
 export function assertSafeRuntimeRole(): Promise<void>;
 export function closePool(): Promise<void>;               // tests and scripts
 ```
@@ -57,6 +58,8 @@ export function closePool(): Promise<void>;               // tests and scripts
 ### 1.4 Rate limiter (`src/rate-limit.ts`)
 
 ```ts
+/** key 1–200 chars; limit integer 1–1 000 000 (always the same for a given key); windowSeconds integer
+ *  1–86 400. Out-of-range values throw before the table is touched (data-model.md §3.4). */
 export function hitRateLimit(key: string, opts: { limit: number; windowSeconds: number }):
   Promise<{ allowed: boolean; retryAfterSeconds: number }>;
 /** Deletes counters whose window started more than olderThanSeconds ago (default 86 400 — every window in

@@ -26,6 +26,7 @@ export default defineConfig({
         'src/server/auth/action-context.ts',
         'src/server/email/transport.ts',
       ],
+      thresholds: { lines: 80, branches: 70 },
     },
   },
 });
