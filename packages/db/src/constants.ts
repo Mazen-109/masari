@@ -63,6 +63,29 @@ export interface StudentProfile {
 }
 
 /**
+ * An invitation to join a college with a role (data-model.md §3.7). Never carries the token hash; the plain
+ * token exists only in the result of invitations.create (and in the emailed link). `invitedBy` null = created
+ * by the operator tool. `email` is personal data: never log it.
+ */
+export interface Invitation {
+  id: string;
+  tenantId: string;
+  email: string;
+  role: Role;
+  status: InvitationStatus;
+  expiresAt: Date;
+  invitedBy: string | null;
+  acceptedUserId: string | null;
+  acceptedAt: Date | null;
+  createdAt: Date;
+}
+
+/** An invitation as the administration list shows it: `expired` = pending and past `expiresAt`. */
+export interface InvitationView extends Invitation {
+  displayStatus: InvitationStatus | 'expired';
+}
+
+/**
  * An account as the application sees it (contracts/db-api.md §1.6). Never carries the password hash
  * (`accounts.password`) or session tokens.
  */

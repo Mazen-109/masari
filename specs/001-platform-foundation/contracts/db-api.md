@@ -158,8 +158,8 @@ hasUsablePending(tx: Tx, email: string): Promise<boolean>
 revoke(tx: Tx, id: string): Promise<'revoked' | 'not_found' | 'not_pending'>
 findByTokenHash(tx: Tx, tokenHash: string): Promise<Invitation | null>        // inside withInvitationToken
 claim(tx: Tx, id: string): Promise<Invitation | null>                         // pending & unexpired → accepted (atomic)
-release(tx: Tx, id: string): Promise<void>                                    // undo claim
-setAcceptedUser(tx: Tx, id: string, userId: string): Promise<void>
+release(tx: Tx, id: string): Promise<void>      // undo a claim not yet linked to an account (accepted_user_id IS NULL)
+setAcceptedUser(tx: Tx, id: string, userId: string): Promise<void>   // throws (no data in the error) if not claimed
 ```
 
 **`audit`**
