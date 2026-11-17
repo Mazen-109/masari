@@ -48,7 +48,11 @@ describe('migrations', () => {
     const files = readdirSync(MIGRATIONS).filter((file) => file.endsWith('.sql'));
     expect(files.length).toBe(journal.entries.length);
     for (const file of files) {
-      const sqlText = readFileSync(`${MIGRATIONS}/${file}`, 'utf8').replace(/--[^\n]*/g, '');
+      // The one exempt occurrence is the auth library's hash column `accounts.password` (data-model.md
+      // §3.3): a column declaration, not a credential. Anything else naming a password still fails.
+      const sqlText = readFileSync(`${MIGRATIONS}/${file}`, 'utf8')
+        .replace(/--[^\n]*/g, '')
+        .replace(/^\t"password" text,$/m, '');
       expect(sqlText, file).not.toMatch(/password|masari_dev_/i);
     }
   });

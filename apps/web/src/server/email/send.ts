@@ -19,9 +19,10 @@ export type EmailMessage = {
 
 // Defence in depth behind the callers' Zod validation: one plain address only, so a value such as
 // `a@x.test, b@y.test` or `Name <a@x.test>` can never reach a second or disguised recipient.
-const UNSAFE_RECIPIENT = /[,;<>\s]/u;
+// `\s` does not cover NEL (U+0085), which some mail software treats as a line break, so it is listed too.
+const UNSAFE_RECIPIENT = /[,;<>\s\u0085]/u;
 
-/** True when `to` is a single bare address (non-empty, none of `,` `;` `<` `>` or whitespace). */
+/** True when `to` is a single bare address (non-empty, none of `,` `;` `<` `>`, whitespace, or NEL). */
 export function isSafeRecipient(to: string): boolean {
   return to.length > 0 && !UNSAFE_RECIPIENT.test(to);
 }

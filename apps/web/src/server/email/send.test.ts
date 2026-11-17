@@ -32,6 +32,7 @@ describe('sendEmail', () => {
     'a @x.test',
     'a@x.test\n',
     'a@x.test\tb',
+    'a@x.test\u0085b@y.test',
     'a@x.test ',
     '',
   ])('refuses the recipient %j without delivering or echoing it', async (to) => {

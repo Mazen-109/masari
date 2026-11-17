@@ -122,6 +122,29 @@ Every unknown in the plan's Technical Context is resolved here. Format per item:
   on-premises. Auth.js credentials provider — discouraged by its own docs for passwords. Better Auth
   `organization` plugin for tenants — brings multi-organisation sessions and owner semantics we do not want
   (one user = one college); its `admin` plugin is platform-global, not college-scoped.
+- **Verified on the pinned 1.7.25 (PR-12)**: every option above exists under that name; the email links
+  are `/api/auth/verify-email?token=…` (a signed, stateless token) and `/api/auth/reset-password/<token>`
+  (24 letters/digits, stored in `verifications`), errors go to `/api/auth/error`. Additional settings:
+  `verification.storeIdentifier: 'hashed'` (reset tokens stored only as hashes), Drizzle adapter
+  `transaction: true` (user + credential account created atomically), `logger.log` routed through `log.ts`
+  with the level only (the library passes raw errors whose text can contain the SQL parameters — name and
+  email), and `advanced.ipAddress.disableIpTracking: true` (the library cannot apply the hop rule of
+  contracts/http-and-env.md §5, so `sessions.ip_address` stays NULL; Masari's limiter and audit use
+  `getClientIp()`).
+- **Library behaviours the account flows must respect (1.7.25)**:
+  - `auth.api.signUpEmail` for an email that already has an account does **not** fail while
+    `requireEmailVerification` (or `autoSignIn: false`) is on: it returns a made-up user with a random id
+    and no session. Its returned id is therefore never trusted on its own: the registration action checks
+    `users.findByEmail` first (step 5 of contracts/server-actions.md §4.1), and the invitation flow (§4.7
+    step 6) takes the new user's id from `users.findByEmail(inv.email)` (and checks its `tenantId`) before
+    `activateInvited`, the audit, or the compensation — an audit row with the fake id would fail on the actor
+    foreign key, and `activateInvited` / `deleteJustCreated` would silently match nothing.
+  - The `sendVerificationEmail` / `sendResetPassword` hooks re-throw a transport failure, and that only
+    happens for an existing account. Every action that must not reveal whether an account exists (§4.1,
+    §4.2, §4.5) catches it, logs `email.failed`, and returns exactly the same result as the success path.
+  - Follow-up (feature 009 or the first batch that adds the page): `onAPIError.errorURL` is not set,
+    because contracts/routes.md defines no page for it; `/api/auth/error` therefore shows the library's
+    English error page. A localized error page needs a routes.md entry first.
 
 ## 8. Account creation flows and enumeration safety
 
@@ -134,6 +157,9 @@ Every unknown in the plan's Technical Context is resolved here. Format per item:
   the claim deletes the account it created and releases the claim. Invitations cannot be created for an email that already has an account, and
   self-registration is refused for an email with a pending invitation — together these close the
   "pre-register someone's email, then inherit their invited role" attack.
+  Two library behaviours shape these flows (§7 "Library behaviours"): `signUpEmail`'s returned id is not
+  trusted (a made-up user comes back for an existing email), and email-send failures are caught so the
+  response never differs between existing and unknown emails.
 - **Rationale**: FR-005/FR-013/FR-020–023; one place for each rule.
 - **Alternatives**: validating in Better Auth hooks while leaving its endpoints public — rules split between
   hooks and actions, harder to test, and hook signatures vary by version.
@@ -356,7 +382,7 @@ here, and from then on versions change only through reviewed PRs (Dependabot or 
 | next / react / react-dom | 16 / 19 / 19 | 16.4.6 / 19.3.1 / 19.3.1 (@types/react, @types/react-dom 19.3.0; @types/node 24.19.2) |
 | tailwindcss | 4 | 4.3.5 (+ @tailwindcss/postcss 4.3.5, pinned exactly) |
 | next-intl | 4 | 4.15.1 (+ use-intl 4.15.1) |
-| better-auth | 1 | |
+| better-auth | 1 | 1.7.25 (`@masari/web`, PR-12; Drizzle adapter `@better-auth/drizzle-adapter` 1.7.25 comes with it and needs `drizzle-orm` as a peer, so `drizzle-orm` 0.45.4 is also a `@masari/web` dependency — never imported by `apps/web/src`) |
 | drizzle-orm / drizzle-kit | latest stable pair | 0.45.4 / 0.31.11 |
 | pg | 8 | 8.23.1 (+ @types/pg 8.23.1; also a `@masari/web` dependency since PR-9 so Next.js can keep it external — never imported by `apps/web/src`) |
 | zod | 4 | 4.6.7 (`@masari/db`; `@masari/web` since PR-9) |

@@ -50,6 +50,20 @@
       "when": 1794873149441,
       "tag": "0006_rate_limit_security",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794896273336,
+      "tag": "0007_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794896276112,
+      "tag": "0008_auth_security",
+      "breakpoints": true
     }
   ]
 }
