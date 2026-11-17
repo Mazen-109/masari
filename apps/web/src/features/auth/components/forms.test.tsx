@@ -4,8 +4,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fail, ok, type ActionResult } from '@/lib/result';
 import en from '../../../../messages/en.json';
+import { ForgotPasswordForm } from './forgot-password-form';
 import { RegisterForm } from './register-form';
 import { ResendVerificationForm } from './resend-verification-form';
+import { ResetPasswordForm } from './reset-password-form';
 import { SignInForm } from './sign-in-form';
 
 // The account forms rendered from a given action state. `useActionState` is mocked to return that state
@@ -25,6 +27,8 @@ vi.mock('../actions', () => ({
   registerStudentAction: () => undefined,
   resendVerificationAction: () => undefined,
   signInAction: () => undefined,
+  requestPasswordResetAction: () => undefined,
+  resetPasswordAction: () => undefined,
 }));
 vi.mock('@/i18n/navigation', () => ({
   Link: ({ href, children }: { href: string; children: ReactNode }) => (
@@ -199,5 +203,65 @@ describe('SignInForm', () => {
     actionState.pending = true;
     const html = render(<SignInForm next={null} />, fail('invalid_credentials'));
     expect(html).not.toContain('data-slot="form-error"');
+  });
+});
+
+describe('ForgotPasswordForm', () => {
+  it('shows no sentence before a request and the same sentence after every successful one', () => {
+    expect(render(<ForgotPasswordForm />, null)).not.toContain(en.auth.forgotPassword.sent);
+    expect(render(<ForgotPasswordForm />, ok(undefined))).toContain(en.auth.forgotPassword.sent);
+  });
+
+  it('removes the sentence while a new request is pending, so the next success is announced again', () => {
+    actionState.pending = true;
+    expect(render(<ForgotPasswordForm />, ok(undefined))).not.toContain(
+      en.auth.forgotPassword.sent,
+    );
+  });
+
+  it('shows the field error and keeps the entered email in a dir="ltr" email input', () => {
+    const html = render(
+      <ForgotPasswordForm />,
+      fail('validation', { fieldErrors: { email: 'invalid_email' }, meta: { email: 'x@' } }),
+    );
+    expect(html).toContain(en.errors.invalid_email);
+    expect(html).toMatch(/<input[^>]*id="forgot-password-email"[^>]*dir="ltr"[^>]*value="x@"/);
+    expect(html).toContain('aria-invalid="true"');
+  });
+
+  it('shows when to try again after a rate-limit refusal', () => {
+    const html = render(<ForgotPasswordForm />, fail('rate_limited', { retryAfterSeconds: 600 }));
+    expect(html).toContain(en.errors.rate_limited);
+    expect(html).toContain('data-code="rate_limited"');
+  });
+});
+
+describe('ResetPasswordForm', () => {
+  const TOKEN = 'Tk9'.repeat(8);
+
+  it('sends the token back as a hidden field with a new-password input', () => {
+    const html = render(<ResetPasswordForm token={TOKEN} />, null);
+    expect(html).toContain(`<input type="hidden" name="token" value="${TOKEN}"/>`);
+    expect(html).toMatch(
+      /<input[^>]*id="reset-password-password"[^>]*dir="ltr"[^>]*autoComplete="new-password"/,
+    );
+    expect(html).toContain(en.auth.resetPassword.passwordHint);
+    expect(html).not.toContain('/forgot-password');
+  });
+
+  it('offers a new link when the token is refused', () => {
+    const html = render(<ResetPasswordForm token={TOKEN} />, fail('token_invalid'));
+    expect(html).toContain(en.errors.token_invalid);
+    expect(html).toContain('href="/forgot-password"');
+    expect(html).toContain(en.auth.resetPassword.requestNew);
+  });
+
+  it('shows a password field error without a request-new link', () => {
+    const html = render(
+      <ResetPasswordForm token={TOKEN} />,
+      fail('validation', { fieldErrors: { password: 'password_too_short' } }),
+    );
+    expect(html).toContain(en.errors.password_too_short);
+    expect(html).not.toContain('href="/forgot-password"');
   });
 });

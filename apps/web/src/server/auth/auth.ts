@@ -2,6 +2,7 @@ import { authSchema, getAuthDb } from '@masari/db/auth';
 import { betterAuth, type BetterAuthOptions } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
+import { recordAudit } from '@/server/audit';
 import { logAuthLibrary } from '@/server/auth/library-logger';
 import { sendEmail, type EmailTemplateName } from '@/server/email/send';
 import type { RenderedEmail } from '@/server/email/templates/layout';
@@ -49,6 +50,31 @@ async function deliver(
   }
 }
 
+/**
+ * The library's `onPasswordReset` hook (contracts/server-actions.md §4.6): called with the account after
+ * the new password is saved and all of its sessions are deleted. `auth.api.resetPassword` does not
+ * return the user, so `auth.password_reset` is recorded here, for the account's own college. The password
+ * is already changed when this runs, so a failure is logged (event and error class only) and not thrown:
+ * the user must not be told the reset failed.
+ */
+export async function recordPasswordReset(user: { id: string }): Promise<void> {
+  const tenantId: unknown = (user as { tenantId?: unknown }).tenantId;
+  if (typeof tenantId !== 'string' || tenantId === '') {
+    log.error('auth.password_reset_audit_failed', { errorName: 'MissingTenant' });
+    return;
+  }
+  try {
+    await recordAudit(
+      { tenantId, userId: user.id },
+      { action: 'auth.password_reset', targetId: user.id },
+    );
+  } catch (error) {
+    log.error('auth.password_reset_audit_failed', {
+      errorName: error instanceof Error ? error.name : 'unknown',
+    });
+  }
+}
+
 /** Every option of research.md §7; pure apart from the hooks, so the settings are unit-tested. */
 export function authOptions(
   env: Pick<Env, 'APP_URL' | 'BETTER_AUTH_SECRET'>,
@@ -72,6 +98,9 @@ export function authOptions(
       revokeSessionsOnPasswordReset: true,
       sendResetPassword: async ({ user, url }) => {
         await deliver('reset-password', user.email, resetPassword({ name: user.name, url }));
+      },
+      onPasswordReset: async ({ user }) => {
+        await recordPasswordReset(user);
       },
     },
     emailVerification: {

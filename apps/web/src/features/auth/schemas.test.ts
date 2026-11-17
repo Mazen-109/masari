@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { parseForm } from '@/lib/form';
-import { registerSchema, resendSchema, signInSchema } from './schemas';
+import {
+  forgotPasswordSchema,
+  registerSchema,
+  resendSchema,
+  resetPasswordSchema,
+  signInSchema,
+} from './schemas';
 
 const PASSWORD = 'Ab1'.repeat(4);
 
@@ -230,5 +236,69 @@ describe('signInSchema', () => {
       form({ email: 'a@example.edu', password: 'x', next: '/en/profile' }),
     );
     expect(result).toMatchObject({ ok: true, data: { next: '/profile' } });
+  });
+});
+
+describe('forgotPasswordSchema', () => {
+  it('trims and lower-cases the email and drops unknown fields', () => {
+    expect(
+      parseForm(forgotPasswordSchema, form({ email: ' Mona@Example.EDU ', token: 'x' })),
+    ).toStrictEqual({ ok: true, data: { email: 'mona@example.edu' } });
+  });
+
+  it.each([
+    [undefined, 'required'],
+    ['  ', 'required'],
+    ['not-an-email', 'invalid_email'],
+    [`${'a'.repeat(250)}@example.edu`, 'too_long'],
+  ])('email %j → %s', (value, code) => {
+    const result = parseForm(forgotPasswordSchema, form({ email: value }));
+    expect(result.ok ? null : result.failure).toMatchObject({
+      code: 'validation',
+      fieldErrors: { email: code },
+    });
+  });
+});
+
+describe('resetPasswordSchema', () => {
+  const TOKEN = 'Tk9'.repeat(8);
+
+  function resetErrors(entries: Record<string, string | undefined>) {
+    const result = parseForm(resetPasswordSchema, form(entries));
+    if (result.ok) return null;
+    return result.failure.ok ? null : (result.failure.fieldErrors ?? null);
+  }
+
+  it('keeps the password as typed, trims the token, and drops unknown fields', () => {
+    expect(
+      parseForm(
+        resetPasswordSchema,
+        form({ token: ` ${TOKEN} `, password: ` ${PASSWORD} `, email: 'a@example.edu' }),
+      ),
+    ).toStrictEqual({ ok: true, data: { token: TOKEN, password: ` ${PASSWORD} ` } });
+  });
+
+  it.each([
+    [undefined, 'required'],
+    ['', 'required'],
+    ['x'.repeat(9), 'password_too_short'],
+    ['x'.repeat(129), 'password_too_long'],
+  ])('password %j → %s', (password, code) => {
+    expect(resetErrors({ token: TOKEN, password })).toStrictEqual({ password: code });
+  });
+
+  it('accepts passwords of exactly 10 and 128 characters', () => {
+    expect(resetErrors({ token: TOKEN, password: 'x'.repeat(10) })).toBeNull();
+    expect(resetErrors({ token: TOKEN, password: 'x'.repeat(128) })).toBeNull();
+  });
+
+  it.each([
+    [undefined, 'required'],
+    ['  ', 'required'],
+    ['abc/def', 'invalid_format'],
+    ['abc%2Fdef', 'invalid_format'],
+    ['x'.repeat(257), 'invalid_format'],
+  ])('token %j → %s', (token, code) => {
+    expect(resetErrors({ token, password: PASSWORD })).toStrictEqual({ token: code });
   });
 });

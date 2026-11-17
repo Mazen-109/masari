@@ -4,6 +4,7 @@ import { sessions, tenants, users } from '@masari/db';
 import { isAPIError } from 'better-auth/api';
 import { headers } from 'next/headers';
 import { redirect, unstable_rethrow } from 'next/navigation';
+import { after } from 'next/server';
 import { getLocale } from 'next-intl/server';
 import { formFields, parseForm } from '@/lib/form';
 import { DEFAULT_LOCALE, isLocale, type Locale } from '@/lib/locale';
@@ -18,7 +19,14 @@ import { log } from '@/server/log';
 import { enforceRateLimit, rateLimitRules } from '@/server/rate-limit';
 import { getClientIp } from '@/server/request';
 import { isEmailDomainAllowed } from './rules';
-import { registerSchema, resendSchema, signInSchema, type RegisterInput } from './schemas';
+import {
+  forgotPasswordSchema,
+  registerSchema,
+  resendSchema,
+  resetPasswordSchema,
+  signInSchema,
+  type RegisterInput,
+} from './schemas';
 
 /** Public account actions (contracts/server-actions.md §4). */
 
@@ -91,6 +99,7 @@ async function createStudent(input: RegisterInput, tenantId: string, locale: Loc
 const REGISTER_ENTERED_FIELDS = ['tenantSlug', 'name', 'email', 'consent'] as const;
 const RESEND_ENTERED_FIELDS = ['email'] as const;
 const SIGN_IN_ENTERED_FIELDS = ['email'] as const;
+const FORGOT_PASSWORD_ENTERED_FIELDS = ['email'] as const;
 const MAX_ENTERED_LENGTH = 254;
 
 /**
@@ -395,4 +404,113 @@ export async function signOutAction(): Promise<void> {
     log.error('auth.sign_out_failed', { errorName: errorName(error) });
   }
   redirect(`/${locale}/sign-in`);
+}
+
+/**
+ * The work behind "forgot your password?" that depends on whether the address has an account: the library
+ * sends the reset email only for an existing account (and for an unknown one does a dummy lookup), and
+ * `auth.password_reset_requested` is recorded for that account's college. Never throws: a failure is
+ * logged by event and error class only. The library's background-task helper already swallows (and logs
+ * through log.ts) a failing email, so the audit is written whenever the request itself succeeded.
+ */
+async function sendPasswordReset(email: string, locale: Locale): Promise<void> {
+  try {
+    await getAuth().api.requestPasswordReset({
+      body: { email, redirectTo: `/${locale}/reset-password` },
+    });
+    const user = await users.findByEmail(email);
+    if (user !== null) {
+      await recordAudit(
+        { tenantId: user.tenantId, userId: user.id },
+        { action: 'auth.password_reset_requested', targetId: user.id },
+      );
+    }
+  } catch (error) {
+    log.error('auth.reset_request_failed', { errorName: errorName(error) });
+  }
+}
+
+/**
+ * Validate → rate limit → always `ok`. Everything that differs between a known and an unknown address
+ * runs after the response has been sent (`after`), so the answer and its timing are the same for both.
+ */
+async function requestReset(formData: FormData, locale: Locale): Promise<ActionResult> {
+  const parsed = parseForm(forgotPasswordSchema, formData);
+  if (!parsed.ok) return parsed.failure;
+  const { email } = parsed.data;
+
+  const limited = await enforceRateLimit(
+    rateLimitRules('reset-request', { email, ip: await getClientIp() }),
+  );
+  if (limited) return limited;
+
+  after(() => sendPasswordReset(email, locale));
+  return ok(undefined);
+}
+
+/**
+ * "Forgot your password?" (contracts/server-actions.md §4.5; FR-005, FR-009, FR-010). The same answer
+ * — "if an account uses this address, we sent it a link" — whether or not the address is registered, and
+ * in the same time: the email and the audit row are produced after the response.
+ */
+export async function requestPasswordResetAction(
+  _previous: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const locale = await currentLocale();
+  let result: ActionResult;
+  try {
+    result = await requestReset(formData, locale);
+  } catch (error) {
+    unstable_rethrow(error);
+    log.error('auth.reset_request_failed', { errorName: errorName(error) });
+    result = fail('internal');
+  }
+  return withEnteredValues(result, formData, FORGOT_PASSWORD_ENTERED_FIELDS);
+}
+
+/**
+ * Validate → let the library check the token and set the password. The token field is hidden, so a
+ * missing or malformed token is `token_invalid` like an unknown, expired, or used one; the action never
+ * looks the token up itself.
+ */
+async function reset(formData: FormData): Promise<ActionResult> {
+  const parsed = parseForm(resetPasswordSchema, formData);
+  if (!parsed.ok) {
+    const failure = parsed.failure;
+    return !failure.ok && failure.fieldErrors?.token !== undefined
+      ? fail('token_invalid')
+      : failure;
+  }
+  const { token, password } = parsed.data;
+  try {
+    await getAuth().api.resetPassword({ body: { token, newPassword: password } });
+  } catch (error) {
+    if (isAPIError(error)) return fail('token_invalid');
+    throw error;
+  }
+  return ok(undefined);
+}
+
+/**
+ * Setting a new password from the emailed link (contracts/server-actions.md §4.6; FR-007, FR-010). The
+ * library consumes the single-use token, saves the password, and deletes every session of the account
+ * (`revokeSessionsOnPasswordReset`) in one transaction; its `onPasswordReset` hook records
+ * `auth.password_reset` (server/auth/auth.ts). Then the user is sent to sign in.
+ */
+export async function resetPasswordAction(
+  _previous: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const locale = await currentLocale();
+  let result: ActionResult;
+  try {
+    result = await reset(formData);
+  } catch (error) {
+    unstable_rethrow(error);
+    log.error('auth.reset_password_failed', { errorName: errorName(error) });
+    result = fail('internal');
+  }
+  if (result.ok) redirect(`/${locale}/sign-in?reset=1`);
+  return result;
 }
