@@ -14,12 +14,14 @@ type ResendVerificationFormProps = Readonly<{
   variant?: 'missing' | 'invalid';
   /** Id of the control; also prefixes the heading and error ids. Unique per page. */
   id?: string;
+  /** Initial value of the email field (e.g. the address just used on the sign-in form). */
+  defaultEmail?: string;
 }>;
 
-/** The email the action echoed back after a failure (`meta.email`). */
-function enteredEmail(result: ActionResult | null): string {
+/** The email the action echoed back after a failure (`meta.email`), else the given default. */
+function enteredEmail(result: ActionResult | null, fallback: string): string {
   const value = result?.ok === false ? result.meta?.email : undefined;
-  return typeof value === 'string' ? value : '';
+  return typeof value === 'string' ? value : fallback;
 }
 
 /**
@@ -32,6 +34,7 @@ function enteredEmail(result: ActionResult | null): string {
 export function ResendVerificationForm({
   variant = 'missing',
   id = 'resend-email',
+  defaultEmail = '',
 }: ResendVerificationFormProps) {
   const t = useTranslations('auth.resend');
   const [result, formAction, pending] = useActionState<ActionResult | null, FormData>(
@@ -59,7 +62,7 @@ export function ResendVerificationForm({
           {sent ? <p className="mt-4 font-medium">{t('sent')}</p> : null}
         </div>
       </div>
-      <FormError result={result} />
+      <FormError result={result} pending={pending} />
       <Field id={id} label={t('email')} error={fieldErrors?.email}>
         {(control) => (
           <Input
@@ -69,7 +72,7 @@ export function ResendVerificationForm({
             dir="ltr"
             autoComplete="email"
             required
-            defaultValue={enteredEmail(result)}
+            defaultValue={enteredEmail(result, defaultEmail)}
           />
         )}
       </Field>

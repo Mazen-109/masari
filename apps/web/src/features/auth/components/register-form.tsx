@@ -36,7 +36,7 @@ function entered(result: ActionResult | null, key: string): string {
 export function RegisterForm({ college, colleges }: RegisterFormProps) {
   const t = useTranslations('auth.register');
   const tCommon = useTranslations('common');
-  const [result, formAction] = useActionState<ActionResult | null, FormData>(
+  const [result, formAction, pending] = useActionState<ActionResult | null, FormData>(
     registerStudentAction,
     null,
   );
@@ -51,7 +51,7 @@ export function RegisterForm({ college, colleges }: RegisterFormProps) {
 
   return (
     <form action={formAction} noValidate className="flex flex-col gap-6">
-      <FormError result={result} />
+      <FormError result={result} pending={pending} />
 
       {fixed === null ? (
         <Field id="register-college" label={t('college')} error={fieldErrors?.tenantSlug}>

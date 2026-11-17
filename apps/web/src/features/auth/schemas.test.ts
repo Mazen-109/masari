@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseForm } from '@/lib/form';
-import { registerSchema, resendSchema } from './schemas';
+import { registerSchema, resendSchema, signInSchema } from './schemas';
 
 const PASSWORD = 'Ab1'.repeat(4);
 
@@ -170,5 +170,57 @@ describe('resendSchema', () => {
       code: 'validation',
       fieldErrors: { email: code },
     });
+  });
+});
+
+describe('signInSchema', () => {
+  it('trims and lower-cases the email, keeps the password as typed, and drops unknown fields', () => {
+    const result = parseForm(
+      signInSchema,
+      form({
+        email: ' Mona@Example.EDU ',
+        password: `  ${PASSWORD}`,
+        role: 'admin',
+        next: '/profile',
+      }),
+    );
+    expect(result).toStrictEqual({
+      ok: true,
+      data: { email: 'mona@example.edu', password: `  ${PASSWORD}`, next: '/profile' },
+    });
+  });
+
+  it('reports a missing email and password as required', () => {
+    const result = parseForm(signInSchema, form({ password: '' }));
+    expect(result.ok ? null : result.failure).toStrictEqual({
+      ok: false,
+      code: 'validation',
+      fieldErrors: { email: 'required', password: 'required' },
+    });
+  });
+
+  it('accepts a one-character password (only the stored password decides)', () => {
+    expect(parseForm(signInSchema, form({ email: 'a@example.edu', password: 'x' })).ok).toBe(true);
+  });
+
+  it.each([
+    [undefined],
+    [''],
+    ['//evil.test'],
+    ['/\\evil.test'],
+    ['https://evil.test/dashboard'],
+    ['dashboard'],
+    [`/${'x'.repeat(512)}`],
+  ])('ignores next %j without failing', (next) => {
+    const result = parseForm(signInSchema, form({ email: 'a@example.edu', password: 'x', next }));
+    expect(result).toMatchObject({ ok: true, data: { next: null } });
+  });
+
+  it('keeps a safe next with its query', () => {
+    const result = parseForm(
+      signInSchema,
+      form({ email: 'a@example.edu', password: 'x', next: '/admin/users?page=2' }),
+    );
+    expect(result).toMatchObject({ ok: true, data: { next: '/admin/users?page=2' } });
   });
 });

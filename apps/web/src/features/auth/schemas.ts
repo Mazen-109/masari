@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { safeNext } from '@/lib/safe-next';
 
 /**
  * Field rules of contracts/server-actions.md §3 for the account forms. Every issue message is a
@@ -73,3 +74,20 @@ export const resendSchema = z.object({
 });
 
 export type ResendInput = z.infer<typeof resendSchema>;
+
+/**
+ * Sign-in (contracts/server-actions.md §3, §4.3). The password is the stored one: not trimmed and only
+ * `required` here; a value over 128 characters is refused by the auth library (`maxPasswordLength`) and
+ * ends as the same generic `invalid_credentials`. `next` never fails validation: a value `safeNext`
+ * refuses (missing, `//evil.test`, a scheme, …) becomes null and is ignored.
+ */
+export const signInSchema = z.object({
+  email: emailField,
+  password: z.string({ error: 'required' }).min(1, { error: 'required' }),
+  next: z
+    .unknown()
+    .optional()
+    .transform((value) => safeNext(value)),
+});
+
+export type SignInInput = z.infer<typeof signInSchema>;

@@ -11,9 +11,9 @@ const notFoundTitle = (messages: typeof ar) =>
 test.describe('with an English browser language', () => {
   test.use({ locale: 'en-US' });
 
-  test('/ redirects to /ar', async ({ page }) => {
+  test('/ goes to /ar (then, signed out, to its sign-in screen)', async ({ page }) => {
     await page.goto('/');
-    await expect(page).toHaveURL('/ar');
+    await expect(page).toHaveURL('/ar/sign-in');
   });
 });
 
@@ -28,13 +28,13 @@ test('each locale sets lang and dir on <html>', async ({ page }) => {
 });
 
 test('the language switch keeps the path and the query', async ({ page }) => {
-  await page.goto('/ar?from=test');
+  await page.goto('/ar/sign-in?from=test');
   await page.getByRole('link', { name: ar.common.switchLanguage }).click();
-  await expect(page).toHaveURL('/en?from=test');
+  await expect(page).toHaveURL('/en/sign-in?from=test');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 
   await page.getByRole('link', { name: en.common.switchLanguage }).click();
-  await expect(page).toHaveURL('/ar?from=test');
+  await expect(page).toHaveURL('/ar/sign-in?from=test');
 });
 
 test('the language switch on a 404 page keeps the path and the query', async ({ page }) => {
@@ -62,7 +62,7 @@ for (const { path, title, lang } of NOT_FOUND_CASES) {
   });
 }
 
-for (const path of ['/ar', '/en']) {
+for (const path of ['/ar/sign-in', '/en/sign-in']) {
   test(`no horizontal scroll at 320 px on ${path} @mobile`, async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 640 });
     await page.goto(path);

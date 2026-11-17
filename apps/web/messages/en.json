@@ -88,11 +88,19 @@
     "levels_in_use": "The number of levels can't be reduced while students are registered in higher levels.",
     "too_many": "This is more than allowed."
   },
-  "home": {
-    "title": "Your companion through college, from the first day to graduation",
-    "lead": "One platform for students, faculty members, Student Affairs, and college administration."
-  },
   "auth": {
+    "signIn": {
+      "title": "Sign in",
+      "lead": "Sign in with your email address and password.",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Sign in",
+      "forgotPassword": "Forgot your password?",
+      "noAccount": "Don't have an account?",
+      "register": "Create an account",
+      "resetDone": "Your password has been changed. Sign in with your new password.",
+      "invited": "Your account has been created. Sign in to continue."
+    },
     "register": {
       "title": "Create an account",
       "lead": "Create your Masari student account. We will send you an email to confirm your address.",
@@ -125,6 +133,9 @@
       "signIn": "Sign in",
       "errorTitle": "This confirmation link doesn't work",
       "errorBody": "The link may have expired (it is valid for one day only) or part of it may have changed. Request a new link with the form below."
+    },
+    "signOut": {
+      "submit": "Sign out"
     }
   },
   "privacy": {
@@ -156,6 +167,10 @@
       "delete": "Contact your college administration about deleting your account or getting a copy of your data."
     }
   },
+  "dashboard": {
+    "greeting": "Welcome, <bdi>{name}</bdi>",
+    "college": "Your college: {college}"
+  },
   "meta": {
     "titleTemplate": "%s · Masari",
     "home": "Masari",
@@ -163,6 +178,8 @@
     "privacy": "Privacy notice",
     "register": "Create an account",
     "verifyEmail": "Check your email",
-    "emailVerified": "Email confirmation"
+    "emailVerified": "Email confirmation",
+    "signIn": "Sign in",
+    "dashboard": "Home"
   }
 }
