@@ -2,7 +2,8 @@
 // pnpm i18n:check — contracts/cli.md §1.
 // Compares apps/web/messages/ar.json and en.json and exits 1 on any difference: missing keys on
 // either side, duplicate keys, keys that are a message on one side and a group on the other, empty
-// values, invalid ICU messages, and messages whose ICU arguments or rich-text tags differ.
+// values, keys containing `.`, invalid JSON or ICU messages (plural/select need an `other` option),
+// and messages whose ICU arguments or rich-text tags differ.
 // FR-041 (Western digits): messages never let ICU format numbers or dates — `{x, number}`,
 // `{x, date}`, `{x, time}`, and `#` inside plural/selectordinal are rejected; pass values
 // pre-formatted with `apps/web/src/lib/format.ts`.
@@ -32,7 +33,7 @@ export function findDuplicateKeys(text) {
   const readString = () => {
     const start = i;
     i++; // opening quote
-    while (text[i] !== '"') i += text[i] === '\\' ? 2 : 1;
+    while (i < text.length && text[i] !== '"') i += text[i] === '\\' ? 2 : 1;
     i++;
     return JSON.parse(text.slice(start, i));
   };
@@ -65,15 +66,22 @@ export function findDuplicateKeys(text) {
 
 /**
  * Flattens a catalog into `dotted.key → value` (objects are groups, everything else is a leaf).
+ * Keys that are empty or contain `.` are collected in `badKeys`: next-intl reads `.` as nesting, so
+ * `"a.b"` and `a: { b }` would collide.
  * @param {unknown} node
  * @param {string} prefix
  * @param {Map<string, unknown>} out
+ * @param {string[]} badKeys
  */
-function flatten(node, prefix, out) {
+function flatten(node, prefix, out, badKeys) {
   if (node !== null && typeof node === 'object' && !Array.isArray(node)) {
     const entries = Object.entries(node);
     if (entries.length === 0 && prefix) out.set(prefix, node);
-    for (const [key, value] of entries) flatten(value, prefix ? `${prefix}.${key}` : key, out);
+    for (const [key, value] of entries) {
+      const keyPath = prefix ? `${prefix}.${key}` : key;
+      if (key === '' || key.includes('.')) badKeys.push(keyPath);
+      flatten(value, keyPath, out, badKeys);
+    }
   } else {
     out.set(prefix, node);
   }
@@ -159,10 +167,12 @@ export function icuArguments(message) {
     if (message[i] !== ',') throw new Error(`"${type}" of "${name}" needs options`);
     i++;
     const optionsInPlural = inPlural || PLURAL_TYPES.has(type);
+    let hasOther = false;
     for (;;) {
       skipSpace();
       if (i >= message.length) throw new Error('missing "}"');
       if (message[i] === '}') {
+        if (!hasOther) throw new Error(`"${type}" of "${name}" needs an "other" option`);
         i++;
         return;
       }
@@ -170,6 +180,7 @@ export function icuArguments(message) {
       skipSpace();
       if (selector.startsWith('offset:')) continue;
       if (!selector || message[i] !== '{') throw new Error(`invalid option in "${name}"`);
+      if (selector === 'other') hasOther = true;
       i++;
       parseText(true, optionsInPlural);
       i++; // the option's closing `}`
@@ -188,10 +199,24 @@ export function checkCatalogs(sources) {
   const problems = [];
   const flat = {};
   for (const locale of LOCALES) {
+    let catalog;
+    try {
+      catalog = JSON.parse(sources[locale]);
+    } catch (error) {
+      problems.push(`${locale}.json: invalid JSON: ${error.message}`);
+      continue;
+    }
     for (const key of findDuplicateKeys(sources[locale])) {
       problems.push(`${locale}.json: duplicate key "${key}"`);
     }
-    flat[locale] = flatten(JSON.parse(sources[locale]), '', new Map());
+    const badKeys = [];
+    flat[locale] = flatten(catalog, '', new Map(), badKeys);
+    for (const key of badKeys) {
+      problems.push(`${locale}.json: key "${key}" must not be empty or contain "."`);
+    }
+  }
+  if (problems.some((problem) => problem.includes(': invalid JSON: '))) {
+    return { problems, keyCount: 0 };
   }
   const [base, other] = LOCALES;
 

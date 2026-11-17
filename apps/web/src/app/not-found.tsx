@@ -3,15 +3,17 @@ import Link from 'next/link';
 import { createTranslator } from 'next-intl';
 import ar from '../../messages/ar.json';
 import en from '../../messages/en.json';
+import { FALLBACK_NOT_FOUND_TITLE } from '@/lib/fallback-text';
 import './globals.css';
 
 // Fallback 404 for paths without a valid locale (e.g. `/fr`). The language is unknown here, so the
-// page is bilingual: Arabic first (document language), then English.
+// page is bilingual: Arabic first (document language), then English. Its metadata applies only when
+// no `[locale]/not-found.tsx` is in the matched tree; that file returns the same title otherwise.
 const tAr = createTranslator({ locale: 'ar', messages: ar });
 const tEn = createTranslator({ locale: 'en', messages: en });
 
 export const metadata: Metadata = {
-  title: `${tAr('meta.notFound')} · ${tEn('meta.notFound')}`,
+  title: { absolute: FALLBACK_NOT_FOUND_TITLE },
   robots: { index: false, follow: false },
 };
 

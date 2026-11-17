@@ -10,7 +10,7 @@ locale prefix (`/sign-in` means `/ar/sign-in` and `/en/sign-in`).
 | Rule | Behaviour |
 |---|---|
 | `/` | Redirect to `/ar` (no browser-language detection). |
-| Unknown locale segment (e.g. `/fr/sign-in`) | 404, answered directly (no redirect): `proxy.ts` passes any first segment shaped like a language tag that is not `ar`/`en` through to `[locale]/layout.tsx` (`bypassesLocaleRouting` in `lib/locale.ts`). Locales are case-sensitive, so `/AR/…` is also a 404 (no normalisation to `/ar`). Consequence: no screen may use a top-level path of 2–3 letters (e.g. `/faq`) — such paths are never locale-prefixed. |
+| Unknown locale segment (e.g. `/fr/sign-in`) | 404, answered directly (no redirect): `proxy.ts` passes any first segment shaped like a language tag that is not `ar`/`en` through to `[locale]/layout.tsx` (`bypassesLocaleRouting` in `lib/locale.ts`). Locales are case-sensitive, so `/AR/…` is also a 404 (no normalisation to `/ar`). Consequence: no unprefixed top-level path shaped like a language tag is ever locale-prefixed — 2–3 letters (`/faq`) or a hyphenated slug whose first part has 2–3 letters and later parts 2–8 letters/digits (`/my-profile`, `/in-app`); such paths 404 instead of redirecting to `/ar/…` (the prefixed `/ar/my-profile` works). |
 | `<html>` | `lang` = locale; `dir="rtl"` for `ar`, `dir="ltr"` for `en`. |
 | Language switch | Present on every screen; navigates to the same path + query in the other locale. When signed in it also calls `setLocaleAction`. |
 | Signed-out request to a signed-in screen | Redirect to `/{locale}/sign-in?next=<locale-less path+query>`. |
@@ -19,7 +19,7 @@ locale prefix (`/sign-in` means `/ar/sign-in` and `/en/sign-in`).
 | Role lacks the screen's permission, module disabled, or unknown module key | `notFound()` → localized 404 page inside the current shell (`(app)/not-found.tsx`, §5). |
 | Student without academic profile on any `(app)` screen | Redirect to `/{locale}/onboarding`. |
 | Suspended user or suspended college with an existing session | Treated as signed out; redirect to `/{locale}/sign-in?reason=account_suspended` or `?reason=tenant_suspended`. |
-| Metadata | Every page sets a localized `<title>` of the form `<Screen> · مساري` / `<Screen> · Masari`; `robots: noindex`. |
+| Metadata | Every page sets a localized `<title>` of the form `<Screen> · مساري` / `<Screen> · Masari`; `robots: noindex`. On a 404 render Next.js ignores the metadata of the page that called `notFound()` and uses the layouts plus the deepest `not-found` file, so 404 titles come from `generateMetadata` in the `not-found.tsx` files; an unknown locale gets the bilingual `الصفحة غير موجودة · Page not found`. |
 | Guards | Every `page.tsx` under `(app)` and `(onboarding)` calls `requireSession(...)` or `requirePermission(...)` itself (layouts are not sufficient). |
 
 ## 2. Public screens — route group `(public)`
@@ -79,12 +79,12 @@ Query parameters of `/admin/users`: `q` (≤ 100 chars, trimmed), `role` (one of
 | File | Behaviour |
 |---|---|
 | `src/app/[locale]/layout.tsx` | Root layout: `<html lang dir>`, fonts, `NextIntlClientProvider`, base metadata. Validates the locale (`notFound()` otherwise). |
-| `src/app/[locale]/[...rest]/page.tsx` | Catch-all for unknown paths under a valid locale: calls `notFound()` so `[locale]/not-found.tsx` renders inside the locale layout; its `generateMetadata` sets the localized 404 title (`meta.notFound`). Added in PR-7. |
-| `src/app/[locale]/not-found.tsx` | Localized 404 with a link to home, for public paths and unknown paths (rendered in the root layout, without the signed-in shell). |
+| `src/app/[locale]/[...rest]/page.tsx` | Catch-all for unknown paths under a valid locale: calls `notFound()` (after `setRequestLocale`, since dotted paths skip the proxy) so `[locale]/not-found.tsx` renders inside the locale layout. Its `generateMetadata` only affects client-side navigations; the served 404 title comes from `[locale]/not-found.tsx`. Added in PR-7. |
+| `src/app/[locale]/not-found.tsx` | Localized 404 with a link to home, for public paths and unknown paths (rendered in the root layout, without the signed-in shell). Exports `generateMetadata`: title `meta.notFound` for a valid locale; the bilingual fallback title for an unknown locale (this file's metadata also applies to `/fr`, where it shadows `app/not-found.tsx`). |
 | `src/app/[locale]/(app)/not-found.tsx` | The same localized 404 content rendered inside the `(app)` layout, so that `notFound()` thrown by an `(app)` page (missing permission, disabled or unknown module) keeps the header and navigation. Added in PR-19. |
 | `src/app/[locale]/error.tsx` | Localized generic error with "try again"; never shows error details. |
 | `src/app/not-found.tsx` (+ whatever root file the pinned next-intl requires) | Fallback 404 for paths without a valid locale. |
-| `src/app/global-error.tsx` | Last-resort error page when the locale layout itself fails: static bilingual text (no message catalog available), "try again", no error details. |
+| `src/app/global-error.tsx` | Last-resort error page when the locale layout itself fails: static bilingual text from `lib/fallback-text.ts` (no message catalog available; a test keeps it equal to the catalogs), "try again", no error details. |
 | `src/app/robots.ts` | `Disallow: /` for all user agents. |
 | `src/proxy.ts` | next-intl locale routing only; matcher excludes `/api`, `/_next`, and static files. No authorisation logic. |
 

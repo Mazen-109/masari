@@ -37,6 +37,9 @@ describe('icuArguments', () => {
     ['{x, plural, one a}', /invalid option/],
     ['{x, select}', /needs options/],
     ['{x, spellout}', /unknown argument type/],
+    ['{g, select, male {He} female {She}}', /needs an "other" option/],
+    ['{count, plural, one {one item}}', /needs an "other" option/],
+    ['{n, selectordinal, one {first}}', /needs an "other" option/],
     ['{n, number}', /FR-041/],
     ['{n, number, percent}', /FR-041/],
     ['{d, date, short}', /FR-041/],
@@ -60,6 +63,10 @@ describe('findDuplicateKeys', () => {
   it('reports duplicates with their dotted path', () => {
     assert.deepEqual(findDuplicateKeys('{"a": "1", "a": "2"}'), ['a']);
     assert.deepEqual(findDuplicateKeys('{"g": {"k": "1", "x": "\\"k\\"", "k": "2"}}'), ['g.k']);
+  });
+
+  it('terminates (throws) on an unterminated string instead of looping', () => {
+    assert.throws(() => findDuplicateKeys('{"a": "x'), SyntaxError);
   });
 
   it('allows the same key in different objects', () => {
@@ -91,6 +98,22 @@ describe('checkCatalogs', () => {
     const enEmpty = JSON.stringify({ common: { hi: 'Hi {name}', bye: ' ' } });
     assert.deepEqual(checkCatalogs({ ar, en: enEmpty }).problems, [
       'en.json: empty value for key "common.bye"',
+    ]);
+  });
+
+  it('fails on malformed JSON, naming the file, instead of hanging', () => {
+    const { problems } = checkCatalogs({ ar, en: '{"a": "x' });
+    assert.equal(problems.length, 1);
+    assert.match(problems[0], /^en\.json: invalid JSON: /);
+  });
+
+  it('rejects keys that contain "." or are empty', () => {
+    const catalog = JSON.stringify({ 'a.b': 'x', a: { '': 'y' } });
+    assert.deepEqual(checkCatalogs({ ar: catalog, en: catalog }).problems, [
+      'ar.json: key "a.b" must not be empty or contain "."',
+      'ar.json: key "a." must not be empty or contain "."',
+      'en.json: key "a.b" must not be empty or contain "."',
+      'en.json: key "a." must not be empty or contain "."',
     ]);
   });
 

@@ -17,7 +17,7 @@ in the environment when there is no `.env` (CI, production).
 | `pnpm typecheck` | `pnpm -r typecheck` | each package: `tsc --noEmit` |
 | `pnpm test` | `pnpm -r test` → `pnpm test:scripts` | each package: `vitest run --coverage`; needs PostgreSQL for `@masari/db`. `test:scripts` = `node --test "scripts/*.test.mjs"` (repository scripts, e.g. the i18n gate) |
 | `pnpm test:e2e` | `pnpm --filter @masari/web test:e2e` | `next build` → prepare database `masari_e2e` (`ci.md` §3) → `playwright test`; needs PostgreSQL |
-| `pnpm i18n:check` | `node scripts/check-i18n.mjs` | exit 1 on any difference between `ar.json` and `en.json` (keys, empty values, ICU arguments) |
+| `pnpm i18n:check` | `node scripts/check-i18n.mjs` | exit 1 on invalid JSON (naming the file), duplicate keys, keys that are empty or contain `.`, any difference between `ar.json` and `en.json` (keys, message vs group), empty values, invalid ICU messages (`plural`/`select`/`selectordinal` must have `other`), differing ICU arguments or tags, and ICU number/date/time formatting or `#` (FR-041: pass values pre-formatted with `lib/format`) |
 | `pnpm rtl:check` | `node scripts/check-rtl.mjs` | exit 1 on physical-direction utilities in `apps/web/src/**/*.{ts,tsx,css}` |
 | `pnpm check` | `format:check` → `lint` → `typecheck` → `i18n:check` → `rtl:check` → `test` | local pre-PR gate |
 | `pnpm db:up` / `pnpm db:down` | `docker compose up -d --wait postgres` / `docker compose down` | local PostgreSQL 16 |

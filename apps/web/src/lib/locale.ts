@@ -24,8 +24,10 @@ const LOCALE_LIKE_SEGMENT = /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i;
  *
  * - Matching is exact and case-sensitive on the locale, so `/AR` and `/En/x` are 404s (no case
  *   normalisation to `/ar`); this is intended.
- * - Caveat: every top-level path of 2–3 letters (e.g. `/faq`, `/map`) is treated as an unknown
- *   locale and is never locale-prefixed, so such paths must not be used for screens; `/ar/faq` is fine.
+ * - Caveat: a top-level segment shaped like a language tag is treated as an unknown locale and is
+ *   never locale-prefixed: 2–3 letters (`/faq`, `/map`) and also hyphenated slugs whose first part has
+ *   2–3 letters and whose later parts have 2–8 letters/digits (`/my-profile`, `/in-app`, `/new-2024`).
+ *   Such unprefixed paths 404 instead of redirecting to `/ar/…`; the prefixed `/ar/my-profile` is fine.
  */
 export function bypassesLocaleRouting(pathname: string): boolean {
   const firstSegment = pathname.split('/')[1] ?? '';

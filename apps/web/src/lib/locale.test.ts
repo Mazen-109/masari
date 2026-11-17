@@ -58,6 +58,20 @@ describe('bypassesLocaleRouting', () => {
   it('treats any 2–3-letter top-level path as an unknown locale (documented caveat)', () => {
     expect(bypassesLocaleRouting('/faq')).toBe(true);
   });
+
+  it.each(['/my-profile', '/in-app', '/new-2024', '/faq-v2/x'])(
+    'treats the language-tag-shaped slug %s as an unknown locale (documented caveat)',
+    (pathname) => {
+      expect(bypassesLocaleRouting(pathname)).toBe(true);
+    },
+  );
+
+  it.each(['/sign-in', '/my-extraordinary-page', '/profile', '/ar/my-profile'])(
+    'still hands %s to next-intl',
+    (pathname) => {
+      expect(bypassesLocaleRouting(pathname)).toBe(false);
+    },
+  );
 });
 
 describe('defaults', () => {
