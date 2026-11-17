@@ -24,7 +24,7 @@ locale prefix (`/sign-in` means `/ar/sign-in` and `/en/sign-in`).
 
 ## 2. Public screens — route group `(public)`
 
-Shell: `public-header` (wordmark «مساري», language switch), centred content, link to the privacy notice.
+Shell: `public-header` (wordmark = `common.appName`: «مساري» in Arabic, "Masari" in English; language switch), centred content, link to the privacy notice.
 
 | Path | File (`src/app/[locale]/(public)/…`) | Purpose | Query params | Batch |
 |---|---|---|---|---|

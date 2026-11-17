@@ -36,15 +36,14 @@ type ButtonProps = ComponentProps<'button'> &
     asChild?: boolean;
   };
 
-function Button({ className, variant, size, asChild = false, ...props }: ButtonProps) {
-  const Comp = asChild ? Slot : 'button';
-  return (
-    <Comp
-      data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
-    />
-  );
+function Button({ className, variant, size, asChild = false, type, ...props }: ButtonProps) {
+  const classes = cn(buttonVariants({ variant, size, className }));
+  if (asChild) {
+    return <Slot data-slot="button" className={classes} {...props} />;
+  }
+  // `type="button"` by default so a button inside a form never submits it by accident; submit
+  // buttons say `type="submit"` explicitly.
+  return <button data-slot="button" type={type ?? 'button'} className={classes} {...props} />;
 }
 
 export { Button, buttonVariants };

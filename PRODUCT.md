@@ -70,7 +70,8 @@ to other universities.
 
 ## Brand Commitments
 
-- Name: «مساري» in Arabic, "Masari" in English; the Arabic name is the primary wordmark.
+- Name: «مساري» in Arabic, "Masari" in English. The wordmark shows the name in the page's language
+  (`common.appName`), the same as page titles; Arabic is the primary locale.
 - Tone: calm, trustworthy, academic. Clear, polite, direct sentences; no slang in the interface, no
   exclamation marks, no marketing superlatives.
 - No decorative gradients, stock photography, or mascots (research.md §22).

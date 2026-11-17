@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // pnpm rtl:check — contracts/cli.md §1.
 // Exits 1 when a file under apps/web/src (*.ts, *.tsx, *.css) uses a physical-direction Tailwind
-// utility (ml-*, pr-*, left-*, text-right, rounded-l-*, border-r, …) or, in CSS, a physical-direction
-// declaration (margin-left, padding-right, left:, right:, text-align: left|right). Logical
+// utility (ml-*, pr-*, left-*, text-right, rounded-l-*, border-r, …) or a physical-direction
+// declaration (margin-left, padding-right, left:, right:, text-align: left|right) — in CSS files on
+// any line, in every file inside a Tailwind arbitrary property such as `[margin-left:4px]`. Logical
 // equivalents (ms-*, pe-*, start-*, text-end, …) work in both directions (constitution IV).
 // A line containing `rtl-ok:` followed by a reason is exempt.
 // Output: `file:line: <match> → use <logical equivalent>`.
@@ -57,22 +58,81 @@ const UTILITY_RULES = [
   },
 ];
 
-/** CSS declaration rules (CSS files only; in TS a `left:` key is usually not a style). */
+/**
+ * CSS declaration rules. They run on whole lines of CSS files, and in every file type on the core of
+ * a Tailwind arbitrary property (`[margin-left:4px]`, `md:[left:0]`). A bare `left:` key elsewhere in
+ * TypeScript is usually not a style, so TS lines are not scanned with them.
+ * `fix` receives the match followed by its capture groups.
+ */
 const DECLARATION_RULES = [
   {
     pattern: /(?<![\w-])(margin|padding)-(left|right)(?=\s*:)/g,
-    fix: (/** @type {RegExpExecArray} */ m) =>
-      `${m[1]}-inline-${m[2] === 'left' ? 'start' : 'end'}`,
+    fix: (/** @type {string[]} */ m) => `${m[1]}-inline-${m[2] === 'left' ? 'start' : 'end'}`,
   },
   {
     pattern: /(?<![\w-])(left|right)(?=\s*:)/g,
-    fix: (/** @type {RegExpExecArray} */ m) => `inset-inline-${m[1] === 'left' ? 'start' : 'end'}`,
+    fix: (/** @type {string[]} */ m) => `inset-inline-${m[1] === 'left' ? 'start' : 'end'}`,
   },
   {
-    pattern: /(?<![\w-])text-align\s*:\s*(left|right)\b/g,
-    fix: (/** @type {RegExpExecArray} */ m) => `text-align: ${m[1] === 'left' ? 'start' : 'end'}`,
+    pattern: /(?<![\w-])text-align(\s*:\s*)(left|right)\b/g,
+    fix: (/** @type {string[]} */ m) => `text-align${m[1]}${m[2] === 'left' ? 'start' : 'end'}`,
   },
 ];
+
+/**
+ * Returns the logical form of a Tailwind arbitrary property (`[margin-left:4px]` →
+ * `[margin-inline-start:4px]`), or null when it has no physical declaration.
+ * @param {string} core
+ */
+function logicalArbitraryProperty(core) {
+  if (!/^\[[^\]]*:.*\]$/.test(core)) return null;
+  let fixed = core;
+  for (const rule of DECLARATION_RULES) {
+    fixed = fixed.replace(rule.pattern, (...args) => rule.fix(args.slice(0, 3).map(String)));
+  }
+  return fixed === core ? null : fixed;
+}
+
+/**
+ * Splits on commas outside `[...]` (`@apply a,b` or `x,y` in code), keeping arbitrary values such as
+ * `grid-cols-[1fr,2fr]` whole.
+ * @param {string} text
+ */
+function splitCommas(text) {
+  const parts = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '[') depth++;
+    else if (c === ']') depth = Math.max(0, depth - 1);
+    else if (c === ',' && depth === 0) {
+      parts.push(text.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(text.slice(start));
+  return parts;
+}
+
+/**
+ * Removes code punctuation glued to a class token: `@apply text-left;`, `{border-r}`, `cn(pl-2)`.
+ * A `)` is removed only when unbalanced, so `ml-(--gap)` keeps its parenthesis.
+ * @param {string} token
+ */
+export function trimToken(token) {
+  let t = token.replace(/^[{(]+/, '');
+  for (;;) {
+    const last = t.at(-1);
+    if (last === ';' || last === ',' || last === '{' || last === '}') {
+      t = t.slice(0, -1);
+    } else if (last === ')' && t.split(')').length > t.split('(').length) {
+      t = t.slice(0, -1);
+    } else {
+      return t;
+    }
+  }
+}
 
 /**
  * Splits a class token into its variant prefix (`md:hover:`), sign (`!`, `-`), core utility, and
@@ -105,7 +165,7 @@ export function splitToken(token) {
  */
 export function logicalEquivalent(token) {
   const { prefix, sign, core, important } = splitToken(token);
-  for (const rule of UTILITY_RULES) {
+  for (const rule of [...UTILITY_RULES, logicalArbitraryProperty]) {
     const fixed = rule(core);
     if (fixed !== null) return `${prefix}${sign}${fixed}${important}`;
   }
@@ -125,15 +185,21 @@ export function findViolations(text, file) {
   text.split(/\r?\n/).forEach((lineText, index) => {
     if (EXEMPTION.test(lineText)) return;
     const line = index + 1;
-    for (const token of lineText.split(/[\s'"`]+/)) {
+    for (const raw of lineText.split(/[\s'"`]+/).flatMap(splitCommas)) {
+      const token = trimToken(raw);
       if (!token) continue;
+      // In CSS files the line-level declaration scan below already covers arbitrary properties.
+      if (isCss && token.includes('[')) {
+        const { core } = splitToken(token);
+        if (logicalArbitraryProperty(core) !== null) continue;
+      }
       const fix = logicalEquivalent(token);
       if (fix !== null) violations.push({ line, match: token, fix });
     }
     if (!isCss) return;
     for (const rule of DECLARATION_RULES) {
       for (const m of lineText.matchAll(rule.pattern)) {
-        violations.push({ line, match: m[0], fix: rule.fix(m) });
+        violations.push({ line, match: m[0], fix: rule.fix([...m].map(String)) });
       }
     }
   });

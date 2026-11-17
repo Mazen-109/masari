@@ -189,6 +189,11 @@ marked `disabled` for assistive technology.
   status. Never grey text on a coloured surface — use that surface's `-foreground` token.
 - **The Token-Only Rule.** Tailwind's default palette is removed in `globals.css`; a colour that is not a
   token does not exist. Restyle by editing tokens, never with one-off values.
+- **The Underlined-Link Rule.** A link inside running text (`p`, `li`, `dd`, `td`, `th`, `blockquote`,
+  `figcaption`, `label`, `small`) is `primary` **and underlined** — the base style in `globals.css`
+  does it. `primary` against `foreground` text is only about 2:1, so colour alone would not mark the
+  link (WCAG 1.4.1; axe `link-in-text-block`). Stand-alone links (navigation, the wordmark, the
+  language switch, button-styled links) carry their own classes and may drop the underline.
 
 ## Typography
 
@@ -209,7 +214,7 @@ pages do not download Arabic glyphs). Fallback: `system-ui, -apple-system, 'Sego
 | Body                      | `text-base` | 16 px | 400       | 1.7 / 1.6           |
 | Label, hint, table        | `text-sm`   | 14 px | 500 / 400 | 1.7 / 1.5           |
 
-Nothing smaller than 14 px. Form inputs are at least 16 px (smaller text makes mobile browsers zoom).
+Nothing smaller than 14 px: `text-xs` is removed from the theme. Form inputs are at least 16 px (smaller text makes mobile browsers zoom).
 Headings use `text-balance`; body text is limited to about 60–75 characters per line.
 
 ### Named Rules (Arabic)
@@ -226,8 +231,14 @@ Headings use `text-balance`; body text is limited to about 60–75 characters pe
 ## Layout
 
 - **RTL first, logical only.** Only logical utilities (`ms-`, `me-`, `ps-`, `pe-`, `start-`, `end-`,
-  `text-start`, `text-end`, `rounded-s-`, `border-s-`); `pnpm rtl:check` fails CI on physical ones.
-  Directional icons are mirrored in RTL.
+  `text-start`, `text-end`, `rounded-s-`, `border-s-`); `pnpm rtl:check` fails CI on physical ones,
+  including arbitrary properties such as `[margin-left:4px]`. Directional icons are mirrored in RTL.
+  The pinned Tailwind (4.3.5) also has `inset-s-*` / `inset-e-*`; `start-*` / `end-*` are not marked
+  deprecated there, so the check keeps suggesting them.
+- **`rtl-ok:` exemption.** The check reads class-like words anywhere on a line, so prose such as
+  "right-to-left" or a locale tag like `pl-PL` in a comment or string is flagged. Reword it, or add
+  `rtl-ok: <reason>` to that line (the reason must start with a letter or digit). Use the marker also
+  for a genuinely physical need, for example a chart axis that is always left-to-right — and say why.
 - **Spacing rhythm** on Tailwind's 4 px grid: 4 · 8 · 12 · 16 · 24 · 32 · 48 · 64 · 96 px. Tight inside a
   group (8–12), generous between groups (24–48), more space above a heading than below it.
 - **Container:** content and header share `max-w-5xl` (64 rem) centred, with 16 px side padding on phones
@@ -254,7 +265,9 @@ side use logical utilities (`rounded-s-*`, `rounded-e-*`).
 
 Every focusable element shows a **2 px solid `ring` outline with a 2 px offset** on `:focus-visible`
 (global rule in `globals.css`). Components never remove it; they may only restyle it with tokens.
-Programmatic focus targets (`<main tabindex="-1">`) show no ring because they are not controls.
+The only exception is the skip link's target, `<main tabindex="-1">` (rule
+`main[tabindex='-1']:focus`): it is a landmark, not a control. Other `tabindex="-1"` elements, such as
+roving-tabindex menu, tab, and radio items, keep the ring.
 
 ### Buttons
 
@@ -262,7 +275,30 @@ Programmatic focus targets (`<main tabindex="-1">`) show no ring because they ar
 region), `secondary` (teal wash), `outline` (`input` border on `surface`), `ghost`, `destructive`,
 `link`. Sizes: `default` (min 44 px high, 20 px inline padding), `lg` (48 px), `icon` (44 × 44 px).
 Medium weight (500), 16 px text, colour-only transitions (150 ms), disabled at 50 % opacity. `asChild`
-renders a link with button styling.
+renders a link with button styling. A `<button>` defaults to `type="button"`; submit buttons say
+`type="submit"`.
+
+### shadcn/ui components
+
+Components are copied into `apps/web/src/components/ui` when first needed and adapted. `components.json`
+sets `"rtl": true`, and every copied file must pass `pnpm rtl:check`. shadcn's colour names are aliases
+of Masari tokens (`@theme inline` in `globals.css`), so copied components keep their colours; new code
+uses the Masari names.
+
+| shadcn name                             | Masari token                              |
+| --------------------------------------- | ----------------------------------------- |
+| `background`, `foreground`              | same names                                |
+| `primary`, `primary-foreground`         | same names                                |
+| `muted`, `muted-foreground`             | same names                                |
+| `border`, `input`, `ring`               | same names                                |
+| `card`, `popover`                       | `surface`                                 |
+| `card-foreground`, `popover-foreground` | `foreground`                              |
+| `secondary`, `secondary-foreground`     | `primary-soft`, `primary-soft-foreground` |
+| `accent`, `accent-foreground`           | `muted`, `foreground`                     |
+| `destructive`, `destructive-foreground` | `danger`, `danger-foreground`             |
+
+When `shadcn add` writes variables or `oklch` colours into `globals.css` (`:root { --background: … }`),
+revert those lines: the tokens above are the only source of colour.
 
 ### Navigation
 

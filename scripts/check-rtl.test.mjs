@@ -4,7 +4,13 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
-import { checkDirectory, findViolations, logicalEquivalent, splitToken } from './check-rtl.mjs';
+import {
+  checkDirectory,
+  findViolations,
+  logicalEquivalent,
+  splitToken,
+  trimToken,
+} from './check-rtl.mjs';
 
 describe('splitToken', () => {
   it('separates variants, sign, core, and important marker', () => {
@@ -140,10 +146,75 @@ describe('findViolations', () => {
       { line: 2, match: 'left', fix: 'inset-inline-start' },
       { line: 2, match: 'right', fix: 'inset-inline-end' },
       { line: 3, match: 'text-align: right', fix: 'text-align: end' },
-      { line: 6, match: 'pl-2;', fix: 'ps-2;' },
+      { line: 6, match: 'pl-2', fix: 'ps-2' },
     ]);
     assert.deepEqual(findViolations('const pos = { left: 0 };', 'a.ts'), []);
   });
+
+  it('flags utilities in @apply lines despite trailing ; or }', () => {
+    const css = [
+      '.a { @apply text-left; }',
+      '.b { @apply border-r; }',
+      '.c { @apply rounded-tl; }',
+      '.d { @apply float-right}',
+      '.e { @apply origin-left; }',
+      '.f{@apply clear-left,border-l-2;}',
+      '.g { @apply text-start border-e rounded-ss float-end; }',
+    ].join('\n');
+    const found = findViolations(css, 'a.css').map((v) => [v.line, v.match, v.fix]);
+    assert.deepEqual(
+      found.map(([line, match]) => [line, match]),
+      [
+        [1, 'text-left'],
+        [2, 'border-r'],
+        [3, 'rounded-tl'],
+        [4, 'float-right'],
+        [5, 'origin-left'],
+        [6, 'clear-left'],
+        [6, 'border-l-2'],
+      ],
+    );
+    assert.equal(found[0]?.[2], 'text-start');
+    assert.equal(found[1]?.[2], 'border-e');
+    assert.equal(found[2]?.[2], 'rounded-ss');
+    assert.equal(found[3]?.[2], 'float-end');
+  });
+
+  it('flags physical arbitrary properties in every file type', () => {
+    const tsx = [
+      '<div className="[margin-left:4px] md:[left:0]" />',
+      "cn('[text-align:right]', 'hover:[padding-right:1rem]', '![right:0]')",
+      '<div className="[margin-inline-start:4px] [text-align:start] [&:hover]:ps-2" />',
+    ].join('\n');
+    assert.deepEqual(findViolations(tsx, 'a.tsx'), [
+      { line: 1, match: '[margin-left:4px]', fix: '[margin-inline-start:4px]' },
+      { line: 1, match: 'md:[left:0]', fix: 'md:[inset-inline-start:0]' },
+      { line: 2, match: '[text-align:right]', fix: '[text-align:end]' },
+      { line: 2, match: 'hover:[padding-right:1rem]', fix: 'hover:[padding-inline-end:1rem]' },
+      { line: 2, match: '![right:0]', fix: '![inset-inline-end:0]' },
+    ]);
+    assert.deepEqual(
+      findViolations('.a { @apply [margin-left:4px]; }', 'a.css').map((v) => v.match),
+      ['margin-left'],
+    );
+  });
+});
+
+describe('trimToken', () => {
+  const cases = [
+    ['text-left;', 'text-left'],
+    ['float-right}', 'float-right'],
+    ['{border-r}', 'border-r'],
+    ['pl-2),', 'pl-2'],
+    ['ml-(--gap)', 'ml-(--gap)'],
+    ['ml-(--gap);', 'ml-(--gap)'],
+    ['pr-[3px]', 'pr-[3px]'],
+  ];
+  for (const [token, expected] of cases) {
+    it(`trims ${token} → ${expected}`, () => {
+      assert.equal(trimToken(token), expected);
+    });
+  }
 });
 
 describe('checkDirectory', () => {

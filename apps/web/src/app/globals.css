@@ -1,13 +1,43 @@
 @import 'tailwindcss';
+/*
+ * IBM Plex Sans Arabic (OFL-1.1), self-hosted: the font files are bundled and served by the app, never
+ * from a font CDN (CSP `font-src 'self'`). Imported here rather than in a layout so every page that
+ * loads this stylesheet — including the root 404 — gets the font. Each weight's CSS splits glyphs
+ * into unicode-range subsets, so English pages do not download the Arabic subset.
+ */
+@import '@fontsource/ibm-plex-sans-arabic/400.css';
+@import '@fontsource/ibm-plex-sans-arabic/500.css';
+@import '@fontsource/ibm-plex-sans-arabic/600.css';
+@import '@fontsource/ibm-plex-sans-arabic/700.css';
 
 /*
  * Masari design tokens — the values documented in DESIGN.md (repository root). Restyle by editing
  * tokens here and in DESIGN.md together; components use only these tokens, never one-off colours.
  * Light theme only. Contrast ratios of every text/background pair are listed in DESIGN.md.
  */
-/* Only the palette below exists: Tailwind's default colours are removed on purpose. */
+/* Only the palette below exists: Tailwind's default colours are removed on purpose. Nothing is set
+   smaller than 14 px, so `text-xs` is removed too. */
 @theme {
   --color-*: initial;
+  --text-xs: initial;
+  --text-xs--line-height: initial;
+}
+
+/*
+ * shadcn/ui names → Masari tokens (DESIGN.md "Components"), so copied components keep their colours.
+ * `inline`: utilities use the Masari variable directly. Prefer the Masari names in new code.
+ */
+@theme inline {
+  --color-card: var(--color-surface);
+  --color-card-foreground: var(--color-foreground);
+  --color-popover: var(--color-surface);
+  --color-popover-foreground: var(--color-foreground);
+  --color-secondary: var(--color-primary-soft);
+  --color-secondary-foreground: var(--color-primary-soft-foreground);
+  --color-accent: var(--color-muted);
+  --color-accent-foreground: var(--color-foreground);
+  --color-destructive: var(--color-danger);
+  --color-destructive-foreground: var(--color-danger-foreground);
 }
 
 /* `static`: every token is emitted as a CSS variable, so base styles and inline styles can use them. */
@@ -124,13 +154,26 @@
     outline-offset: 2px;
   }
 
-  /* Programmatic focus targets (e.g. <main tabindex="-1"> after the skip link) are not controls. */
-  [tabindex='-1']:focus {
+  /*
+   * The skip link's target is a landmark, not a control, so it shows no ring when focused. Only this
+   * one target: other `tabindex="-1"` elements (roving-tabindex menu, tab, and radio items) keep
+   * the ring (WCAG 2.4.7).
+   */
+  main[tabindex='-1']:focus {
     outline: none;
   }
 
   a {
     text-underline-offset: 0.2em;
+  }
+
+  /*
+   * Links inside running text are underlined, not marked by colour alone (WCAG 1.4.1; teal on ink is
+   * about 2:1). `:where` keeps specificity at one element, so a component can still opt out.
+   */
+  :where(p, li, dd, td, th, blockquote, figcaption, label, small) a {
+    color: var(--color-primary);
+    text-decoration-line: underline;
   }
 
   /* Inputs at 16 px or more: smaller text makes mobile browsers zoom the page. */
