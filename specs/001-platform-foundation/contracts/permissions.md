@@ -11,7 +11,7 @@
 | `student` | طالب | Student |
 | `faculty` | عضو هيئة تدريس | Faculty member |
 | `student_affairs` | شئون الطلاب | Student Affairs |
-| `admin` | إدارة الكلية | Administration |
+| `admin` | إدارة الكلية | College administration |
 
 ## 2. Permissions — `apps/web/src/server/auth/permissions.ts`
 
