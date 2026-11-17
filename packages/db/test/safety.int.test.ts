@@ -1,7 +1,12 @@
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getAdminDbEnv } from '../src/env';
-import { assertSafeRuntimeRole, checkRoleSafety, ping } from '../src/safety';
+import {
+  assertSafeRuntimeRole,
+  checkRoleSafety,
+  ping,
+  UnsafeRuntimeRoleError,
+} from '../src/safety';
 import { closeTestPools, ownerQuery } from './helpers';
 
 // contracts/db-api.md §4: assertSafeRuntimeRole passes for the runtime role and throws for the owner; ping
@@ -65,6 +70,8 @@ describe('assertSafeRuntimeRole', () => {
 
   it('throws when connected as the owner', async () => {
     await expect(checkAs()).rejects.toThrow('Unsafe database role');
+    // The web app's start-up check recognises this class and prints its message (instrumentation.ts).
+    await expect(checkAs()).rejects.toBeInstanceOf(UnsafeRuntimeRoleError);
   });
 
   it('throws for a role with BYPASSRLS', async () => {

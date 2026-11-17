@@ -7,9 +7,9 @@ import { getPool } from './client';
  */
 
 export interface RateLimitOptions {
-  /** Hits allowed per window (positive integer). */
+  /** Hits allowed per window (integer 1–MAX_LIMIT). A key must always be hit with the same limit. */
   limit: number;
-  /** Window length in seconds (positive integer). */
+  /** Window length in seconds (integer 1–MAX_WINDOW_SECONDS). */
   windowSeconds: number;
 }
 
@@ -20,11 +20,16 @@ export interface RateLimitResult {
 }
 
 export const MAX_KEY_LENGTH = 200;
+/** Far above any policy; keeps limit + 1 and the window arithmetic well inside PostgreSQL's int range. */
+export const MAX_LIMIT = 1_000_000;
+/** One day: the purge removes counters older than that, so a longer window would be reset early. */
+export const MAX_WINDOW_SECONDS = 86_400;
 const DEFAULT_PURGE_AGE_SECONDS = 86_400;
 const PURGE_PROBABILITY = 0.01;
 
 // The stored count is capped at limit + 1: enough to know the limit is exceeded, and it can never overflow
-// however long a flood lasts. now() is the statement's start time, used consistently for the reset decision
+// however long a flood lasts. The cap uses the limit of the current call, so a key must always be used with
+// the same limit (one policy per key prefix). now() is the statement's start time, used consistently for the reset decision
 // and for retryAfterSeconds.
 const HIT_SQL = `
   INSERT INTO rate_limit_counters AS r (key, window_start, count)
@@ -38,9 +43,9 @@ const HIT_SQL = `
             greatest(1, ceil(extract(epoch FROM r.window_start + $2::int * interval '1 second' - now())))::int
               AS seconds_left`;
 
-function assertPositiveInteger(value: number, name: string): void {
-  if (!Number.isSafeInteger(value) || value < 1) {
-    throw new Error(`hitRateLimit: ${name} must be a positive integer`);
+function assertIntegerInRange(value: number, max: number, name: string): void {
+  if (!Number.isSafeInteger(value) || value < 1 || value > max) {
+    throw new Error(`hitRateLimit: ${name} must be an integer from 1 to ${max}`);
   }
 }
 
@@ -51,8 +56,8 @@ export async function hitRateLimit(key: string, opts: RateLimitOptions): Promise
   if (length === 0 || length > MAX_KEY_LENGTH) {
     throw new Error(`hitRateLimit: key must be 1–${MAX_KEY_LENGTH} characters`);
   }
-  assertPositiveInteger(opts.limit, 'limit');
-  assertPositiveInteger(opts.windowSeconds, 'windowSeconds');
+  assertIntegerInRange(opts.limit, MAX_LIMIT, 'limit');
+  assertIntegerInRange(opts.windowSeconds, MAX_WINDOW_SECONDS, 'windowSeconds');
 
   const { rows } = await getPool().query<{ count: number; seconds_left: number }>(HIT_SQL, [
     key,

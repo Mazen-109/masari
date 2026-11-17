@@ -19,6 +19,14 @@ interface RoleSafetyRow {
 
 type Query = (text: string) => Promise<{ rows: RoleSafetyRow[] }>;
 
+/** The runtime role could bypass row-level security. The message names role attributes, never a URL. */
+export class UnsafeRuntimeRoleError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnsafeRuntimeRoleError';
+  }
+}
+
 // A table owner is not subject to non-forced RLS (the `tenants` registry), so owning a public table — or
 // being a member of a role that owns one — is as unsafe as BYPASSRLS. 'MEMBER' (not 'USAGE') also catches a
 // membership granted WITH INHERIT FALSE: such a member can still SET ROLE to the owner and act as it.
@@ -34,7 +42,11 @@ const ROLE_SAFETY_SQL = `
 export async function checkRoleSafety(query: Query): Promise<void> {
   const { rows } = await query(ROLE_SAFETY_SQL);
   const row = rows[0];
-  if (!row) throw new Error('Unsafe database role: the current role was not found in pg_roles');
+  if (!row) {
+    throw new UnsafeRuntimeRoleError(
+      'Unsafe database role: the current role was not found in pg_roles',
+    );
+  }
   const problems = [
     row.superuser && 'SUPERUSER',
     row.bypassrls && 'BYPASSRLS',
@@ -42,7 +54,7 @@ export async function checkRoleSafety(query: Query): Promise<void> {
     row.owns_tables && 'owns tables',
   ].filter((problem): problem is string => typeof problem === 'string');
   if (problems.length > 0) {
-    throw new Error(
+    throw new UnsafeRuntimeRoleError(
       `Unsafe database role for the application (${problems.join(', ')}); DATABASE_URL must name the runtime role`,
     );
   }

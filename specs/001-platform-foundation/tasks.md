@@ -183,10 +183,10 @@ permissions. **No user-story batch may start before PR-14 is merged.**
 
 ### PR-9 — Runtime plumbing: env, logging, health, start-up checks · branch `001-pr09-runtime`
 
-- [ ] T039 Create `apps/web/src/server/env.ts` (`getEnv()`: lazy, memoised, every rule of contracts/http-and-env.md §3 including the production rules; error lists variable names only) with `apps/web/src/server/env.test.ts`
-- [ ] T040 [P] Create `apps/web/src/server/log.ts` (contracts/http-and-env.md §4) with `apps/web/src/server/log.test.ts`
-- [ ] T041 Create `apps/web/src/app/api/health/route.ts` (contracts/http-and-env.md §1.1) and `apps/web/src/instrumentation.ts` (`register()`: only when `NEXT_RUNTIME === 'nodejs'` and not during `next build` — guard of contracts/http-and-env.md §3 — `getEnv()` then `assertSafeRuntimeRole()`; on failure log one `startup.failed` line and exit non-zero; state in the PR whether the pinned Next.js calls `register()` in build workers) (FR-045)
-- [ ] T042 Turn on the coverage thresholds for `@masari/web` in `apps/web/vitest.config.ts` (include/exclude lists of contracts/ci.md §4); add scripts `dev`/`start` wrappers that load the root `.env` via `dotenv-cli` in `apps/web/package.json`
+- [x] T039 Create `apps/web/src/server/env.ts` (`getEnv()`: lazy, memoised, every rule of contracts/http-and-env.md §3 including the production rules; error lists variable names only) with `apps/web/src/server/env.test.ts`
+- [x] T040 [P] Create `apps/web/src/server/log.ts` (contracts/http-and-env.md §4) with `apps/web/src/server/log.test.ts`
+- [x] T041 Create `apps/web/src/app/api/health/route.ts` (contracts/http-and-env.md §1.1) and `apps/web/src/instrumentation.ts` (`register()`: only when `NEXT_RUNTIME === 'nodejs'` and not during `next build` — guard of contracts/http-and-env.md §3 — `getEnv()` then `assertSafeRuntimeRole()`; on failure log one `startup.failed` line and exit non-zero; state in the PR whether the pinned Next.js calls `register()` in build workers) (FR-045)
+- [x] T042 Turn on the coverage thresholds for `@masari/web` in `apps/web/vitest.config.ts` (include/exclude lists of contracts/ci.md §4); add scripts `dev`/`start` wrappers that load the root `.env` via `dotenv-cli` in `apps/web/package.json`
 
 **Accept**: `pnpm build` succeeds with an empty environment · `pnpm dev` with a valid `.env` starts; with `BETTER_AUTH_SECRET` shorter than 32 chars it exits naming `BETTER_AUTH_SECRET` and not its value · with `DATABASE_URL` set to the owner URL it exits with the RLS-bypass message · `GET /api/health` → 200 `{"status":"ok"}` with `Cache-Control: no-store`; with PostgreSQL stopped → 503 `{"status":"unavailable"}` · `APP_ENV=production` + `EMAIL_TRANSPORT=capture` is rejected, `TRUSTED_PROXY_HOPS` defaults to 0 and `APP_ENV=production` requires it ≥ 1 (unit tests)
 

@@ -354,18 +354,18 @@ here, and from then on versions change only through reviewed PRs (Dependabot or 
 | pnpm | 10 | 10.28.0 (`packageManager`) |
 | typescript | 5 (≥ 5.9) or the major required by the pinned Next.js | 5.9.3 |
 | next / react / react-dom | 16 / 19 / 19 | 16.4.6 / 19.3.1 / 19.3.1 (@types/react, @types/react-dom 19.3.0; @types/node 24.19.2) |
-| tailwindcss | 4 | 4.3.5 (+ @tailwindcss/postcss 4.3.5) |
+| tailwindcss | 4 | 4.3.5 (+ @tailwindcss/postcss 4.3.5, pinned exactly) |
 | next-intl | 4 | 4.15.1 (+ use-intl 4.15.1) |
 | better-auth | 1 | |
 | drizzle-orm / drizzle-kit | latest stable pair | 0.45.4 / 0.31.11 |
-| pg | 8 | 8.23.1 (+ @types/pg 8.23.1) |
-| zod | 4 | 4.6.7 |
+| pg | 8 | 8.23.1 (+ @types/pg 8.23.1; also a `@masari/web` dependency since PR-9 so Next.js can keep it external — never imported by `apps/web/src`) |
+| zod | 4 | 4.6.7 (`@masari/db`; `@masari/web` since PR-9) |
 | nodemailer | latest stable | |
 | vitest / @vitest/coverage-v8 | latest stable (≥ 3) | 4.1.12 / 4.1.12 |
 | @playwright/test / @axe-core/playwright | 1 / 4 | |
 | eslint / typescript-eslint / eslint-config-next | latest supported by eslint-config-next 16 | 9.39.5 (+ @eslint/js 9.39.5) / 8.73.0 / 16.4.6 |
 | prettier / prettier-plugin-tailwindcss | 3 / latest | 3.10.1 / 0.7.4 |
-| tsx / dotenv-cli | latest stable | 4.23.15 / 8.0.0 |
+| tsx / dotenv-cli | latest stable | 4.23.15 / 8.0.0 (also `@masari/web` devDependency since PR-9) |
 | @fontsource/ibm-plex-sans-arabic / lucide-react | latest stable | 5.3.0 / (not installed yet) |
 | clsx / tailwind-merge / class-variance-authority / @radix-ui/react-slot (shadcn/ui, PR-8) | latest stable | 2.1.1 / 3.7.0 / 0.7.1 / 1.5.0 |
 

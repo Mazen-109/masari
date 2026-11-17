@@ -1,6 +1,12 @@
 import { randomBytes } from 'node:crypto';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
-import { hitRateLimit, MAX_KEY_LENGTH, purgeExpiredRateLimits } from '../src/rate-limit';
+import {
+  hitRateLimit,
+  MAX_KEY_LENGTH,
+  MAX_LIMIT,
+  MAX_WINDOW_SECONDS,
+  purgeExpiredRateLimits,
+} from '../src/rate-limit';
 import { closeTestPools, ownerQuery, runtimeQuery } from './helpers';
 
 // contracts/db-api.md §4: counts, refuses over the limit with a positive retryAfterSeconds, resets after the
@@ -134,6 +140,23 @@ describe('hitRateLimit', () => {
       'windowSeconds',
     );
     expect(await existingKeys([key])).toEqual([]);
+  });
+
+  it('rejects a limit above 1,000,000 or a window above one day, accepting both maxima', async () => {
+    expect(MAX_LIMIT).toBe(1_000_000);
+    expect(MAX_WINDOW_SECONDS).toBe(86_400);
+    const key = randomKey();
+    await expect(hitRateLimit(key, { limit: MAX_LIMIT + 1, windowSeconds: 60 })).rejects.toThrow(
+      'limit must be an integer from 1 to 1000000',
+    );
+    await expect(
+      hitRateLimit(key, { limit: 1, windowSeconds: MAX_WINDOW_SECONDS + 1 }),
+    ).rejects.toThrow('windowSeconds must be an integer from 1 to 86400');
+    expect(await existingKeys([key])).toEqual([]);
+
+    expect(
+      await hitRateLimit(key, { limit: MAX_LIMIT, windowSeconds: MAX_WINDOW_SECONDS }),
+    ).toEqual({ allowed: true, retryAfterSeconds: 0 });
   });
 
   it('purges expired counters on a sampled call and not otherwise', async () => {
