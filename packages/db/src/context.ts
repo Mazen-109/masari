@@ -8,7 +8,7 @@ import { getDb, type Database } from './client';
  * they disappear at COMMIT/ROLLBACK and never leak to the next user of the pooled connection.
  */
 
-/** Transaction handle passed to repository functions; obtainable only through withTenant. */
+/** Transaction handle passed to repository functions; obtainable only through withTenant / withInvitationToken. */
 export type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 
 export interface TenantContext {
@@ -36,6 +36,28 @@ export async function withTenant<T>(ctx: TenantContext, fn: (tx: Tx) => Promise<
     await tx.execute(
       sql`SELECT set_config('app.tenant_id', ${tenantId}, true), set_config('app.user_id', ${userId}, true)`,
     );
+    return fn(tx);
+  });
+}
+
+const TOKEN_HASH = /^[0-9a-f]{64}$/;
+
+/**
+ * Opens a transaction with app.invite_token_hash set (transaction-local) and no college in context, runs fn,
+ * commits. Only invitations.findByTokenHash is meaningful inside: the `invitation_token_lookup` policy lets
+ * it read the one invitation with this hash, and every tenant-scoped table is otherwise empty (fail closed).
+ * tokenHash must be a SHA-256 hex digest (hashInvitationToken): anything else throws before a connection is
+ * taken from the pool, so a raw token can never end up in a database setting.
+ */
+export async function withInvitationToken<T>(
+  tokenHash: string,
+  fn: (tx: Tx) => Promise<T>,
+): Promise<T> {
+  if (!TOKEN_HASH.test(tokenHash)) {
+    throw new Error('withInvitationToken: tokenHash must be a SHA-256 hex digest');
+  }
+  return getDb().transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.invite_token_hash', ${tokenHash}, true)`);
     return fn(tx);
   });
 }

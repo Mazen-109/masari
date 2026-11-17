@@ -80,6 +80,14 @@ export const TABLE_CLASSIFICATION: Readonly<Record<string, TableClassification>>
     policies: ['tenant_isolation'],
     privileges: ['SELECT', 'INSERT', 'UPDATE'],
   },
+  // `invitation_token_lookup`: SELECT of the one row whose token hash is in app.invite_token_hash
+  // (withInvitationToken) — the anonymous invitation page and the accept action, before a college is known.
+  invitations: {
+    scope: 'tenant',
+    rls: 'forced',
+    policies: ['tenant_isolation', 'invitation_token_lookup'],
+    privileges: ['SELECT', 'INSERT', 'UPDATE'],
+  },
   audit_events: {
     scope: 'tenant',
     rls: 'forced',

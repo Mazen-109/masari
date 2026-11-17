@@ -363,10 +363,10 @@ permissions. **No user-story batch may start before PR-14 is merged.**
 
 ### PR-25 — Invitations data layer · branch `001-pr25-invitations-data`
 
-- [ ] T101 [US4] Create `packages/db/src/schema/invitations.ts` (data-model.md §3.7: `CHECK (email = lower(email))`, role CHECK (four roles), `token_hash` UNIQUE, status CHECK `('pending','accepted','revoked')` default `'pending'`, `expires_at NOT NULL`, FKs SET NULL, partial unique index `invitations_one_pending_per_email`, index `invitations_tenant_created_idx`), generated migration, custom SQL migration `invitations_security` (RLS enabled + forced, `tenant_isolation`, `invitation_token_lookup` FOR SELECT, grants `SELECT, INSERT, UPDATE`), classification entry
-- [ ] T102 [P] [US4] Create `packages/db/src/tokens.ts` (`generateInvitationToken`, `hashInvitationToken`) with `packages/db/src/tokens.test.ts` (43-char base64url; hash is 64 hex; two tokens differ) and add `withInvitationToken` to `packages/db/src/context.ts`
-- [ ] T103 [US4] Create `packages/db/src/repositories/invitations.ts` (all eight functions of contracts/db-api.md §1.6) and export namespace `invitations` (FR-020, FR-022)
-- [ ] T104 [US4] Create `packages/db/test/invitations.int.test.ts` covering every statement listed for it in contracts/db-api.md §4
+- [x] T101 [US4] Create `packages/db/src/schema/invitations.ts` (data-model.md §3.7: `CHECK (email = lower(email))`, role CHECK (four roles), `token_hash` UNIQUE, status CHECK `('pending','accepted','revoked')` default `'pending'`, `expires_at NOT NULL`, FKs SET NULL, partial unique index `invitations_one_pending_per_email`, index `invitations_tenant_created_idx`), generated migration, custom SQL migration `invitations_security` (RLS enabled + forced, `tenant_isolation`, `invitation_token_lookup` FOR SELECT, grants `SELECT, INSERT, UPDATE`), classification entry
+- [x] T102 [P] [US4] Create `packages/db/src/tokens.ts` (`generateInvitationToken`, `hashInvitationToken`) with `packages/db/src/tokens.test.ts` (43-char base64url; hash is 64 hex; two tokens differ) and add `withInvitationToken` to `packages/db/src/context.ts`
+- [x] T103 [US4] Create `packages/db/src/repositories/invitations.ts` (all eight functions of contracts/db-api.md §1.6) and export namespace `invitations` (FR-020, FR-022)
+- [x] T104 [US4] Create `packages/db/test/invitations.int.test.ts` covering every statement listed for it in contracts/db-api.md §4
 
 **Accept**: two concurrent `claim` calls → exactly one returns the invitation · `findByTokenHash` inside `withInvitationToken(hashA)` cannot see invitation B · no function returns `token_hash` · the plain token is returned only by `create`
 

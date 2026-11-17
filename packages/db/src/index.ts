@@ -9,7 +9,9 @@ export {
 export type {
   AuditEventInput,
   Division,
+  Invitation,
   InvitationStatus,
+  InvitationView,
   Locale,
   ModuleKey,
   Role,
@@ -21,7 +23,8 @@ export type {
   UserSummary,
 } from './constants';
 export { closePool } from './client';
-export { withTenant } from './context';
+export { withInvitationToken, withTenant } from './context';
+export { generateInvitationToken, hashInvitationToken } from './tokens';
 export type { TenantContext, Tx } from './context';
 export { assertSafeRuntimeRole, ping, UnsafeRuntimeRoleError } from './safety';
 export { hitRateLimit, purgeExpiredRateLimits } from './rate-limit';
@@ -37,6 +40,8 @@ export type {
   StudentProfilePatch,
   StudentProfileUpdateResult,
 } from './repositories/student-profiles';
+export * as invitations from './repositories/invitations';
+export type { InvitationCreateResult, InvitationRevokeResult } from './repositories/invitations';
 export * as audit from './repositories/audit';
 export * as users from './repositories/users';
 export * as sessions from './repositories/sessions';
