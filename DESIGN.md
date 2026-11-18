@@ -347,6 +347,20 @@ field puts the control before its label on one 44 px row. The form-level error s
 `success` on `success-soft`, and `warning` on `warning-soft`. The submit button
 (`components/forms/submit-button.tsx`) says it is busy while the form is sent and stays focusable.
 
+### Tables
+
+`components/ui/table.tsx` (shadcn/ui, adapted): a `surface` sheet with a `border` rule line and a
+`rounded-lg` corner; the header row on `muted`; rows separated by `border` rule lines; `text-sm` cells
+with 16 px inline padding, aligned `text-start`, header cells 44 px high. Every table has a `<caption>`
+(visually hidden when a heading already names it) and `<th scope="col">`. A table takes the full width
+of the content column, the same as the forms and cards above it. Its container is a focusable region
+(`role="region"`, `tabIndex={0}`) named by the section heading; where the columns cannot fit (below
+640 px) it scrolls sideways, and a `muted-foreground` hint above it (`sm:hidden`, also the region's
+`aria-describedby`) says so — the page itself never scrolls sideways. Long emails wrap (`wrap-anywhere`)
+rather than pushing other columns out; dates and badges stay on one line. Emails and codes sit in
+`<bdi dir="ltr">`; dates and numbers use `tabular-nums`; a status is a badge with its word (`info`
+pending, `success` accepted/active, `warning` expired, `neutral` revoked).
+
 ## Do's and Don'ts
 
 ### Do:

@@ -317,6 +317,8 @@ test('suspending a college signs its administrator out; reactivating lets them b
     await expect(page).toHaveURL('/ar/dashboard');
     await expect(page.locator('main')).toContainText(collegeB.nameAr);
   } finally {
+    // Never leave a college suspended, also when an assertion above failed.
+    await setCollegeStatus(collegeB.slug, 'active');
     await adminA.context().close();
   }
 });
@@ -325,16 +327,18 @@ test('the invitation link of a suspended college shows the invalid screen', asyn
   const college = await newCollege();
   await page.goto(`/ar${college.invitePath}`);
   await setCollegeStatus(college.slug, 'suspended');
+  try {
+    // The form already on screen is refused too, and nothing is created.
+    await acceptInvitation(page, { invitePath: college.invitePath, open: false });
+    await expect(formError(page)).toHaveAttribute('data-code', 'token_invalid');
+    expect(await getUserByEmail(college.adminEmail)).toBeNull();
 
-  // The form already on screen is refused too, and nothing is created.
-  await acceptInvitation(page, { invitePath: college.invitePath, open: false });
-  await expect(formError(page)).toHaveAttribute('data-code', 'token_invalid');
-  expect(await getUserByEmail(college.adminEmail)).toBeNull();
-
-  await page.goto(`/ar${college.invitePath}`);
-  await expectInvalidInvitationScreen(page);
-
-  await setCollegeStatus(college.slug, 'active');
+    await page.goto(`/ar${college.invitePath}`);
+    await expectInvalidInvitationScreen(page);
+  } finally {
+    // Never leave a college suspended, also when an assertion above failed.
+    await setCollegeStatus(college.slug, 'active');
+  }
   await page.goto(`/ar${college.invitePath}`);
   await expect(page.locator('main form')).toHaveCount(1);
 });

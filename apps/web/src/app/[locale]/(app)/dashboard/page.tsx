@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { connection } from 'next/server';
 import { hasLocale } from 'next-intl';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
+import { AdminShortcuts } from '@/features/dashboard/components/admin-shortcuts';
 import { ModuleCard } from '@/features/dashboard/components/module-card';
 import { StudentSummary } from '@/features/dashboard/components/student-summary';
 import { levelLabelKey } from '@/features/profile/level-label';
@@ -23,7 +24,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 /**
  * Home screen of signed-in users (contracts/routes.md §4): a greeting with the user's name, their
  * college, a student's academic profile (code, level, division), and a card per module the user may use
- * in this college (FR-035). Admin shortcut cards come with each admin screen.
+ * in this college (FR-035), then a shortcut card per admin screen the role may open (each admin screen's
+ * batch adds its entry to ADMIN_NAV_ENTRIES).
  */
 export default async function DashboardPage({ params }: Props) {
   const { locale } = await params;
@@ -88,6 +90,7 @@ export default async function DashboardPage({ params }: Props) {
           ))}
         </ul>
       )}
+      <AdminShortcuts role={ctx.user.role} />
     </div>
   );
 }

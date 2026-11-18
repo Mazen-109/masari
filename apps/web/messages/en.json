@@ -261,6 +261,13 @@
       "level": "Level",
       "division": "Division",
       "divisionUnavailable": "Not available at the moment"
+    },
+    "adminShortcuts": {
+      "label": "Administration shortcuts",
+      "users": "Find your college’s people, change their roles, or suspend accounts.",
+      "invitations": "Invite faculty and staff, and follow your invitations.",
+      "divisions": "Add your college’s divisions and edit them.",
+      "settings": "College name, allowed email domains, and enabled modules."
     }
   },
   "modules": {
@@ -290,6 +297,33 @@
     },
     "comingSoonBody": "This module is not available yet. It will appear here when it is ready."
   },
+  "admin": {
+    "invitations": {
+      "title": "Invitations",
+      "lead": "Invite faculty members, Student Affairs staff, and administrators to join your college on Masari. Each invitation link is sent by email and stays valid for 7 days.",
+      "form": {
+        "title": "New invitation",
+        "email": "Email",
+        "emailHint": "The invitation link is sent to this address.",
+        "emailUnavailable": "This email address can’t be invited: it already has an account or a pending invitation.",
+        "role": "Role",
+        "rolePlaceholder": "Choose a role",
+        "submit": "Send invitation",
+        "sent": "Invitation sent. It now shows in the list as “Pending”."
+      },
+      "list": {
+        "title": "Sent invitations",
+        "caption": "Your college’s invitations, newest first",
+        "empty": "No invitations have been sent yet.",
+        "scrollHint": "Swipe the table sideways to see the other columns.",
+        "email": "Email",
+        "role": "Role",
+        "status": "Status",
+        "createdAt": "Sent on",
+        "expiresAt": "Expires on"
+      }
+    }
+  },
   "meta": {
     "titleTemplate": "%s · Masari",
     "home": "Masari",
@@ -304,6 +338,7 @@
     "invite": "Accept invitation",
     "dashboard": "Home",
     "onboarding": "Complete your profile",
-    "profile": "Your profile"
+    "profile": "Your profile",
+    "adminInvitations": "Invitations"
   }
 }

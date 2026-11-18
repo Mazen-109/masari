@@ -119,7 +119,7 @@ export function StudentProfileForm({ levels, divisions, current }: StudentProfil
 
       <Field id="profile-level" label={t('level')} error={fieldErrors?.level}>
         {(control) => (
-          <Select {...control} key={`level-${level}`} name="level" required defaultValue={level}>
+          <Select key={`level-${level}`} {...control} name="level" required defaultValue={level}>
             <option value="">{t('levelPlaceholder')}</option>
             {levels.map((option) => (
               <option key={option.value} value={option.value}>
@@ -133,8 +133,8 @@ export function StudentProfileForm({ levels, divisions, current }: StudentProfil
       <Field id="profile-division" label={t('division')} error={fieldErrors?.divisionId}>
         {(control) => (
           <Select
-            {...control}
             key={`division-${division}`}
+            {...control}
             name="divisionId"
             required
             defaultValue={division}

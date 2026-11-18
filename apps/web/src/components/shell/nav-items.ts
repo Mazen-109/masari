@@ -34,10 +34,18 @@ export type AdminNavEntry = {
 };
 
 /**
- * The administration screens, in display order. Starts empty; each admin screen's batch appends its entry
- * (People — PR-32, Invitations — PR-28, Divisions — PR-36, Settings — PR-35).
+ * The administration screens, in display order (People, Invitations, Divisions, Settings). Each admin
+ * screen's batch adds its entry in its place (People — PR-32, Divisions — PR-36, Settings — PR-35).
+ * Also the source of the dashboard's administration shortcuts.
  */
-export const ADMIN_NAV_ENTRIES: readonly AdminNavEntry[] = [];
+export const ADMIN_NAV_ENTRIES: readonly AdminNavEntry[] = [
+  {
+    key: 'invitations',
+    href: '/admin/invitations',
+    icon: 'MailPlus',
+    permission: 'admin.invitations.manage',
+  },
+];
 
 export type NavContext = {
   user: { role: Role };

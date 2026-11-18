@@ -8,6 +8,7 @@ import {
   registerConfirmedStudent,
   registerStudent,
   signIn,
+  signInAsDemoAdmin,
   uniqueEmail,
 } from './support/flows';
 import { createCollege, uniqueCollegeSlug } from './support/operator';
@@ -34,17 +35,22 @@ export const PUBLIC_SCREENS: readonly string[] = [
 ];
 
 export const SIGNED_IN_SCREENS: readonly { path: string; roles: readonly string[] }[] = [
-  { path: '/dashboard', roles: ['student'] },
+  { path: '/dashboard', roles: ['student', 'admin'] },
   { path: '/modules/mueed', roles: ['student'] },
   { path: '/onboarding', roles: ['new_student'] },
   { path: '/profile', roles: ['student'] },
+  { path: '/admin/invitations', roles: ['admin'] },
 ];
 
 /**
- * Signs the page in as a new user of `role`. Only students can be created through the screens so far;
- * the staff roles come with invitations (PR-27), which extend this helper.
+ * Signs the page in as a user of `role`: a new student, or the demo college's administrator (whose
+ * college already has invitations to list). Faculty and Student Affairs follow with the role matrix (PR-30).
  */
 async function signInAs(page: Page, role: string): Promise<void> {
+  if (role === 'admin') {
+    await signInAsDemoAdmin(page);
+    return;
+  }
   if (role === 'new_student') {
     const email = await registerConfirmedStudent(page);
     await signIn(page, { email });
@@ -168,6 +174,21 @@ for (const locale of LOCALES) {
     await completeProfile(page, { locale, studentCode: 'x y' });
     const code = page.getByLabel(CATALOGS[locale].onboarding.studentCode, { exact: true });
     await expect(code).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.locator('main [data-slot="form-error"]')).toHaveAttribute(
+      'data-code',
+      'validation',
+    );
+    await expectNoA11yViolations(page);
+  });
+
+  test(`no serious or critical violations on the invite form with field errors (${locale})`, async ({
+    page,
+  }) => {
+    const t = CATALOGS[locale].admin.invitations.form;
+    await signInAs(page, 'admin');
+    await page.goto(localized(locale, '/admin/invitations'));
+    await page.getByRole('button', { name: t.submit }).click();
+    await expect(page.getByLabel(t.email, { exact: true })).toHaveAttribute('aria-invalid', 'true');
     await expect(page.locator('main [data-slot="form-error"]')).toHaveAttribute(
       'data-code',
       'validation',

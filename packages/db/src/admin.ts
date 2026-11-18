@@ -24,7 +24,7 @@ export {
   TENANT_CREATE_USAGE,
   TENANT_SET_STATUS_USAGE,
 } from './admin/tenant-args';
-export { DEMO_ADMIN_EMAIL, DEMO_SLUG, seedDemo } from './admin/seed';
+export { DEMO_ADMIN_EMAIL, DEMO_COLLEGE, DEMO_SLUG, seedDemo } from './admin/seed';
 export type { SeedResult } from './admin/seed';
 export {
   addDivision,

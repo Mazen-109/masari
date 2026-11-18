@@ -1,7 +1,12 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { expect, type Page } from '@playwright/test';
+import { open, readFile, rm, stat, writeFile, type FileHandle } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { DEMO_ADMIN_EMAIL } from '@masari/db/admin';
+import { expect, type BrowserContext, type Page } from '@playwright/test';
 import ar from '../../messages/ar.json' with { type: 'json' };
 import en from '../../messages/en.json' with { type: 'json' };
+import { E2E_DEMO_ADMIN_DIR } from './constants';
 import { firstLink, waitForEmail } from './emails';
 
 // User journeys shared by the e2e specs. Every helper drives the real screens (or opens the links of the
@@ -262,5 +267,131 @@ export async function registerOnboardedStudent(
   await completeProfile(page, { locale, ...profile });
   await page.waitForURL(`/${locale}/dashboard`);
   await signOut(page, locale);
+  return email;
+}
+
+export type InvitableRole = keyof typeof ar.common.roles;
+
+/** Subject (English part) of the invitation email (contracts/emails.md §3). */
+export const INVITATION_SUBJECT = 'Invitation to join';
+
+const WEB_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const DEMO_ADMIN_DIR = path.resolve(WEB_ROOT, E2E_DEMO_ADMIN_DIR);
+const DEMO_ADMIN_FILES = {
+  token: path.join(DEMO_ADMIN_DIR, 'token'),
+  lock: path.join(DEMO_ADMIN_DIR, 'lock'),
+  accepted: path.join(DEMO_ADMIN_DIR, 'accepted'),
+  state: path.join(DEMO_ADMIN_DIR, 'state.json'),
+};
+const DEMO_ADMIN_WAIT_MS = 20_000;
+
+async function exists(file: string): Promise<boolean> {
+  try {
+    await stat(file);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The demo administrator's account exists: the first caller (across all workers: the lock file is created
+ * exclusively) accepts the seed's invitation through the invitation screen and leaves the `accepted`
+ * marker; the others wait for it. A failed acceptance removes the lock, so a retry can try again.
+ */
+async function ensureDemoAdmin(page: Page): Promise<void> {
+  if (await exists(DEMO_ADMIN_FILES.accepted)) return;
+  let lock: FileHandle;
+  try {
+    lock = await open(DEMO_ADMIN_FILES.lock, 'wx');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    await expect
+      .poll(() => exists(DEMO_ADMIN_FILES.accepted), { timeout: DEMO_ADMIN_WAIT_MS })
+      .toBe(true);
+    return;
+  }
+  try {
+    const token = (await readFile(DEMO_ADMIN_FILES.token, 'utf8')).trim();
+    await acceptInvitation(page, { invitePath: `/invite/${token}`, name: 'Demo Administrator' });
+    await page.waitForURL('/ar/sign-in?invited=1');
+    await writeFile(DEMO_ADMIN_FILES.accepted, '');
+  } catch (error) {
+    await rm(DEMO_ADMIN_FILES.lock, { force: true });
+    throw error;
+  } finally {
+    await lock.close();
+  }
+}
+
+/** Puts the saved demo administrator session into the context; true when it still opens the dashboard. */
+async function reuseDemoAdminSession(page: Page, context: BrowserContext): Promise<boolean> {
+  if (!(await exists(DEMO_ADMIN_FILES.state))) return false;
+  const saved = JSON.parse(await readFile(DEMO_ADMIN_FILES.state, 'utf8')) as {
+    cookies: Parameters<BrowserContext['addCookies']>[0];
+  };
+  await context.addCookies(saved.cookies);
+  await page.goto('/ar/dashboard');
+  return /\/(ar|en)\/dashboard$/.test(new URL(page.url()).pathname);
+}
+
+/**
+ * Signs the page in as the demo college's administrator (DEMO_ADMIN_EMAIL, created from the seed's
+ * invitation on first use) and leaves it on the dashboard. One sign-in is shared by the whole run — its
+ * cookies are saved and reused — so the per-email sign-in limit is never reached; when the saved session
+ * no longer works (e.g. a test signed it out), it signs in afresh. Tests that use it must not sign the
+ * administrator out; to switch users, clear the context's cookies instead.
+ */
+export async function signInAsDemoAdmin(page: Page): Promise<void> {
+  await ensureDemoAdmin(page);
+  const context = page.context();
+  if (await reuseDemoAdminSession(page, context)) return;
+  await context.clearCookies();
+  await signIn(page, { email: DEMO_ADMIN_EMAIL });
+  await page.waitForURL(/\/(ar|en)\/dashboard$/);
+  await writeFile(DEMO_ADMIN_FILES.state, JSON.stringify(await context.storageState()));
+}
+
+export type InviteInput = { email: string; role: InvitableRole; locale?: TestLocale };
+
+/**
+ * Fills and submits the invite form of the invitations screen already on screen (`/{locale}/admin/
+ * invitations`) and waits for the action's answer. Callers assert the "sent" status or the errors.
+ */
+export async function inviteStaff(page: Page, input: InviteInput): Promise<void> {
+  const locale = input.locale ?? 'ar';
+  const t = CATALOGS[locale];
+  const form = page.locator('main form');
+  await form.getByLabel(t.admin.invitations.form.email, { exact: true }).fill(input.email);
+  await form
+    .getByLabel(t.admin.invitations.form.role, { exact: true })
+    .selectOption({ label: t.common.roles[input.role] });
+  const screenPath = `/${locale}/admin/invitations`;
+  await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' && new URL(response.url()).pathname === screenPath,
+    ),
+    form.getByRole('button', { name: t.admin.invitations.form.submit }).click(),
+  ]);
+}
+
+/**
+ * The demo administrator invites a new address with `role` through the invitations screen; the invitee
+ * then opens the emailed link (with the administrator's cookies cleared, not signed out) and accepts.
+ * Returns the address; the browser is left signed out on `/ar/sign-in?invited=1`.
+ */
+export async function inviteAndAccept(page: Page, role: InvitableRole): Promise<string> {
+  const email = uniqueEmail(role.replace('_', '-'));
+  const since = new Date();
+  await signInAsDemoAdmin(page);
+  await page.goto('/ar/admin/invitations');
+  await inviteStaff(page, { email, role });
+  await expect(page.locator('main [data-slot="invite-sent"]')).toBeVisible();
+  const message = await waitForEmail({ to: email, subjectIncludes: INVITATION_SUBJECT, since });
+  await page.context().clearCookies();
+  await page.goto(firstLink(message));
+  await acceptInvitation(page, { invitePath: '', open: false });
+  await page.waitForURL('/ar/sign-in?invited=1');
   return email;
 }
