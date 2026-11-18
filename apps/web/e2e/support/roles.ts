@@ -1,10 +1,21 @@
 import { randomUUID } from 'node:crypto';
-import { open, readFile, rename, rm, writeFile, type FileHandle } from 'node:fs/promises';
+import {
+  link,
+  mkdir,
+  open,
+  readFile,
+  rename,
+  rm,
+  stat,
+  writeFile,
+  type FileHandle,
+} from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, type BrowserContext, type Page } from '@playwright/test';
 import { E2E_ROLES_DIR } from './constants';
 import { firstLink, waitForEmail } from './emails';
+import type { StorageState } from './forge';
 import {
   acceptInvitation,
   completeProfile,
@@ -43,8 +54,6 @@ export type RoleCollege = {
   /** An invitation the administrator sent and nobody accepted: a row with a revoke form. */
   pendingInvitationEmail: string;
 };
-
-export type StorageState = Awaited<ReturnType<BrowserContext['storageState']>>;
 
 const WEB_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const ROLES_DIR = path.resolve(WEB_ROOT, E2E_ROLES_DIR);
@@ -172,14 +181,40 @@ async function buildRoleCollege(page: Page): Promise<RoleCollege> {
 }
 
 /**
+ * Removes a lock file older than BUILD_WAIT_MS (by modification time): its builder was killed without
+ * removing it (e.g. an interrupted run that reused the directory), and it would block every later attempt.
+ * The lock is first moved aside under a unique name (rename is atomic, so one worker claims it) and checked
+ * again there: when another worker replaced it with a fresh lock in between, that lock is put back.
+ */
+async function removeStaleLock(): Promise<void> {
+  const isStale = async (file: string) => Date.now() - (await stat(file)).mtimeMs > BUILD_WAIT_MS;
+  try {
+    if (!(await isStale(LOCK_FILE))) return;
+    const claimed = `${LOCK_FILE}.${process.pid}.${randomUUID()}.stale`;
+    await rename(LOCK_FILE, claimed);
+    if (!(await isStale(claimed))) {
+      // A fresh lock: restore it unless yet another lock exists by now (link fails then).
+      await link(claimed, LOCK_FILE).catch(() => undefined);
+    }
+    await rm(claimed, { force: true });
+  } catch (error) {
+    // ENOENT: no lock, or another worker removed or claimed it first.
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+}
+
+/**
  * The role college, built on first use. A worker that finds the lock taken waits for `accounts.json`; when
- * the builder fails it removes the lock, and the next worker to look builds a new college.
+ * the builder fails it removes the lock, and the next worker to look builds a new college. A lock left by a
+ * killed run is removed once it is older than the wait.
  */
 export async function ensureRoleCollege(page: Page): Promise<RoleCollege> {
   const deadline = Date.now() + BUILD_WAIT_MS;
+  await mkdir(ROLES_DIR, { recursive: true });
   for (;;) {
     const saved = await readAccounts();
     if (saved !== null) return saved;
+    await removeStaleLock();
     let lock: FileHandle | null = null;
     try {
       lock = await open(LOCK_FILE, 'wx');

@@ -44,4 +44,5 @@ export * as invitations from './repositories/invitations';
 export type { InvitationCreateResult, InvitationRevokeResult } from './repositories/invitations';
 export * as audit from './repositories/audit';
 export * as users from './repositories/users';
+export type { UserListPage, UserListRow, UsersFilter } from './repositories/users';
 export * as sessions from './repositories/sessions';

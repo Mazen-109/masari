@@ -41,7 +41,8 @@ export async function setFormField(form: Locator, name: string, value: string): 
   );
 }
 
-type StorageState = Awaited<ReturnType<BrowserContext['storageState']>>;
+/** Cookies and origins of a browser context (`context.storageState()`); shared by the e2e support files. */
+export type StorageState = Awaited<ReturnType<BrowserContext['storageState']>>;
 
 /**
  * Submits a form already on screen with another user's session: replaces the context's cookies with those
