@@ -140,7 +140,7 @@ specs/001-platform-foundation/
 │   │        health,auth-endpoints,email-confirmation,college-onboarding,invitations,rbac,admin-users,
 │   │        admin-settings,admin-divisions,security-headers}.spec.ts
 │   └── src/
-│       ├── proxy.ts                 # locale routing + page CSP nonce only
+│       ├── proxy.ts                 # locale routing only
 │       ├── instrumentation.ts       # env validation + assertSafeRuntimeRole at start-up
 │       ├── app/
 │       │   ├── globals.css  robots.ts  not-found.tsx  guard-coverage.test.ts
@@ -216,7 +216,7 @@ auth, email) and `packages/db` (everything that touches PostgreSQL). Dependency 
 
 ### Request lifecycle (reference for every batch)
 
-1. `proxy.ts` resolves the locale (redirects `/` → `/ar`) and sets the page CSP with a per-request nonce (contracts/http-and-env.md §2); nothing else.
+1. `proxy.ts` resolves the locale (redirects `/` → `/ar`); nothing else.
 2. A page calls `requireSession(returnTo)` or `requirePermission(permission, returnTo)`; these call the
    cached `getSessionContext()` (auth library session → fresh user + college rows → status checks).
 3. The page reads data with `withTenant({ tenantId, userId }, tx => repository(tx, …))` and renders.
