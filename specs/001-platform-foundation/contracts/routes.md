@@ -72,7 +72,9 @@ The current entry has `aria-current="page"`.
 | `/admin/settings` | `admin/settings/page.tsx` | `requirePermission('admin.settings.manage', …)` | College names, allowed domains, levels, enabled modules | PR-35 |
 
 Query parameters of `/admin/users`: `q` (≤ 100 chars, trimmed), `role` (one of the four roles), `status`
-(`active` \| `suspended`), `page` (integer ≥ 1, default 1). Invalid values are ignored (treated as absent).
+(`active` \| `suspended`), `page` (integer 1–10,000, default 1). Invalid values are ignored (treated as absent;
+an invalid page is page 1). A page past the last one redirects to the last page, keeping the filters. Page
+size 20.
 
 ## 5. Special files
 

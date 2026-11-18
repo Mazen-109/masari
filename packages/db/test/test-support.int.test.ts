@@ -11,6 +11,7 @@ import {
   getUserByEmail,
   listInvitations,
   resetRateLimits,
+  setUserStatusByEmail,
 } from '../src/admin/test-support';
 import { withTenant } from '../src/context';
 import { getAdminDbEnv } from '../src/env';
@@ -446,6 +447,34 @@ describe('expireInvitation', () => {
   it('refuses a database that is not a throw-away test database, before connecting', async () => {
     const unreachable = 'postgres://owner:owner-pw@127.0.0.1:1/masari';
     await expect(expireInvitation(unreachable, 'a@example.test')).rejects.toThrow(
+      'outside a test database',
+    );
+  });
+});
+
+describe('setUserStatusByEmail', () => {
+  it('suspends and reactivates the account with this email only', async () => {
+    const tenant = await makeTenant();
+    const user = await makeUser(tenant.id);
+    const neighbour = await makeUser(tenant.id);
+
+    await setUserStatusByEmail(migrationUrl(), ` ${user.email.toUpperCase()} `, 'suspended');
+    expect((await getUserByEmail(migrationUrl(), user.email))?.status).toBe('suspended');
+    expect((await getUserByEmail(migrationUrl(), neighbour.email))?.status).toBe('active');
+
+    await setUserStatusByEmail(migrationUrl(), user.email, 'active');
+    expect((await getUserByEmail(migrationUrl(), user.email))?.status).toBe('active');
+  });
+
+  it('throws for an unknown email', async () => {
+    await expect(
+      setUserStatusByEmail(migrationUrl(), `${randomSlug('none')}@example.test`, 'suspended'),
+    ).rejects.toThrow('unknown account');
+  });
+
+  it('refuses a database that is not a throw-away test database, before connecting', async () => {
+    const unreachable = 'postgres://owner:owner-pw@127.0.0.1:1/masari';
+    await expect(setUserStatusByEmail(unreachable, 'a@example.test', 'suspended')).rejects.toThrow(
       'outside a test database',
     );
   });

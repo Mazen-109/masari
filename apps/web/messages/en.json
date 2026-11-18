@@ -298,6 +298,42 @@
     "comingSoonBody": "This module is not available yet. It will appear here when it is ready."
   },
   "admin": {
+    "users": {
+      "title": "People",
+      "lead": "Everyone in your college with a Masari account: students, faculty members, Student Affairs staff, and administrators. Search by name, email, or student code, or filter by role and status.",
+      "filters": {
+        "label": "Search people",
+        "search": "Name, email, or student code",
+        "role": "Role",
+        "anyRole": "All roles",
+        "status": "Status",
+        "anyStatus": "All statuses",
+        "submit": "Search",
+        "clear": "Clear filters"
+      },
+      "list": {
+        "title": "Accounts",
+        "caption": "Your college’s accounts, newest first",
+        "count": "Matching accounts: {count}",
+        "empty": "No accounts match your search.",
+        "scrollHint": "The table is wider than the screen: swipe it sideways, or focus it and use the arrow keys, to see the other columns.",
+        "name": "Name",
+        "email": "Email",
+        "role": "Role",
+        "status": "Status",
+        "studentCode": "Student code",
+        "level": "Level",
+        "division": "Division",
+        "joinedAt": "Joined on",
+        "none": "None"
+      },
+      "pagination": {
+        "label": "Pages of the accounts list",
+        "previous": "Previous page",
+        "next": "Next page",
+        "status": "Page {page} of {pages}"
+      }
+    },
     "invitations": {
       "title": "Invitations",
       "lead": "Invite students, faculty members, Student Affairs staff, and administrators to join your college on Masari. Each invitation link is sent by email and stays valid for 7 days.",
@@ -342,6 +378,7 @@
     "dashboard": "Home",
     "onboarding": "Complete your profile",
     "profile": "Your profile",
+    "adminUsers": "People",
     "adminInvitations": "Invitations"
   }
 }

@@ -410,6 +410,10 @@ describe('users.listInTenant', () => {
       },
     ]);
     expect(await listIds(otherCollege)).toEqual([stranger.id]);
+    // Both colleges have a student with the code CS-001: each search finds its own college's only.
+    expect(await list(college, { q: 'cs-001' })).toMatchObject({ total: 1 });
+    expect(await listIds(college, { q: 'cs-001' })).toEqual([student.id]);
+    expect(await listIds(otherCollege, { q: 'cs-001' })).toEqual([stranger.id]);
   });
 
   it('orders by created_at descending, then by id', async () => {
@@ -585,13 +589,47 @@ describe('users.listInTenant', () => {
       await expect(list(college, filter)).rejects.toThrow(RangeError);
     }
   });
+
+  it('replaces a database error with a UsersQueryError that never quotes the search term', async () => {
+    const college = await makeTenant();
+    const term = 'secret-term-CS-001';
+    const spy = vi.spyOn(pg.Client.prototype, 'query');
+    let caught: unknown;
+    try {
+      await inCollege(college, async (tx) => {
+        // The next statement (the page) fails like a cancelled query whose message quotes the parameters.
+        spy.mockRejectedValueOnce(
+          Object.assign(new Error(`canceling statement; params: %${term}%`), { code: '57014' }),
+        );
+        await users.listInTenant(tx, college.id, { q: term, page: 1, pageSize: 20 });
+      });
+    } catch (error) {
+      caught = error;
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(caught).toBeInstanceOf(users.UsersQueryError);
+    const error = caught as InstanceType<typeof users.UsersQueryError>;
+    expect(error.code).toBe('57014');
+    expect(error.message).toBe('users.listInTenant failed (57014)');
+    expect(error.cause).toBeUndefined();
+    expect(JSON.stringify(error)).not.toContain(term);
+    expect(String(error.stack)).not.toContain(term);
+  });
 });
 
 describe('users.setRole', () => {
-  it('changes the role of that account only and reports the old and the new role', async () => {
+  it('changes the role of that account only, moves its updated_at, and reports the old and the new role', async () => {
     const tenant = await makeTenant();
     const user = await makeUser(tenant.id, { role: 'faculty' });
     const other = await makeUser(tenant.id, { role: 'faculty' });
+    // An old stamp, so the change visibly moves it.
+    const aged = await ownerQuery(
+      `UPDATE users SET updated_at = now() - interval '1 day' WHERE id = ANY($1)`,
+      [[user.id, other.id]],
+    );
+    expect(aged.rowCount).toBe(2);
     const before = await users.findById(user.id);
     const otherBefore = await users.findById(other.id);
 
@@ -602,6 +640,15 @@ describe('users.setRole', () => {
 
     expect(await users.findById(user.id)).toEqual({ ...before, role: 'student_affairs' });
     expect(await users.findById(other.id)).toEqual(otherBefore);
+    const moved = async (id: string) =>
+      (
+        await ownerQuery<{ moved: boolean }>(
+          `SELECT updated_at > now() - interval '1 minute' AS moved FROM users WHERE id = $1`,
+          [id],
+        )
+      ).rows[0]?.moved;
+    expect(await moved(user.id)).toBe(true);
+    expect(await moved(other.id)).toBe(false);
     expect(await users.setRole(tenant.id, user.id, 'admin')).toEqual({
       from: 'student_affairs',
       to: 'admin',

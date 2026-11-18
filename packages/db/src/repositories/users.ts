@@ -3,6 +3,7 @@ import { getDb } from '../client';
 import type { Locale, Role, UserStatus, UserSummary } from '../constants';
 import { isUuid, type Tx } from '../context';
 import { divisions, studentProfiles, users } from '../schema';
+import { sqlState } from './sql-state';
 
 /**
  * Accounts (contracts/db-api.md §1.6). Global table without RLS: functions use the pool directly and every
@@ -66,7 +67,7 @@ export interface UsersFilter {
   status?: UserStatus;
   /** 1-based page number. */
   page: number;
-  /** Rows per page (1–100). */
+  /** Rows per page (1–MAX_PAGE_SIZE, i.e. 100). */
   pageSize: number;
 }
 
@@ -85,7 +86,24 @@ export interface UserListPage {
   total: number;
 }
 
-const MAX_PAGE_SIZE = 100;
+/** Largest page size listInTenant accepts. */
+export const MAX_PAGE_SIZE = 100;
+
+/**
+ * A failed listInTenant statement, without its parameters: the driver's errors (and Drizzle's, whose message
+ * quotes the parameters) can contain the search term — a name, an email, or a student code — so the original
+ * error is dropped (no message text, no cause) and only its SQLSTATE is kept.
+ */
+export class UsersQueryError extends Error {
+  /** SQLSTATE of the database error, when there was one (e.g. `57014` for a cancelled statement). */
+  readonly code: string | undefined;
+
+  constructor(code: string | undefined) {
+    super(`users.listInTenant failed${code === undefined ? '' : ` (${code})`}`);
+    this.name = 'UsersQueryError';
+    this.code = code;
+  }
+}
 
 /**
  * Escapes the LIKE metacharacters `\`, `%` and `_` so a search term matches literally (backslash is
@@ -104,7 +122,8 @@ function escapeLikePattern(term: string): string {
  * divisions are limited to the college in context by their RLS policies. Exactly two statements are sent,
  * one after the other on the transaction — the page and the total — whatever the number of rows.
  * A page past the end returns no rows and the real total. Throws a RangeError for a page or page size that
- * is not a positive integer (or a page size above 100).
+ * is not a positive integer (or a page size above 100) — the caller validates both first — and a
+ * UsersQueryError for any database error (the original error, which can quote the search term, is dropped).
  */
 export async function listInTenant(
   tx: Tx,
@@ -137,32 +156,47 @@ export async function listInTenant(
   if (filter.status !== undefined) conditions.push(eq(users.status, filter.status));
   const where = and(...conditions);
 
-  const rows = await tx
-    .select({
-      ...summaryColumns,
-      studentCode: studentProfiles.studentCode,
-      level: studentProfiles.level,
-      divisionId: studentProfiles.divisionId,
-      divisionCode: divisions.code,
-      divisionNameAr: divisions.nameAr,
-      divisionNameEn: divisions.nameEn,
-    })
-    .from(users)
-    .leftJoin(studentProfiles, eq(studentProfiles.userId, users.id))
-    .leftJoin(divisions, eq(divisions.id, studentProfiles.divisionId))
-    .where(where)
-    .orderBy(desc(users.createdAt), asc(users.id))
-    .limit(pageSize)
-    .offset((page - 1) * pageSize);
+  // Every join also matches the college, so a row of another college never joins (even if the RLS
+  // policies were dropped): the profile's college is the account's, the division's is the profile's.
+  const profileJoin = and(
+    eq(studentProfiles.userId, users.id),
+    eq(studentProfiles.tenantId, users.tenantId),
+  );
+  const divisionJoin = and(
+    eq(divisions.id, studentProfiles.divisionId),
+    eq(divisions.tenantId, studentProfiles.tenantId),
+  );
 
-  // The join to student_profiles is needed for the student-code search; divisions never changes the count.
-  const totals = await tx
-    .select({ total: count() })
-    .from(users)
-    .leftJoin(studentProfiles, eq(studentProfiles.userId, users.id))
-    .where(where);
+  try {
+    const rows = await tx
+      .select({
+        ...summaryColumns,
+        studentCode: studentProfiles.studentCode,
+        level: studentProfiles.level,
+        divisionId: studentProfiles.divisionId,
+        divisionCode: divisions.code,
+        divisionNameAr: divisions.nameAr,
+        divisionNameEn: divisions.nameEn,
+      })
+      .from(users)
+      .leftJoin(studentProfiles, profileJoin)
+      .leftJoin(divisions, divisionJoin)
+      .where(where)
+      .orderBy(desc(users.createdAt), asc(users.id))
+      .limit(pageSize)
+      .offset((page - 1) * pageSize);
 
-  return { rows, total: totals[0]?.total ?? 0 };
+    // The join to student_profiles is needed for the student-code search; divisions never changes the count.
+    const totals = await tx
+      .select({ total: count() })
+      .from(users)
+      .leftJoin(studentProfiles, profileJoin)
+      .where(where);
+
+    return { rows, total: totals[0]?.total ?? 0 };
+  } catch (error) {
+    throw new UsersQueryError(sqlState(error));
+  }
 }
 
 /**

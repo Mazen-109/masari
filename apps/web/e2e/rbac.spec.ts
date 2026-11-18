@@ -42,10 +42,10 @@ const ACCESS: Record<AppRole, { modules: readonly ModuleKey[]; admin: readonly A
 };
 
 /**
- * Admin screens that exist so far. People (PR-32), Settings (PR-35), and Divisions (PR-36) add their key
- * here; until then their entries are not expected on screen and their paths are only checked as refused.
+ * Admin screens that exist so far. Settings (PR-35) and Divisions (PR-36) add their key here; until then
+ * their entries are not expected on screen and their paths are only checked as refused.
  */
-const BUILT_ADMIN_SCREENS: readonly AdminScreen[] = ['invitations'];
+const BUILT_ADMIN_SCREENS: readonly AdminScreen[] = ['users', 'invitations'];
 
 type Catalog = (typeof CATALOGS)[TestLocale];
 
@@ -61,6 +61,22 @@ type AppPath = {
   /** Headings and texts of the screen that a refused user must never see. */
   restricted: (t: Catalog) => readonly string[];
 };
+
+/** The level-1 heading of an admin screen first, then other texts only that screen shows. */
+function adminScreenTexts(t: Catalog, screen: AdminScreen): readonly [string, ...string[]] {
+  switch (screen) {
+    case 'users':
+      return [t.admin.users.title, t.admin.users.lead, t.admin.users.list.title];
+    case 'invitations':
+      return [
+        t.admin.invitations.title,
+        t.admin.invitations.form.title,
+        t.admin.invitations.list.title,
+      ];
+    default:
+      return [t.nav.admin[screen]];
+  }
+}
 
 /** Every `(app)` path of contracts/routes.md §4. */
 const APP_PATHS: readonly AppPath[] = [
@@ -89,15 +105,8 @@ const APP_PATHS: readonly AppPath[] = [
     path: `/admin/${screen}`,
     permitted: (role) => ACCESS[role].admin.includes(screen),
     built: BUILT_ADMIN_SCREENS.includes(screen),
-    heading: (t) => (screen === 'invitations' ? t.admin.invitations.title : t.nav.admin[screen]),
-    restricted: (t) =>
-      screen === 'invitations'
-        ? [
-            t.admin.invitations.title,
-            t.admin.invitations.form.title,
-            t.admin.invitations.list.title,
-          ]
-        : [t.nav.admin[screen]],
+    heading: (t) => adminScreenTexts(t, screen)[0],
+    restricted: (t) => adminScreenTexts(t, screen),
   })),
 ];
 

@@ -35,10 +35,11 @@ export type AdminNavEntry = {
 
 /**
  * The administration screens, in display order (People, Invitations, Divisions, Settings). Each admin
- * screen's batch adds its entry in its place (People — PR-32, Divisions — PR-36, Settings — PR-35).
+ * screen's batch adds its entry in its place (Divisions — PR-36, Settings — PR-35).
  * Also the source of the dashboard's administration shortcuts.
  */
 export const ADMIN_NAV_ENTRIES: readonly AdminNavEntry[] = [
+  { key: 'users', href: '/admin/users', icon: 'Users', permission: 'admin.users.manage' },
   {
     key: 'invitations',
     href: '/admin/invitations',

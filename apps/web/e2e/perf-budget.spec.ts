@@ -1,25 +1,29 @@
 import { expect, test } from './support/fixtures';
-import { signIn } from './support/flows';
+import { signIn, signInAsDemoAdmin } from './support/flows';
 import { registerStudentWithProfile } from './support/students';
 
 // Script budget (contracts/ci.md §5, FR-043): the compressed bytes of every JavaScript response a fresh
 // visitor downloads, measured through the Chromium DevTools protocol until the network is idle. Public
 // screens ≤ 200 KB, signed-in screens ≤ 300 KB. Every batch that adds a budgeted screen appends it here.
 // Signed-in screens are measured after signing in, on a fresh page with the browser cache disabled.
-const BUDGETS: readonly { path: string; limitKB: number; signedIn?: boolean }[] = [
+// `signedIn` names who is signed in: a new student, or the demo college's administrator.
+const BUDGETS: readonly { path: string; limitKB: number; signedIn?: 'student' | 'admin' }[] = [
   { path: '/ar/sign-in', limitKB: 200 },
-  { path: '/ar/dashboard', limitKB: 300, signedIn: true },
+  { path: '/ar/dashboard', limitKB: 300, signedIn: 'student' },
+  { path: '/ar/admin/users', limitKB: 300, signedIn: 'admin' },
 ];
 
 for (const { path, limitKB, signedIn } of BUDGETS) {
   test(`scripts on ${path} stay within ${limitKB} KB`, async ({ page: setupPage }, testInfo) => {
     let page = setupPage;
-    if (signedIn === true) {
+    if (signedIn === 'student') {
       const email = await registerStudentWithProfile(setupPage);
       await signIn(setupPage, { email });
       await setupPage.waitForURL('/ar/dashboard');
-      page = await setupPage.context().newPage();
+    } else if (signedIn === 'admin') {
+      await signInAsDemoAdmin(setupPage);
     }
+    if (signedIn !== undefined) page = await setupPage.context().newPage();
     const cdp = await page.context().newCDPSession(page);
     const scriptRequests = new Set<string>();
     let bytes = 0;

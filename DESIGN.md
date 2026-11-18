@@ -359,7 +359,14 @@ of the content column, the same as the forms and cards above it. Its container i
 `aria-describedby`) says so — the page itself never scrolls sideways. Long emails wrap (`wrap-anywhere`)
 rather than pushing other columns out; dates and badges stay on one line. Emails and codes sit in
 `<bdi dir="ltr">`; dates and numbers use `tabular-nums`; a status is a badge with its word (`info`
-pending, `success` accepted/active, `warning` expired, `neutral` revoked).
+pending, `success` accepted/active, `warning` expired, `neutral` revoked, `destructive` suspended). An
+empty cell shows a `muted-foreground` dash with a visually hidden word («لا يوجد», "None").
+
+A long list (`features/admin-users`) puts its filters above the table in a plain GET form
+(`role="search"`, native controls, a primary "Search" button and an `outline` "Clear filters" link), so
+filtering works without JavaScript and lives in the URL; a "matching: n" count sits beside the list
+heading; below the table a `nav` holds `outline` previous/next links (only where they lead somewhere,
+arrows mirrored in Arabic) around a "page x of y" line.
 
 ## Do's and Don'ts
 

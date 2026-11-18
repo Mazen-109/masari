@@ -98,7 +98,13 @@ findInTenant(tenantId: string, userId: string): Promise<UserSummary | null>
 listInTenant(tx: Tx, tenantId: string, filter: { q?: string; role?: Role; status?: UserStatus; page: number; pageSize: number }):
   Promise<{ rows: Array<UserSummary & { studentCode: string | null; level: number | null;
             divisionId: string | null; divisionCode: string | null; divisionNameAr: string | null; divisionNameEn: string | null }>; total: number }>
-  // q matches name, email, or student code (ILIKE, wildcards escaped); ordered by created_at DESC, id
+  // q matches name, email, or student code (ILIKE, wildcards escaped); ordered by created_at DESC, id.
+  // Runs inside withTenant; every join also matches tenant_id (profile = account's college, division =
+  // profile's college). Two statements (page, total); a page past the end → rows [] and the real total.
+  // Throws RangeError when page is not a positive safe integer or pageSize is not an integer 1–100
+  // (MAX_PAGE_SIZE = 100) — callers validate first (the People screen: usersFilterSchema, pageSize 20).
+  // Any database error is rethrown as UsersQueryError { code?: SQLSTATE }: no parameters in the message and
+  // no cause (the search term may be a name, email, or student code); callers log an event name only.
 setRole(tenantId: string, userId: string, role: Role): Promise<{ from: Role; to: Role } | null>   // null = not in tenant
 setStatus(tenantId: string, userId: string, status: UserStatus): Promise<boolean>
 setName(userId: string, name: string): Promise<void>
@@ -240,6 +246,9 @@ export function getStudentProfileByEmail(migrationUrl: string, email: string):
 export function addDivision(migrationUrl: string, tenantId: string,
   input: { code: string; nameAr: string; nameEn: string; sortOrder?: number; isActive?: boolean }): Promise<void>;
 export function expireInvitation(migrationUrl: string, email: string): Promise<void>;   // sets expires_at to the past
+/** e2e fixture until the suspend action exists (PR-33): sets the account's status; sessions untouched; no audit
+ *  row. Throws for an unknown email; refuses (before connecting) a database that is not masari_(test|e2e)…. */
+export function setUserStatusByEmail(migrationUrl: string, email: string, status: UserStatus): Promise<void>;
 export interface InvitationDetails { id: string; email: string; role: Role; status: InvitationStatus;  // stored status;
   expiresAt: Date; acceptedAt: Date | null }                                                            // 'expired' is derived, never stored
 export function listInvitations(migrationUrl: string, tenantSlug: string): Promise<InvitationDetails[]>;  // oldest first; [] for an unknown slug (PR-30)
