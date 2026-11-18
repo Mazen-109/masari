@@ -11,6 +11,7 @@ import {
   getTenantSettings,
   getUserByEmail,
   listAuditEvents,
+  listDivisions,
   listInvitations,
   resetRateLimits,
   setUserStatusByEmail,
@@ -423,6 +424,46 @@ describe('addDivision', () => {
         nameEn: 'X',
       }),
     ).rejects.toThrow(/outside a test database/);
+  });
+});
+
+describe('listDivisions', () => {
+  it('lists every division of that college only, inactive too, by sort order then code', async () => {
+    const tenant = await makeTenant();
+    const other = await makeTenant();
+    await addDivision(migrationUrl(), tenant.id, {
+      code: 'SE',
+      nameAr: 'هندسة البرمجيات',
+      nameEn: 'Software Engineering',
+      sortOrder: 2,
+      isActive: false,
+    });
+    await addDivision(migrationUrl(), tenant.id, { code: 'CS', nameAr: 'حاسب', nameEn: 'CS' });
+    await addDivision(migrationUrl(), other.id, { code: 'IS', nameAr: 'نظم', nameEn: 'IS' });
+
+    const listed = await listDivisions(migrationUrl(), tenant.slug);
+    expect(listed).toEqual([
+      {
+        id: expect.any(String) as unknown,
+        code: 'CS',
+        nameAr: 'حاسب',
+        nameEn: 'CS',
+        sortOrder: 0,
+        isActive: true,
+      },
+      {
+        id: expect.any(String) as unknown,
+        code: 'SE',
+        nameAr: 'هندسة البرمجيات',
+        nameEn: 'Software Engineering',
+        sortOrder: 2,
+        isActive: false,
+      },
+    ]);
+  });
+
+  it('returns [] for an unknown college', async () => {
+    await expect(listDivisions(migrationUrl(), randomSlug('none'))).resolves.toEqual([]);
   });
 });
 

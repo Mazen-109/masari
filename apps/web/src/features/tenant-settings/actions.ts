@@ -69,6 +69,10 @@ function parseSettings(
  */
 async function updateSettings(ctx: SessionContext, input: TenantSettings): Promise<ActionResult> {
   return withTenant({ tenantId: ctx.tenant.id, userId: ctx.user.id }, async (tx) => {
+    // The lock serialises concurrent saves. The college's status is not re-checked inside it: the guard
+    // read it at the start of this request, so a suspension committed in the moment between that read
+    // and this lock still lets this one save through (an accepted, tiny window; the next request is
+    // refused).
     const before = await tenants.findCurrentForUpdate(tx);
     if (before === null) return fail('not_found');
 

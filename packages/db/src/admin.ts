@@ -36,12 +36,14 @@ export {
   getTenantSettings,
   getUserByEmail,
   listAuditEvents,
+  listDivisions,
   listInvitations,
   resetRateLimits,
   setUserStatusByEmail,
 } from './admin/test-support';
 export type {
   AuditEventDetails,
+  DivisionDetails,
   DivisionFixture,
   InvitationDetails,
   StudentProfileDetails,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   changedFields,
+  MAX_DOMAIN_LENGTH,
   MAX_DOMAINS,
   normaliseModules,
   parseDomains,
@@ -59,6 +60,20 @@ describe('parseDomains', () => {
     expect(parseDomains(`${label}.edu\nfci-2.cu.edu.eg\n123.example`)).toEqual({
       ok: true,
       domains: [`${label}.edu`, 'fci-2.cu.edu.eg', '123.example'],
+    });
+  });
+
+  it('accepts a domain of 253 characters and refuses one of 254 with invalid_format', () => {
+    // Four labels of 63 characters and three dots: 255 characters; trim to exactly 253 and 254.
+    const label = 'a'.repeat(63);
+    const longest = `${label}.${label}.${label}.${'b'.repeat(61)}`;
+    const tooLong = `${label}.${label}.${label}.${'b'.repeat(62)}`;
+    expect(longest).toHaveLength(MAX_DOMAIN_LENGTH);
+    expect(tooLong).toHaveLength(MAX_DOMAIN_LENGTH + 1);
+    expect(parseDomains(longest)).toEqual({ ok: true, domains: [longest] });
+    expect(parseDomains(`example.edu\n${tooLong}`)).toEqual({
+      ok: false,
+      error: 'invalid_format',
     });
   });
 

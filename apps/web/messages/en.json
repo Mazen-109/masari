@@ -399,6 +399,56 @@
         "revokeTarget": "the invitation for <bdi>{email}</bdi>"
       }
     },
+    "divisions": {
+      "title": "Divisions",
+      "lead": "The divisions students choose from when they complete their academic profile. Divisions are never deleted: deactivate one to stop offering it, and the students who already have it keep it.",
+      "form": {
+        "title": "Add a division",
+        "code": "Division code",
+        "codeHint": "Up to 16 English letters, digits, hyphens (-), or underscores (_), such as CS. Saved in capital letters and can’t be changed later.",
+        "codeTaken": "Your college already has a division with this code.",
+        "nameAr": "Name in Arabic",
+        "nameEn": "Name in English",
+        "sortOrder": "Display order",
+        "sortOrderHint": "A number from 0 to 9999. Smaller numbers come first in lists.",
+        "submit": "Add division",
+        "save": "Save changes",
+        "added": "Division added. Students can choose it now."
+      },
+      "list": {
+        "title": "Your college’s divisions",
+        "caption": "Your college’s divisions in display order, inactive ones too",
+        "empty": "Your college has no divisions yet.",
+        "scrollHint": "The table is wider than the screen: swipe it sideways, or focus it and use the arrow keys, to see the other columns.",
+        "code": "Code",
+        "nameAr": "Name in Arabic",
+        "nameEn": "Name in English",
+        "sortOrder": "Order",
+        "status": "Status",
+        "actions": "Actions",
+        "active": "Active",
+        "inactive": "Inactive"
+      },
+      "actions": {
+        "edit": {
+          "open": "Edit",
+          "target": "the division <ltr>{code}</ltr>",
+          "title": "Edit division",
+          "description": "Change the names and display order of the division <ltr>{code}</ltr>. The code can’t be changed.",
+          "done": "Division saved."
+        },
+        "deactivate": {
+          "submit": "Deactivate",
+          "target": "the division <ltr>{code}</ltr>",
+          "done": "Division deactivated. It is no longer offered to students."
+        },
+        "activate": {
+          "submit": "Reactivate",
+          "target": "the division <ltr>{code}</ltr>",
+          "done": "Division reactivated. Students can choose it again."
+        }
+      }
+    },
     "settings": {
       "title": "College settings",
       "lead": "Your college’s name, who may register as a student, the number of levels, and the modules your college uses. Changes apply to everyone in the college as soon as you save.",
@@ -443,6 +493,7 @@
     "profile": "Your profile",
     "adminUsers": "People",
     "adminInvitations": "Invitations",
+    "adminDivisions": "Divisions",
     "adminSettings": "College settings"
   }
 }

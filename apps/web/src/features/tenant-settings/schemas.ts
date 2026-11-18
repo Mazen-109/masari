@@ -13,7 +13,10 @@ import { normaliseModules, parseDomains } from './rules';
 /** Longest college name (CHECK constraint of data-model.md §3.1). */
 export const MAX_COLLEGE_NAME_LENGTH = 120;
 
-/** Longest accepted domains text: 20 domains of the longest possible length, one per line. */
+/**
+ * Longest accepted domains text: room for 20 domains of the longest possible length (253 characters,
+ * rules.ts `MAX_DOMAIN_LENGTH`), one per line with CRLF line breaks (20 × 255 = 5100), plus spare spacing.
+ */
 export const MAX_DOMAINS_TEXT_LENGTH = 6000;
 
 /** Trimmed, 1–120 characters, no control characters (line breaks, tabs, …) or bidi controls. */
