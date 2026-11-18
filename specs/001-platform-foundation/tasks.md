@@ -434,8 +434,8 @@ permissions. **No user-story batch may start before PR-14 is merged.**
 
 ### PR-31 — People data layer · branch `001-pr31-people-data`
 
-- [ ] T122 [US6] Add `findInTenant`, `listInTenant`, `setRole`, `setStatus` to `packages/db/src/repositories/users.ts` exactly as contracts/db-api.md §1.6 (search over name, email, student code with escaped wildcards; filters; `page`/`pageSize`; order `created_at DESC, id`; join to `student_profiles` and `divisions`) (FR-029–FR-031)
-- [ ] T123 [US6] Extend `packages/db/test/users.int.test.ts` with every statement listed for it in contracts/db-api.md §4 (tenant filter on each function; `%`/`_` literal search; totals with filters; page 2; cross-college `setRole`/`setStatus` return null/false and change nothing)
+- [x] T122 [US6] Add `findInTenant`, `listInTenant`, `setRole`, `setStatus` to `packages/db/src/repositories/users.ts` exactly as contracts/db-api.md §1.6 (search over name, email, student code with escaped wildcards; filters; `page`/`pageSize`; order `created_at DESC, id`; join to `student_profiles` and `divisions`) (FR-029–FR-031)
+- [x] T123 [US6] Extend `packages/db/test/users.int.test.ts` with every statement listed for it in contracts/db-api.md §4 (tenant filter on each function; `%`/`_` literal search; totals with filters; page 2; cross-college `setRole`/`setStatus` return null/false and change nothing)
 
 **Accept**: `listInTenant` issues a bounded number of queries independent of row count (two: rows + count) · a search for `%` returns only users whose data contains a literal `%`
 

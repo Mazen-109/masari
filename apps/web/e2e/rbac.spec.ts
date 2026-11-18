@@ -145,9 +145,13 @@ async function expectNotFound(page: Page, role: AppRole, entry: AppPath, locale:
   expect(response?.status()).toBe(404);
   await expect(page).toHaveURL(`/${locale}${entry.path}`);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(t.common.notFound.title);
+  // The tab title is the 404 title too: it must not name the screen that was refused.
+  const title = await page.title();
+  expect(title).toContain(t.meta.notFound);
   for (const text of entry.restricted(t)) {
     await expect(page.getByRole('heading', { name: text, exact: true })).toHaveCount(0);
     await expect(page.locator('main')).not.toContainText(text);
+    expect(title).not.toContain(text);
   }
   await expect(page.locator('main form')).toHaveCount(0);
 }

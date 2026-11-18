@@ -1,10 +1,19 @@
 import { randomBytes } from 'node:crypto';
-import { afterAll, describe, expect, it } from 'vitest';
-import { users } from '../src';
-import { closeTestPools, makeTenant, makeUser, ownerQuery, pgErrorCode } from './helpers';
+import pg from 'pg';
+import { afterAll, describe, expect, it, vi } from 'vitest';
+import { divisions, studentProfiles, users, withTenant, type Tx, type UsersFilter } from '../src';
+import {
+  closeTestPools,
+  makeTenant,
+  makeUser,
+  ownerQuery,
+  pgErrorCode,
+  type TenantFixture,
+} from './helpers';
 
-// contracts/db-api.md §1.6 `users` (tasks.md T058): lookups by email and id, run as the runtime role.
-// Later batches extend this file with the tenant-scoped functions (findInTenant, listInTenant, …).
+// contracts/db-api.md §1.6 `users` and §4 (tasks.md T058, T123), run as the runtime role. users is a global
+// table without RLS: every college-scoped function is proven to filter by tenant_id itself — a call naming
+// another college's account returns null/false/nothing and changes nothing.
 
 afterAll(closeTestPools);
 
@@ -271,5 +280,381 @@ describe('users.deleteJustCreated', () => {
     const unknownId = `u_${randomBytes(9).toString('hex')}`;
     expect(await users.deleteJustCreated(tenant.id, unknownId)).toBe(false);
     expect(await users.deleteJustCreated(tenant.id, '')).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// College-scoped functions (T123)
+
+const UNKNOWN_TENANT = '00000000-0000-4000-8000-000000000000';
+const BACKSLASH = String.fromCharCode(92);
+
+function unknownUserId(): string {
+  return `u_${randomBytes(9).toString('hex')}`;
+}
+
+function inCollege<T>(college: TenantFixture, fn: (tx: Tx) => Promise<T>): Promise<T> {
+  return withTenant({ tenantId: college.id, userId: null }, fn);
+}
+
+/** A division of the college (for student profiles); returns its id. */
+async function makeDivision(college: TenantFixture, code = 'GEN'): Promise<string> {
+  const result = await inCollege(college, (tx) =>
+    divisions.create(tx, { code, nameAr: 'عام', nameEn: 'General', sortOrder: 0 }),
+  );
+  if (!result.ok) throw new Error('makeDivision: not created');
+  return result.value.id;
+}
+
+async function makeProfile(
+  college: TenantFixture,
+  userId: string,
+  input: { studentCode: string; level: number; divisionId: string },
+): Promise<void> {
+  const result = await inCollege(college, (tx) => studentProfiles.create(tx, { userId, ...input }));
+  if (!result.ok) throw new Error(`makeProfile: ${result.reason}`);
+}
+
+/** Sets created_at to `minutesAgo` minutes before now (list order fixtures). */
+async function setCreatedAt(userId: string, minutesAgo: number): Promise<void> {
+  const result = await ownerQuery(
+    `UPDATE users SET created_at = now() - make_interval(mins => $2) WHERE id = $1`,
+    [userId, minutesAgo],
+  );
+  expect(result.rowCount).toBe(1);
+}
+
+/** listInTenant inside college's context; `tenantId` defaults to the same college. */
+function list(college: TenantFixture, filter: Partial<UsersFilter> = {}, tenantId = college.id) {
+  return inCollege(college, (tx) =>
+    users.listInTenant(tx, tenantId, { page: 1, pageSize: 20, ...filter }),
+  );
+}
+
+/** Ids of the rows of one page. */
+async function listIds(college: TenantFixture, filter: Partial<UsersFilter> = {}) {
+  return (await list(college, filter)).rows.map((row) => row.id);
+}
+
+/** An address with a recognisable local part and no `_` (makeUser's default address contains one). */
+function plainEmail(local: string): string {
+  return `${local}-${randomBytes(4).toString('hex')}@uni.test`;
+}
+
+describe('users.findInTenant', () => {
+  it('returns the summary of an account of that college', async () => {
+    const tenant = await makeTenant();
+    const user = await makeUser(tenant.id, { role: 'student_affairs' });
+
+    const found = await users.findInTenant(tenant.id, user.id);
+
+    expect(found).toEqual(await users.findById(user.id));
+    expect(found).toMatchObject({ id: user.id, tenantId: tenant.id, role: 'student_affairs' });
+    expect(Object.keys(found ?? {}).sort()).toEqual(SUMMARY_KEYS);
+  });
+
+  it("returns null for another college's account, an unknown or empty id, or another college id", async () => {
+    const tenant = await makeTenant();
+    const otherCollege = await makeTenant();
+    const stranger = await makeUser(otherCollege.id);
+    const own = await makeUser(tenant.id);
+
+    expect(await users.findInTenant(tenant.id, stranger.id)).toBeNull();
+    expect(await users.findInTenant(tenant.id, unknownUserId())).toBeNull();
+    expect(await users.findInTenant(tenant.id, '')).toBeNull();
+    expect(await users.findInTenant('not-a-uuid', own.id)).toBeNull();
+    expect(await users.findInTenant(UNKNOWN_TENANT, own.id)).toBeNull();
+  });
+});
+
+describe('users.listInTenant', () => {
+  it("lists only the college's accounts, newest first, with each student's profile and division", async () => {
+    const college = await makeTenant();
+    const otherCollege = await makeTenant();
+    const divisionId = await makeDivision(college, 'CS');
+    const otherDivisionId = await makeDivision(otherCollege, 'CS');
+
+    const student = await makeUser(college.id, { name: 'Sara Student' });
+    await makeProfile(college, student.id, { studentCode: 'CS-001', level: 3, divisionId });
+    const faculty = await makeUser(college.id, { role: 'faculty' });
+    const stranger = await makeUser(otherCollege.id);
+    await makeProfile(otherCollege, stranger.id, {
+      studentCode: 'CS-001',
+      level: 1,
+      divisionId: otherDivisionId,
+    });
+    await setCreatedAt(student.id, 5);
+    await setCreatedAt(faculty.id, 1);
+
+    const page = await list(college);
+
+    expect(page.total).toBe(2);
+    expect(page.rows).toEqual([
+      {
+        ...(await users.findById(faculty.id)),
+        studentCode: null,
+        level: null,
+        divisionId: null,
+        divisionCode: null,
+        divisionNameAr: null,
+        divisionNameEn: null,
+      },
+      {
+        ...(await users.findById(student.id)),
+        studentCode: 'CS-001',
+        level: 3,
+        divisionId,
+        divisionCode: 'CS',
+        divisionNameAr: 'عام',
+        divisionNameEn: 'General',
+      },
+    ]);
+    expect(await listIds(otherCollege)).toEqual([stranger.id]);
+  });
+
+  it('orders by created_at descending, then by id', async () => {
+    const college = await makeTenant();
+    const made: string[] = [];
+    for (let index = 0; index < 4; index += 1) made.push((await makeUser(college.id)).id);
+    const [a, b, c, d] = made as [string, string, string, string];
+    await setCreatedAt(a, 30);
+    await setCreatedAt(b, 10);
+    await setCreatedAt(c, 20);
+    // The same instant as c: the id decides.
+    const tied = await ownerQuery(
+      `UPDATE users SET created_at = (SELECT created_at FROM users WHERE id = $2) WHERE id = $1`,
+      [d, c],
+    );
+    expect(tied.rowCount).toBe(1);
+
+    expect(await listIds(college)).toEqual([b, ...[c, d].sort(), a]);
+  });
+
+  it('searches name, email, and student code, case-insensitively and by part', async () => {
+    const college = await makeTenant();
+    const divisionId = await makeDivision(college);
+    const byName = await makeUser(college.id, { name: 'Mona Hassan', email: plainEmail('m') });
+    const byEmail = await makeUser(college.id, { email: plainEmail('zeinab') });
+    const byCode = await makeUser(college.id, { name: 'Omar Said', email: plainEmail('o') });
+    await makeProfile(college, byCode.id, { studentCode: 'ENG-7731', level: 2, divisionId });
+    await makeUser(college.id, { name: 'Unrelated Person', email: plainEmail('u') });
+
+    expect(await listIds(college, { q: 'hass' })).toEqual([byName.id]);
+    expect(await listIds(college, { q: 'MONA' })).toEqual([byName.id]);
+    expect(await listIds(college, { q: 'ZEINAB-' })).toEqual([byEmail.id]);
+    expect(await listIds(college, { q: 'eng-77' })).toEqual([byCode.id]);
+    expect(await listIds(college, { q: '  7731 ' })).toEqual([byCode.id]);
+    expect((await list(college, { q: '   ' })).total).toBe(4);
+    expect(await list(college, { q: 'nobody-matches-this' })).toEqual({ rows: [], total: 0 });
+  });
+
+  it('matches %, _ and the backslash literally, not as wildcards', async () => {
+    const college = await makeTenant();
+    const percent = await makeUser(college.id, {
+      name: 'Rate 100% Ali',
+      email: plainEmail('rate'),
+    });
+    const underscore = await makeUser(college.id, {
+      name: 'Lina Fares',
+      email: `lina_f-${randomBytes(4).toString('hex')}@uni.test`,
+    });
+    const backslash = await makeUser(college.id, {
+      name: `Back${BACKSLASH}Slash`,
+      email: plainEmail('back'),
+    });
+    // As wildcards, `%` and `_` would match these too, and `lina_f` would match `linaxf`.
+    await makeUser(college.id, { name: 'Plain Name', email: plainEmail('plain') });
+    await makeUser(college.id, { name: 'Linaxf Other', email: plainEmail('linaxf') });
+
+    expect(await listIds(college, { q: '%' })).toEqual([percent.id]);
+    expect(await listIds(college, { q: '100%' })).toEqual([percent.id]);
+    expect(await listIds(college, { q: '_' })).toEqual([underscore.id]);
+    expect(await listIds(college, { q: 'lina_f' })).toEqual([underscore.id]);
+    expect(await listIds(college, { q: BACKSLASH })).toEqual([backslash.id]);
+    expect((await list(college, { q: '%' })).total).toBe(1);
+    expect((await list(college, { q: '_' })).total).toBe(1);
+  });
+
+  it('filters by role and status, alone and with a search, and counts only the matches', async () => {
+    const college = await makeTenant();
+    const otherCollege = await makeTenant();
+    const activeStudent = await makeUser(college.id, { name: 'Amal Student' });
+    const suspendedStudent = await makeUser(college.id, {
+      name: 'Amal Other',
+      status: 'suspended',
+    });
+    const faculty = await makeUser(college.id, { name: 'Amal Faculty', role: 'faculty' });
+    const admin = await makeUser(college.id, { name: 'Karim Admin', role: 'admin' });
+    await makeUser(otherCollege.id, { name: 'Amal Elsewhere', role: 'faculty' });
+    await setCreatedAt(activeStudent.id, 4);
+    await setCreatedAt(suspendedStudent.id, 3);
+    await setCreatedAt(faculty.id, 2);
+    await setCreatedAt(admin.id, 1);
+
+    expect((await list(college, { role: 'student' })).total).toBe(2);
+    expect(await listIds(college, { role: 'student' })).toEqual([
+      suspendedStudent.id,
+      activeStudent.id,
+    ]);
+    expect(await listIds(college, { status: 'suspended' })).toEqual([suspendedStudent.id]);
+    expect(await listIds(college, { role: 'student', status: 'active' })).toEqual([
+      activeStudent.id,
+    ]);
+    expect(await listIds(college, { role: 'faculty', q: 'amal' })).toEqual([faculty.id]);
+    expect((await list(college, { q: 'amal' })).total).toBe(3);
+    expect((await list(college, { status: 'active' })).total).toBe(3);
+    expect(await list(college, { role: 'student_affairs' })).toEqual({ rows: [], total: 0 });
+  });
+
+  it('pages: page 2 continues page 1, a page past the end is empty, the total stays', async () => {
+    const college = await makeTenant();
+    const otherCollege = await makeTenant();
+    const ids: string[] = [];
+    for (let index = 0; index < 25; index += 1) {
+      const user = await makeUser(college.id);
+      await setCreatedAt(user.id, index);
+      ids.push(user.id);
+    }
+    await makeUser(otherCollege.id);
+
+    const first = await list(college, { page: 1, pageSize: 20 });
+    const second = await list(college, { page: 2, pageSize: 20 });
+
+    expect(first.total).toBe(25);
+    expect(second.total).toBe(25);
+    expect(first.rows.map((row) => row.id)).toEqual(ids.slice(0, 20));
+    expect(second.rows.map((row) => row.id)).toEqual(ids.slice(20));
+    expect(await list(college, { page: 3, pageSize: 20 })).toEqual({ rows: [], total: 25 });
+    expect(await listIds(college, { page: 3, pageSize: 10 })).toEqual(ids.slice(20));
+  });
+
+  it('sends exactly two statements (rows + count) whatever the number of rows', async () => {
+    const college = await makeTenant();
+    const divisionId = await makeDivision(college);
+
+    /** Statements one listInTenant call sends, counted at the driver inside the transaction. */
+    async function statementsFor(filter: Partial<UsersFilter>): Promise<number> {
+      const spy = vi.spyOn(pg.Client.prototype, 'query');
+      try {
+        return await inCollege(college, async (tx) => {
+          spy.mockClear();
+          await users.listInTenant(tx, college.id, { page: 1, pageSize: 20, ...filter });
+          return spy.mock.calls.length;
+        });
+      } finally {
+        spy.mockRestore();
+      }
+    }
+
+    await makeUser(college.id);
+    expect(await statementsFor({})).toBe(2);
+    for (let index = 0; index < 12; index += 1) {
+      const user = await makeUser(college.id);
+      await makeProfile(college, user.id, {
+        studentCode: `ST-${index + 100}`,
+        level: 1,
+        divisionId,
+      });
+    }
+    expect(await statementsFor({})).toBe(2);
+    expect(await statementsFor({ q: 'st-1', role: 'student', status: 'active' })).toBe(2);
+  });
+
+  it('returns nothing for a college id other than the one in context, or a non-uuid', async () => {
+    const college = await makeTenant();
+    const otherCollege = await makeTenant();
+    await makeUser(college.id);
+    await makeUser(otherCollege.id);
+
+    expect(await list(college, {}, otherCollege.id)).toEqual({ rows: [], total: 0 });
+    expect(await list(college, {}, UNKNOWN_TENANT)).toEqual({ rows: [], total: 0 });
+    expect(await list(college, {}, 'not-a-uuid')).toEqual({ rows: [], total: 0 });
+  });
+
+  it('refuses a page or page size that is not a positive integer', async () => {
+    const college = await makeTenant();
+    for (const filter of [
+      { page: 0 },
+      { page: -1 },
+      { page: 1.5 },
+      { page: Number.NaN },
+      { pageSize: 0 },
+      { pageSize: 101 },
+      { pageSize: 2.5 },
+    ]) {
+      await expect(list(college, filter)).rejects.toThrow(RangeError);
+    }
+  });
+});
+
+describe('users.setRole', () => {
+  it('changes the role of that account only and reports the old and the new role', async () => {
+    const tenant = await makeTenant();
+    const user = await makeUser(tenant.id, { role: 'faculty' });
+    const other = await makeUser(tenant.id, { role: 'faculty' });
+    const before = await users.findById(user.id);
+    const otherBefore = await users.findById(other.id);
+
+    expect(await users.setRole(tenant.id, user.id, 'student_affairs')).toEqual({
+      from: 'faculty',
+      to: 'student_affairs',
+    });
+
+    expect(await users.findById(user.id)).toEqual({ ...before, role: 'student_affairs' });
+    expect(await users.findById(other.id)).toEqual(otherBefore);
+    expect(await users.setRole(tenant.id, user.id, 'admin')).toEqual({
+      from: 'student_affairs',
+      to: 'admin',
+    });
+  });
+
+  it("returns null for another college's account, an unknown id, or a non-uuid college, and changes nothing", async () => {
+    const tenant = await makeTenant();
+    const otherCollege = await makeTenant();
+    const stranger = await makeUser(otherCollege.id);
+    const stored = () =>
+      ownerQuery('SELECT role, updated_at FROM users WHERE id = $1', [stranger.id]);
+    const before = (await stored()).rows;
+
+    expect(await users.setRole(tenant.id, stranger.id, 'admin')).toBeNull();
+    expect(await users.setRole('not-a-uuid', stranger.id, 'admin')).toBeNull();
+    expect(await users.setRole(tenant.id, unknownUserId(), 'admin')).toBeNull();
+    expect(await users.setRole(tenant.id, '', 'admin')).toBeNull();
+
+    expect((await stored()).rows).toEqual(before);
+    expect(before[0]).toMatchObject({ role: 'student' });
+  });
+});
+
+describe('users.setStatus', () => {
+  it('suspends and reactivates that account only', async () => {
+    const tenant = await makeTenant();
+    const user = await makeUser(tenant.id);
+    const other = await makeUser(tenant.id);
+    const before = await users.findById(user.id);
+
+    expect(await users.setStatus(tenant.id, user.id, 'suspended')).toBe(true);
+    expect(await users.findById(user.id)).toEqual({ ...before, status: 'suspended' });
+    expect((await users.findById(other.id))?.status).toBe('active');
+
+    expect(await users.setStatus(tenant.id, user.id, 'active')).toBe(true);
+    expect(await users.findById(user.id)).toEqual(before);
+  });
+
+  it("returns false for another college's account, an unknown id, or a non-uuid college, and changes nothing", async () => {
+    const tenant = await makeTenant();
+    const otherCollege = await makeTenant();
+    const stranger = await makeUser(otherCollege.id);
+    const stored = () =>
+      ownerQuery('SELECT status, updated_at FROM users WHERE id = $1', [stranger.id]);
+    const before = (await stored()).rows;
+
+    expect(await users.setStatus(tenant.id, stranger.id, 'suspended')).toBe(false);
+    expect(await users.setStatus('not-a-uuid', stranger.id, 'suspended')).toBe(false);
+    expect(await users.setStatus(tenant.id, unknownUserId(), 'suspended')).toBe(false);
+    expect(await users.setStatus(tenant.id, '', 'suspended')).toBe(false);
+
+    expect((await stored()).rows).toEqual(before);
+    expect(before[0]).toMatchObject({ status: 'active' });
   });
 });

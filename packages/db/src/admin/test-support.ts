@@ -1,4 +1,4 @@
-import type { UserSummary } from '../constants';
+import type { InvitationStatus, Role, UserSummary } from '../constants';
 import { isThrowAwayDatabase } from './identifiers';
 import { setTenantContext, withOwnerTransaction } from './owner';
 
@@ -52,9 +52,9 @@ export function countAuditEvents(
 export interface InvitationDetails {
   id: string;
   email: string;
-  role: string;
+  role: Role;
   /** Stored status (`pending`, `accepted`, `revoked`); "expired" is derived, never stored. */
-  status: string;
+  status: InvitationStatus;
   expiresAt: Date;
   acceptedAt: Date | null;
 }
