@@ -408,9 +408,9 @@ permissions. **No user-story batch may start before PR-14 is merged.**
 
 ### PR-29 — Revoke invitations; registration with a pending invitation · branch `001-pr29-revoke-invitations`
 
-- [ ] T116 [US5] Add `revokeInvitationAction` to `apps/web/src/features/invitations/actions.ts` (+ `revokeInvitationSchema` and test) and a revoke button (form) for pending rows in `apps/web/src/features/invitations/components/invitations-table.tsx` (FR-022, FR-044)
-- [ ] T117 [US5] Add step 6 of contracts/server-actions.md §4.1 to `registerStudentAction` in `apps/web/src/features/auth/actions.ts` (pending invitation → `invitation-pending` email, same redirect, no account) (FR-023)
-- [ ] T118 [US5] Extend `apps/web/e2e/invitations.spec.ts` (part 2): revoke → row shows revoked and the link shows the invalid screen; revoking an invitation id of another college (forged form) → `not_found`, nothing changes; self-registration with an invited email → "check your email" screen, one `invitation-pending` message, zero `verify-email` messages, no user row; expired invitation shows as expired (add `expireInvitation` to `packages/db/src/admin/test-support.ts` and `e2e/support/db.ts`) and can be replaced by a new invitation
+- [x] T116 [US5] Add `revokeInvitationAction` to `apps/web/src/features/invitations/actions.ts` (+ `revokeInvitationSchema` and test) and a revoke button (form) for pending rows in `apps/web/src/features/invitations/components/invitations-table.tsx` (FR-022, FR-044)
+- [x] T117 [US5] Add step 6 of contracts/server-actions.md §4.1 to `registerStudentAction` in `apps/web/src/features/auth/actions.ts` (pending invitation → `invitation-pending` email, same redirect, no account) (FR-023)
+- [x] T118 [US5] Extend `apps/web/e2e/invitations.spec.ts` (part 2): revoke → row shows revoked and the link shows the invalid screen; revoking an invitation id of another college (forged form) → `not_found`, nothing changes; self-registration with an invited email → "check your email" screen, one `invitation-pending` message, zero `verify-email` messages, no user row; expired invitation shows as expired (add `expireInvitation` to `packages/db/src/admin/test-support.ts` and `e2e/support/db.ts`) and can be replaced by a new invitation
 
 **Accept**: US5 acceptance scenarios 3 and 6 pass · `invitation.revoked` audit row written
 

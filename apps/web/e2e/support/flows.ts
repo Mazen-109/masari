@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { open, readFile, rm, stat, writeFile, type FileHandle } from 'node:fs/promises';
+import { open, readFile, rename, rm, stat, writeFile, type FileHandle } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEMO_ADMIN_EMAIL } from '@masari/db/admin';
@@ -324,13 +324,50 @@ async function ensureDemoAdmin(page: Page): Promise<void> {
   }
 }
 
+type SavedCookies = Parameters<BrowserContext['addCookies']>[0];
+
+/** The cookies of the saved demo administrator session, or null when there is none or it is unreadable. */
+async function readSavedCookies(): Promise<SavedCookies | null> {
+  let text: string;
+  try {
+    text = await readFile(DEMO_ADMIN_FILES.state, 'utf8');
+  } catch {
+    return null;
+  }
+  try {
+    const saved: unknown = JSON.parse(text);
+    if (typeof saved !== 'object' || saved === null || !('cookies' in saved)) return null;
+    return Array.isArray(saved.cookies) ? (saved.cookies as SavedCookies) : null;
+  } catch {
+    // Unparsable (e.g. written by a run that was killed half-way): sign in afresh.
+    return null;
+  }
+}
+
+/**
+ * Saves the context's cookies for the other tests: written to a temporary file first and then renamed over
+ * `state.json`, so a reader in another worker sees either the old file or the new one, never half of it.
+ */
+async function saveDemoAdminSession(context: BrowserContext): Promise<void> {
+  const temporary = `${DEMO_ADMIN_FILES.state}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, JSON.stringify(await context.storageState()));
+    await rename(temporary, DEMO_ADMIN_FILES.state);
+  } finally {
+    await rm(temporary, { force: true });
+  }
+}
+
 /** Puts the saved demo administrator session into the context; true when it still opens the dashboard. */
 async function reuseDemoAdminSession(page: Page, context: BrowserContext): Promise<boolean> {
-  if (!(await exists(DEMO_ADMIN_FILES.state))) return false;
-  const saved = JSON.parse(await readFile(DEMO_ADMIN_FILES.state, 'utf8')) as {
-    cookies: Parameters<BrowserContext['addCookies']>[0];
-  };
-  await context.addCookies(saved.cookies);
+  const cookies = await readSavedCookies();
+  if (cookies === null) return false;
+  try {
+    await context.addCookies(cookies);
+  } catch {
+    // Cookies the browser refuses: treated like no saved session.
+    return false;
+  }
   await page.goto('/ar/dashboard');
   return /\/(ar|en)\/dashboard$/.test(new URL(page.url()).pathname);
 }
@@ -339,7 +376,7 @@ async function reuseDemoAdminSession(page: Page, context: BrowserContext): Promi
  * Signs the page in as the demo college's administrator (DEMO_ADMIN_EMAIL, created from the seed's
  * invitation on first use) and leaves it on the dashboard. One sign-in is shared by the whole run — its
  * cookies are saved and reused — so the per-email sign-in limit is never reached; when the saved session
- * no longer works (e.g. a test signed it out), it signs in afresh. Tests that use it must not sign the
+ * no longer works (e.g. a test signed it out) or the saved file cannot be read, it signs in afresh. Tests that use it must not sign the
  * administrator out; to switch users, clear the context's cookies instead.
  */
 export async function signInAsDemoAdmin(page: Page): Promise<void> {
@@ -349,7 +386,12 @@ export async function signInAsDemoAdmin(page: Page): Promise<void> {
   await context.clearCookies();
   await signIn(page, { email: DEMO_ADMIN_EMAIL });
   await page.waitForURL(/\/(ar|en)\/dashboard$/);
-  await writeFile(DEMO_ADMIN_FILES.state, JSON.stringify(await context.storageState()));
+  await saveDemoAdminSession(context);
+}
+
+/** The invite form of the invitations screen (the table below has a revoke form per pending row). */
+export function inviteForm(page: Page) {
+  return page.locator('main [data-slot="invite"] form');
 }
 
 export type InviteInput = { email: string; role: InvitableRole; locale?: TestLocale };
@@ -361,7 +403,7 @@ export type InviteInput = { email: string; role: InvitableRole; locale?: TestLoc
 export async function inviteStaff(page: Page, input: InviteInput): Promise<void> {
   const locale = input.locale ?? 'ar';
   const t = CATALOGS[locale];
-  const form = page.locator('main form');
+  const form = inviteForm(page);
   await form.getByLabel(t.admin.invitations.form.email, { exact: true }).fill(input.email);
   await form
     .getByLabel(t.admin.invitations.form.role, { exact: true })

@@ -152,9 +152,14 @@ no `cause` — driver and Drizzle errors quote the statement's parameters, which
 ```ts
 create(tx: Tx, input: { email: string; role: Role; invitedBy: string | null }):
   Promise<{ ok: true; value: Invitation; token: string } | { ok: false; reason: 'pending_exists' }>
-  // revokes an expired pending invitation for the same email first; expires_at = now + 7 days
+  // revokes an expired pending invitation for the same email first (this replacement writes no
+  // invitation.revoked audit row; the caller's invitation.created row records the new one); expires_at = now + 7 days
 list(tx: Tx): Promise<InvitationView[]>                                        // newest first, max 200
 hasUsablePending(tx: Tx, email: string): Promise<boolean>
+awaitsAccount(tx: Tx, email: string): Promise<boolean>
+  // registration step 6: pending & unexpired, or accepted with accepted_user_id IS NULL and accepted_at within
+  // the last 10 minutes (an acceptance in flight; same window as users.deleteJustCreated). Older unlinked claims
+  // (stuck claim, or account deleted later → FK SET NULL) do not count.
 revoke(tx: Tx, id: string): Promise<'revoked' | 'not_found' | 'not_pending'>
 findByTokenHash(tx: Tx, tokenHash: string): Promise<Invitation | null>        // inside withInvitationToken
 claim(tx: Tx, id: string): Promise<Invitation | null>                         // pending & unexpired → accepted (atomic)
@@ -216,7 +221,7 @@ export function seedDemo(migrationUrl: string):
 // Test support (src/admin/test-support.ts) — used only by packages/db/test and apps/web/e2e
 export function getUserByEmail(migrationUrl: string, email: string):
   Promise<(UserSummary & { privacyConsentAt: Date | null }) | null>;
-export function countAuditEvents(migrationUrl: string, tenantSlug: string, action: string): Promise<number>;
+export function countAuditEvents(migrationUrl: string, tenantSlug: string, action: string, targetId?: string): Promise<number>;  // targetId: only events about it
 export function countSessionsByEmail(migrationUrl: string, email: string): Promise<number>;   // 0 for an unknown email
 /** Deletes rate-limit counters whose key starts with keyPrefix (default: all) → rows removed. Refuses (before
  *  connecting) a database whose name does not match /^masari_(test|e2e)[a-z0-9_]*$/. e2e global setup. */

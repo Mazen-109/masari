@@ -15,6 +15,8 @@ import {
 const mocks = vi.hoisted(() => ({
   findBySlug: vi.fn(),
   findByEmail: vi.fn(),
+  awaitsAccount: vi.fn(),
+  withTenant: vi.fn(),
   findUserById: vi.fn(),
   findTenantById: vi.fn(),
   revokeAllForUser: vi.fn(),
@@ -49,6 +51,8 @@ vi.mock('@masari/db', () => ({
   tenants: { findBySlug: mocks.findBySlug, findById: mocks.findTenantById },
   users: { findByEmail: mocks.findByEmail, findById: mocks.findUserById },
   sessions: { revokeAllForUser: mocks.revokeAllForUser, revokeByToken: mocks.revokeByToken },
+  invitations: { awaitsAccount: mocks.awaitsAccount },
+  withTenant: mocks.withTenant,
 }));
 vi.mock('better-auth/api', () => ({
   isAPIError: (error: unknown) => error instanceof Error && error.name === 'APIError',
@@ -88,7 +92,14 @@ vi.mock('@/server/rate-limit', () => ({
 
 const TENANT_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = 'user'.repeat(4);
-const COLLEGE = { id: TENANT_ID, status: 'active', allowedEmailDomains: [] as string[] };
+const COLLEGE = {
+  id: TENANT_ID,
+  status: 'active',
+  allowedEmailDomains: [] as string[],
+  nameAr: 'كلية التجربة',
+  nameEn: 'Trial College',
+};
+const TX = { fake: 'tx' };
 
 function form(overrides: Record<string, string> = {}): FormData {
   const data = new FormData();
@@ -127,6 +138,8 @@ beforeEach(() => {
   mocks.rateLimitRules.mockReturnValue([]);
   mocks.findBySlug.mockResolvedValue(COLLEGE);
   mocks.findByEmail.mockResolvedValue(null);
+  mocks.awaitsAccount.mockResolvedValue(false);
+  mocks.withTenant.mockImplementation((_ctx: unknown, fn: (tx: unknown) => unknown) => fn(TX));
   mocks.signUpEmail.mockImplementation(() => {
     mocks.findByEmail.mockResolvedValue({ id: USER_ID, tenantId: TENANT_ID });
     return Promise.resolve({ token: null, user: { id: USER_ID } });
@@ -236,6 +249,49 @@ describe('registerStudentAction', () => {
       expect.objectContaining({ template: 'account-exists', to: 'mona@example.edu' }),
     );
     expect(mocks.recordAudit).not.toHaveBeenCalled();
+  });
+
+  it('only tells the invitee about their invitation, with the same redirect and no account (step 6)', async () => {
+    mocks.awaitsAccount.mockResolvedValue(true);
+    await expect(run(form())).resolves.toEqual({ redirect: '/en/verify-email' });
+    expect(mocks.withTenant).toHaveBeenCalledWith(
+      { tenantId: TENANT_ID, userId: null },
+      expect.any(Function),
+    );
+    expect(mocks.awaitsAccount).toHaveBeenCalledExactlyOnceWith(TX, 'mona@example.edu');
+    expect(mocks.signUpEmail).not.toHaveBeenCalled();
+    expect(mocks.sendVerificationEmail).not.toHaveBeenCalled();
+    expect(mocks.recordAudit).not.toHaveBeenCalled();
+    expect(mocks.sendEmail).toHaveBeenCalledOnce();
+    const message = mocks.sendEmail.mock.calls[0]?.[0] as {
+      template: string;
+      to: string;
+      text: string;
+    };
+    expect(message).toMatchObject({ template: 'invitation-pending', to: 'mona@example.edu' });
+    expect(message.text).toContain(COLLEGE.nameEn);
+    expect(mocks.log.info).toHaveBeenCalledWith('email.sent', { template: 'invitation-pending' });
+    expect(JSON.stringify(mocks.log.info.mock.calls)).not.toContain('mona@example.edu');
+  });
+
+  it('checks the invitations only when the address has no account', async () => {
+    mocks.findByEmail.mockResolvedValue({ id: USER_ID, tenantId: TENANT_ID });
+    mocks.awaitsAccount.mockResolvedValue(true);
+    await expect(run(form())).resolves.toEqual({ redirect: '/en/verify-email' });
+    expect(mocks.awaitsAccount).not.toHaveBeenCalled();
+    expect(mocks.sendEmail).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ template: 'account-exists' }),
+    );
+  });
+
+  it('still redirects when the invitation-pending email cannot be sent, logging the template only', async () => {
+    mocks.awaitsAccount.mockResolvedValue(true);
+    mocks.sendEmail.mockRejectedValue(new Error('smtp refused mona@example.edu'));
+    await expect(run(form())).resolves.toEqual({ redirect: '/en/verify-email' });
+    expect(mocks.log.error).toHaveBeenCalledExactlyOnceWith('email.failed', {
+      template: 'invitation-pending',
+    });
+    expect(mocks.signUpEmail).not.toHaveBeenCalled();
   });
 
   it('still redirects when an email cannot be sent', async () => {

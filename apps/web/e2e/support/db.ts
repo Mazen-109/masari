@@ -1,10 +1,12 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   addDivision as addDivisionIn,
   countAuditEvents as countAuditEventsIn,
   countSessionsByEmail as countSessionsByEmailIn,
   createStudentProfile as createStudentProfileIn,
   createTenant,
+  DEMO_ADMIN_EMAIL,
+  expireInvitation as expireInvitationIn,
   getAdminDbEnv,
   getStudentProfileByEmail as getStudentProfileByEmailIn,
   getUserByEmail as getUserByEmailIn,
@@ -29,8 +31,13 @@ export function getUserByEmail(email: string): Promise<UserDetails | null> {
   return getUserByEmailIn(ownerUrl(), email);
 }
 
-export function countAuditEvents(tenantSlug: string, action: string): Promise<number> {
-  return countAuditEventsIn(ownerUrl(), tenantSlug, action);
+/** Audit events with this action in the college; with `targetId`, only those about that target. */
+export function countAuditEvents(
+  tenantSlug: string,
+  action: string,
+  targetId?: string,
+): Promise<number> {
+  return countAuditEventsIn(ownerUrl(), tenantSlug, action, targetId);
 }
 
 /** Number of sign-in sessions stored for the account with this email (0 when there is none). */
@@ -66,9 +73,30 @@ export async function setCollegeStatus(
   }
 }
 
-/** Empties the rate-limit counters of the e2e database (global setup: every run starts with fresh buckets). */
-export async function resetRateLimits(): Promise<void> {
-  await resetRateLimitsIn(ownerUrl());
+/**
+ * Empties the rate-limit counters of the e2e database whose key starts with `keyPrefix` (default: all —
+ * global setup, so every run starts with fresh buckets). Keys are `"<purpose>:<kind>:<hash>"`, so
+ * `'invite-create:'` empties one purpose's buckets.
+ */
+export async function resetRateLimits(keyPrefix?: string): Promise<void> {
+  await resetRateLimitsIn(ownerUrl(), keyPrefix);
+}
+
+/**
+ * Empties the demo administrator's `invite-create` bucket only (nothing when that account does not exist
+ * yet). The key is built like `rateLimitKey` in src/server/rate-limit.ts:
+ * `invite-create:user:<sha256 hex of the user id>`.
+ */
+export async function resetDemoAdminInviteBucket(): Promise<void> {
+  const admin = await getUserByEmail(DEMO_ADMIN_EMAIL);
+  if (admin === null) return;
+  const digest = createHash('sha256').update(admin.id, 'utf8').digest('hex');
+  await resetRateLimitsIn(ownerUrl(), `invite-create:user:${digest}`);
+}
+
+/** Moves the expiry of the pending invitations for this email into the past (throws when there is none). */
+export function expireInvitation(email: string): Promise<void> {
+  return expireInvitationIn(ownerUrl(), email);
 }
 
 export type College = { tenantId: string; slug: string; nameAr: string; nameEn: string };

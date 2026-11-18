@@ -114,7 +114,10 @@ Fields: `tenantSlug`, `name`, `email`, `password`, `consent`. Locale from `getLo
 4. If the college has allowed domains and the email's domain is not one of them →
    `fieldErrors.email = 'domain_not_allowed'`, `meta.domains = "<comma-separated list>"`.
 5. If a user with this email exists (any college) → send `account-exists` email → go to step 9.
-6. If a non-expired pending invitation exists for (college, email) → send `invitation-pending` email → step 9.
+6. If a non-expired pending invitation exists for (college, email) — or one claimed within the last 10 minutes but
+   not yet linked to its account (`accepted`, `accepted_user_id IS NULL`, recent `accepted_at`: an acceptance in
+   flight; `invitations.awaitsAccount`) → send `invitation-pending` email → step 9. An older unlinked claim does
+   not count, so a stuck claim never blocks registration for good.
 7. Create the account through the auth library (`auth.api.signUpEmail`) with `name`, `email`, `password`,
    `tenantId`, `locale`, `privacyConsentAt = now`; role and status take their defaults (`student`, `active`).
    Then send the confirmation email (`auth.api.sendVerificationEmail`, callback

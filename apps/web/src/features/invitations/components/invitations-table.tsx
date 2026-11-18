@@ -1,8 +1,8 @@
 import type { InvitationView, Role } from '@masari/db';
 import { useLocale, useTranslations } from 'next-intl';
+import { ScrollableTable } from '@/components/scrollable-table';
 import { Badge } from '@/components/ui/badge';
 import {
-  Table,
   TableBody,
   TableCaption,
   TableCell,
@@ -11,12 +11,15 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatDate } from '@/lib/format';
+import { RevokeInvitationForm } from './revoke-invitation-form';
 
 /** What one row shows — nothing more reaches the page than the screen needs. */
 export type InvitationRow = Readonly<{
   id: string;
   email: string;
   role: Role;
+  /** Stored status: `pending` rows (expired ones too) get the revoke button. */
+  status: InvitationView['status'];
   displayStatus: InvitationView['displayStatus'];
   createdAt: Date;
   expiresAt: Date;
@@ -35,9 +38,10 @@ const STATUS_VARIANT = {
 /**
  * The college's invitations, newest first (FR-022, contracts/routes.md §7): email (`dir="ltr"`), role,
  * display status (expired is derived from the expiry date), sent and expiry dates in Egyptian time with
- * Western digits. A captioned table with column headers inside a focusable region labelled by
- * `labelledBy` (the section heading); below 640 px it scrolls sideways (keyboard: focus it, then the arrow
- * keys) and a visible hint, also the region's description, says so. Row actions arrive with revoke (PR-29).
+ * Western digits, and a revoke button for each pending row (FR-022). A captioned table with column headers
+ * inside a focusable region labelled by `labelledBy` (the section heading); when it is wider than the
+ * screen it scrolls sideways (keyboard: focus it, then the arrow keys) and a hint, then also the region's
+ * description, says so (ScrollableTable).
  */
 export function InvitationsTable({
   rows,
@@ -56,55 +60,54 @@ export function InvitationsTable({
     );
   }
 
-  const hintId = `${labelledBy}-scroll-hint`;
   return (
-    <div className="flex min-w-0 flex-col gap-2">
-      {/* Five columns do not fit a phone: the table scrolls sideways, and the hint says so. */}
-      <p id={hintId} className="text-sm text-muted-foreground sm:hidden">
-        {t('scrollHint')}
-      </p>
-      <Table
-        data-slot="invitations-table"
-        containerProps={{
-          role: 'region',
-          'aria-labelledby': labelledBy,
-          'aria-describedby': hintId,
-          tabIndex: 0,
-        }}
-      >
-        <TableCaption className="sr-only">{t('caption')}</TableCaption>
-        <TableHeader>
-          <TableRow>
-            <TableHead scope="col">{t('email')}</TableHead>
-            <TableHead scope="col">{t('role')}</TableHead>
-            <TableHead scope="col">{t('status')}</TableHead>
-            <TableHead scope="col">{t('createdAt')}</TableHead>
-            <TableHead scope="col">{t('expiresAt')}</TableHead>
+    // Six columns do not fit a phone: the table scrolls sideways inside its region, and a hint says so
+    // while it overflows.
+    <ScrollableTable
+      data-slot="invitations-table"
+      labelledBy={labelledBy}
+      hintId={`${labelledBy}-scroll-hint`}
+      hint={t('scrollHint')}
+    >
+      <TableCaption className="sr-only">{t('caption')}</TableCaption>
+      <TableHeader>
+        <TableRow>
+          <TableHead scope="col">{t('email')}</TableHead>
+          <TableHead scope="col">{t('role')}</TableHead>
+          <TableHead scope="col">{t('status')}</TableHead>
+          <TableHead scope="col">{t('createdAt')}</TableHead>
+          <TableHead scope="col">{t('expiresAt')}</TableHead>
+          <TableHead scope="col">{t('actions')}</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((row) => (
+          <TableRow key={row.id} data-invitation={row.id} data-status={row.displayStatus}>
+            {/* A long address wraps (anywhere) instead of pushing the other columns out of view. */}
+            <TableCell data-field="email" className="min-w-48 wrap-anywhere whitespace-normal">
+              <bdi dir="ltr">{row.email}</bdi>
+            </TableCell>
+            <TableCell data-field="role">{tRoles(row.role)}</TableCell>
+            <TableCell data-field="status">
+              <Badge variant={STATUS_VARIANT[row.displayStatus]}>
+                {tStatuses(row.displayStatus)}
+              </Badge>
+            </TableCell>
+            <TableCell data-field="createdAt" className="tabular-nums">
+              {formatDate(row.createdAt, locale)}
+            </TableCell>
+            <TableCell data-field="expiresAt" className="tabular-nums">
+              {formatDate(row.expiresAt, locale)}
+            </TableCell>
+            <TableCell data-field="actions">
+              {/* Only a pending invitation (also an expired one, which is still pending) can be revoked. */}
+              {row.status === 'pending' ? (
+                <RevokeInvitationForm invitationId={row.id} email={row.email} />
+              ) : null}
+            </TableCell>
           </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map((row) => (
-            <TableRow key={row.id} data-invitation={row.id} data-status={row.displayStatus}>
-              {/* A long address wraps (anywhere) instead of pushing the other columns out of view. */}
-              <TableCell data-field="email" className="min-w-48 wrap-anywhere whitespace-normal">
-                <bdi dir="ltr">{row.email}</bdi>
-              </TableCell>
-              <TableCell data-field="role">{tRoles(row.role)}</TableCell>
-              <TableCell data-field="status">
-                <Badge variant={STATUS_VARIANT[row.displayStatus]}>
-                  {tStatuses(row.displayStatus)}
-                </Badge>
-              </TableCell>
-              <TableCell data-field="createdAt" className="tabular-nums">
-                {formatDate(row.createdAt, locale)}
-              </TableCell>
-              <TableCell data-field="expiresAt" className="tabular-nums">
-                {formatDate(row.expiresAt, locale)}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+        ))}
+      </TableBody>
+    </ScrollableTable>
   );
 }
