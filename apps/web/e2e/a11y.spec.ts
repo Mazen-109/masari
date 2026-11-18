@@ -14,6 +14,7 @@ import {
   PUBLIC_SCREENS,
   SCREEN_LOCALES as LOCALES,
   SIGNED_IN_SCREENS,
+  SIGNED_IN_TEST_TIMEOUT_MS,
   signInAs,
 } from './support/screens';
 
@@ -34,6 +35,7 @@ for (const locale of LOCALES) {
       test(`no serious or critical violations on ${localized(locale, path)} as ${role}`, async ({
         page,
       }) => {
+        test.setTimeout(SIGNED_IN_TEST_TIMEOUT_MS);
         await signInAs(page, role);
         await page.goto(localized(locale, path));
         await expect(page).toHaveURL(localized(locale, path));

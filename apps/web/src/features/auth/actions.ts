@@ -25,6 +25,7 @@ import { sendEmail } from '@/server/email/send';
 import { accountExists } from '@/server/email/templates/account-exists';
 import { invitationPending } from '@/server/email/templates/invitation-pending';
 import { getEnv } from '@/server/env';
+import { errorName, sqlStateOf } from '@/server/errors';
 import { log } from '@/server/log';
 import { enforceRateLimit, rateLimitRules } from '@/server/rate-limit';
 import { getClientIp } from '@/server/request';
@@ -41,10 +42,6 @@ import {
 } from './schemas';
 
 /** Public account actions (contracts/server-actions.md §4). */
-
-function errorName(error: unknown): string {
-  return error instanceof Error ? error.name : 'unknown';
-}
 
 async function currentLocale(): Promise<Locale> {
   const locale = await getLocale();
@@ -555,20 +552,6 @@ export async function resetPasswordAction(
   }
   if (result.ok) redirect(`/${locale}/sign-in?reset=1`);
   return result;
-}
-
-const SQLSTATE = /^[0-9A-Z]{5}$/;
-
-/** The SQLSTATE of a database error (also when wrapped as `cause`), for the log; null when there is none. */
-function sqlStateOf(error: unknown): string | null {
-  let current = error;
-  for (let depth = 0; depth < 3 && typeof current === 'object' && current !== null; depth += 1) {
-    if ('code' in current && typeof current.code === 'string' && SQLSTATE.test(current.code)) {
-      return current.code;
-    }
-    current = 'cause' in current ? current.cause : undefined;
-  }
-  return null;
 }
 
 /** The library answered with an account that is not one it just created for this invitation. */

@@ -37,6 +37,14 @@ const adminDbEnvSchema = z.object({
   APP_ENV: z.enum(['development', 'test', 'production']).optional(),
 });
 
+/**
+ * Every variable getDbEnv() and getAdminDbEnv() read — names only, never values (`.env.example` must list
+ * each one: apps/web/src/server/env-example.test.ts).
+ */
+export const DB_ENV_VARIABLES: readonly string[] = [
+  ...new Set([...Object.keys(dbEnvSchema.shape), ...Object.keys(adminDbEnvSchema.shape)]),
+];
+
 export type DbEnv = z.infer<typeof dbEnvSchema>;
 export type AdminDbEnv = z.infer<typeof adminDbEnvSchema>;
 

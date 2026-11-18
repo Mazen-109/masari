@@ -16,6 +16,7 @@ import { fail, ok, type ActionResult, type FieldErrorCode } from '@/lib/result';
 import { recordAudit, type AuditAction, type AuditEvent } from '@/server/audit';
 import { getActionContext } from '@/server/auth/action-context';
 import type { SessionContext } from '@/server/auth/session';
+import { errorName, sqlStateOf } from '@/server/errors';
 import { log } from '@/server/log';
 import { canActOnUser, changedStudentFields } from './rules';
 import { adminStudentProfileSchema, changeRoleSchema, setStatusSchema } from './schemas';
@@ -27,24 +28,6 @@ import { adminStudentProfileSchema, changeRoleSchema, setStatusSchema } from './
  * (contracts/server-actions.md §1 "Audit and transactions"). Nothing but event names, error class names,
  * SQLSTATEs, and counts is logged — never a name or an email.
  */
-
-function errorName(error: unknown): string {
-  return error instanceof Error ? error.name : 'unknown';
-}
-
-const SQLSTATE = /^[0-9A-Z]{5}$/;
-
-/** The SQLSTATE of a database error (also when wrapped as `cause`), for the log; null when there is none. */
-function sqlStateOf(error: unknown): string | null {
-  let current = error;
-  for (let depth = 0; depth < 3 && typeof current === 'object' && current !== null; depth += 1) {
-    if ('code' in current && typeof current.code === 'string' && SQLSTATE.test(current.code)) {
-      return current.code;
-    }
-    current = 'cause' in current ? current.cause : undefined;
-  }
-  return null;
-}
 
 /**
  * The audit row of a change already made through the pool (`users`, `sessions`). When it cannot be written

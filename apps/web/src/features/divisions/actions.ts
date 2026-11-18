@@ -8,6 +8,7 @@ import { fail, ok, type ActionResult } from '@/lib/result';
 import { recordAudit } from '@/server/audit';
 import { getActionContext } from '@/server/auth/action-context';
 import type { SessionContext } from '@/server/auth/session';
+import { errorName, sqlStateOf } from '@/server/errors';
 import { log } from '@/server/log';
 import { changedDivisionFields } from './rules';
 import { createDivisionSchema, setDivisionActiveSchema, updateDivisionSchema } from './schemas';
@@ -18,24 +19,6 @@ import { createDivisionSchema, setDivisionActiveSchema, updateDivisionSchema } f
  * another college's id is answered exactly like an unknown one (`not_found`). Divisions are never deleted.
  * Nothing but event names, error class names, and SQLSTATEs is logged — never a name or a code.
  */
-
-function errorName(error: unknown): string {
-  return error instanceof Error ? error.name : 'unknown';
-}
-
-const SQLSTATE = /^[0-9A-Z]{5}$/;
-
-/** The SQLSTATE of a database error (also when wrapped as `cause`), for the log; null when there is none. */
-function sqlStateOf(error: unknown): string | null {
-  let current = error;
-  for (let depth = 0; depth < 3 && typeof current === 'object' && current !== null; depth += 1) {
-    if ('code' in current && typeof current.code === 'string' && SQLSTATE.test(current.code)) {
-      return current.code;
-    }
-    current = 'cause' in current ? current.cause : undefined;
-  }
-  return null;
-}
 
 /** Fields echoed back after a failure (`meta.<field>`), so the form is re-filled; never the id. */
 const ENTERED_FIELDS = ['divisionCode', 'nameAr', 'nameEn', 'sortOrder'] as const;

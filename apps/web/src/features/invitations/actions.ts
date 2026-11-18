@@ -11,6 +11,7 @@ import type { SessionContext } from '@/server/auth/session';
 import { sendEmail } from '@/server/email/send';
 import { invitation as invitationEmail } from '@/server/email/templates/invitation';
 import { getEnv } from '@/server/env';
+import { errorName, sqlStateOf } from '@/server/errors';
 import { log } from '@/server/log';
 import { enforceRateLimit, rateLimitRules } from '@/server/rate-limit';
 import {
@@ -20,24 +21,6 @@ import {
 } from './schemas';
 
 /** Invitation actions of the administration (contracts/server-actions.md §5.2). */
-
-function errorName(error: unknown): string {
-  return error instanceof Error ? error.name : 'unknown';
-}
-
-const SQLSTATE = /^[0-9A-Z]{5}$/;
-
-/** The SQLSTATE of a database error (also when wrapped as `cause`), for the log; null when there is none. */
-function sqlStateOf(error: unknown): string | null {
-  let current = error;
-  for (let depth = 0; depth < 3 && typeof current === 'object' && current !== null; depth += 1) {
-    if ('code' in current && typeof current.code === 'string' && SQLSTATE.test(current.code)) {
-      return current.code;
-    }
-    current = 'cause' in current ? current.cause : undefined;
-  }
-  return null;
-}
 
 /** Fields echoed back after a failure (`meta.<field>`), so the form is re-filled also without JavaScript. */
 const INVITE_ENTERED_FIELDS = ['email', 'role'] as const;

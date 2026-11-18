@@ -40,6 +40,8 @@ export type Tx = /* Drizzle transaction type */;
 export function withTenant<T>(ctx: { tenantId: string; userId: string | null }, fn: (tx: Tx) => Promise<T>): Promise<T>;
 /** Opens a transaction with app.invite_token_hash set; only invitations.findByTokenHash is meaningful inside. */
 export function withInvitationToken<T>(tokenHash: string, fn: (tx: Tx) => Promise<T>): Promise<T>;
+/** Names (never values) of every variable the db package reads; used by the .env.example test (PR-38). */
+export const DB_ENV_VARIABLES: readonly string[];
 ```
 
 ### 1.3 Safety and lifecycle (`src/safety.ts`, `src/client.ts`)
