@@ -1,5 +1,11 @@
 import type { Locator, Page } from '@playwright/test';
-import { countAuditEvents, countSessions, getUserByEmail, listInvitations } from './support/db';
+import {
+  countAuditEvents,
+  countSessions,
+  getStudentProfile,
+  getUserByEmail,
+  listInvitations,
+} from './support/db';
 import { expect, test } from './support/fixtures';
 import {
   CATALOGS,
@@ -7,11 +13,15 @@ import {
   openUserMenu,
   signIn,
   uniqueEmail,
+  uniqueStudentCode,
   type TestLocale,
 } from './support/flows';
 import { submitAs } from './support/forge';
 import {
+  clickAndWait,
   openDialog,
+  profileDialog,
+  profileTrigger,
   roleDialog,
   roleTrigger,
   suspendDialog,
@@ -238,17 +248,6 @@ type ForbiddenAction = {
   state: (college: RoleCollege) => Promise<unknown>;
 };
 
-/** Clicks `button` and waits for the action's answer (the POST to the screen). */
-async function clickAndWait(page: Page, screenPath: string, button: Locator): Promise<void> {
-  await Promise.all([
-    page.waitForResponse(
-      (response) =>
-        response.request().method() === 'POST' && new URL(response.url()).pathname === screenPath,
-    ),
-    button.click(),
-  ]);
-}
-
 async function invitationState(college: RoleCollege) {
   return {
     invitations: await listInvitations(college.slug),
@@ -326,6 +325,24 @@ const FORBIDDEN_ACTIONS: readonly ForbiddenAction[] = [
       status: (await getUserByEmail(college.emails.faculty))?.status,
       sessions: await countSessions(college.emails.faculty),
       suspended: await countAuditEvents(college.slug, 'user.suspended'),
+    }),
+  },
+  {
+    screen: '/admin/users',
+    form: 'student-profile',
+    action: 'adminUpdateStudentProfileAction',
+    prepare: async (page, college) => {
+      const row = userRow(page, college.emails.student);
+      const form = await openDialog(profileTrigger(row), profileDialog(page));
+      // A new code: the submission would change the profile if it were allowed.
+      await form.getByLabel(ar.onboarding.studentCode, { exact: true }).fill(uniqueStudentCode());
+      const button = form.getByRole('button', { name: ar.admin.users.actions.profile.submit });
+      return { form, submit: () => clickAndWait(page, '/ar/admin/users', button) };
+    },
+    state: async (college) => ({
+      profile: await getStudentProfile(college.emails.student),
+      created: await countAuditEvents(college.slug, 'profile.created'),
+      updated: await countAuditEvents(college.slug, 'profile.updated'),
     }),
   },
 ];

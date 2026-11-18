@@ -11,11 +11,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import type { ChoiceOption } from '@/features/profile/components/student-profile-form';
 import { levelLabelKey } from '@/features/profile/level-label';
+import { isDivisionSelectable } from '@/features/profile/rules';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { RoleDialog, type RoleOption } from './role-dialog';
 import { StatusButton } from './status-button';
+import { StudentProfileDialog } from './student-profile-dialog';
 
 /** What one row shows — nothing more reaches the page than the screen needs. */
 export type UserRow = Readonly<{
@@ -27,10 +30,38 @@ export type UserRow = Readonly<{
   /** Academic profile of a student; null for staff and for a student who has not completed it yet. */
   studentCode: string | null;
   level: number | null;
+  divisionId: string | null;
   /** The division's name in the current language. */
   divisionName: string | null;
   createdAt: Date;
 }>;
+
+/** One of the college's divisions, every one (inactive too), named in the current language. */
+export type DivisionChoice = Readonly<{ id: string; isActive: boolean; label: string }>;
+
+/** The choices of the academic-data dialog: the college's levels and all of its divisions. */
+export type AcademicChoices = Readonly<{
+  levels: readonly ChoiceOption[];
+  divisions: readonly DivisionChoice[];
+}>;
+
+/**
+ * The divisions a student's dialog offers: the active ones, and the student's current one even when it
+ * was deactivated since — the same choice as the student's own profile form (FR-026).
+ */
+function divisionOptions(choices: AcademicChoices, currentId: string | null): ChoiceOption[] {
+  return choices.divisions
+    .filter((division) => isDivisionSelectable(division, currentId))
+    .map((division) => ({ value: division.id, label: division.label }));
+}
+
+/** The saved academic profile of a row, or null when the student has not completed it. */
+function currentProfile(row: UserRow) {
+  const { studentCode, level, divisionId } = row;
+  return studentCode === null || level === null || divisionId === null
+    ? null
+    : { studentCode, level, divisionId };
+}
 
 /** Status badge colours; the status word is always shown with them (DESIGN.md "Status"). */
 const STATUS_VARIANT = {
@@ -66,16 +97,23 @@ function None({ label }: Readonly<{ label: string }>) {
  * One page of the college's accounts, newest first (FR-029, contracts/routes.md §4): name, email
  * (`dir="ltr"`), role, status badge with its word, a student's code (`dir="ltr"`), level and division, and
  * the date the account was created, in Egyptian time with Western digits, and the row actions — change
- * role, suspend or reactivate (FR-030, FR-031) — on every row except the acting administrator's own
- * (`actorId`), which says "your account" instead. A captioned table with column
- * headers inside a focusable region labelled by `labelledBy`; when it is wider than the screen it scrolls
- * sideways and a hint says so (ScrollableTable). The caller renders the empty state.
+ * role, suspend or reactivate (FR-030, FR-031), and for a student the academic-data dialog (FR-028) — on
+ * every row except the acting administrator's own (`actorId`), which says "your account" instead. A
+ * captioned table with column headers inside a focusable region labelled by `labelledBy`; when it is wider
+ * than the screen it scrolls sideways and a hint says so (ScrollableTable). The caller renders the empty
+ * state.
  */
 export function UsersTable({
   rows,
   labelledBy,
   actorId,
-}: Readonly<{ rows: readonly UserRow[]; labelledBy: string; actorId: string }>) {
+  academic,
+}: Readonly<{
+  rows: readonly UserRow[];
+  labelledBy: string;
+  actorId: string;
+  academic: AcademicChoices;
+}>) {
   const t = useTranslations('admin.users.list');
   const tCommon = useTranslations('common');
   const tRoles = useTranslations('common.roles');
@@ -130,7 +168,7 @@ export function UsersTable({
             <TableCell data-field="name" className={WRAP}>
               <bdi>{row.name}</bdi>
             </TableCell>
-            {/* Wraps only after the @ and before a dot, never inside a word (EmailAddress). */}
+            {/* Prefers to wrap after the @ and before a dot (EmailAddress). */}
             <TableCell data-field="email" className={WRAP}>
               <EmailAddress email={row.email} />
             </TableCell>
@@ -162,6 +200,15 @@ export function UsersTable({
                 <div className="flex flex-wrap items-start gap-2">
                   <RoleDialog userId={row.id} name={row.name} role={row.role} roles={roles} />
                   <StatusButton userId={row.id} name={row.name} status={row.status} />
+                  {row.role === 'student' ? (
+                    <StudentProfileDialog
+                      userId={row.id}
+                      name={row.name}
+                      current={currentProfile(row)}
+                      levels={academic.levels}
+                      divisions={divisionOptions(academic, row.divisionId)}
+                    />
+                  ) : null}
                 </div>
               )}
             </TableCell>

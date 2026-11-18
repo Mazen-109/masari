@@ -1,7 +1,8 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { CATALOGS } from './flows';
 
-// The People screen's row actions (PR-33): locators shared by admin-users.spec.ts and rbac.spec.ts.
+// The People screen's row actions (PR-33, PR-34): locators shared by admin-users.spec.ts and
+// rbac.spec.ts.
 
 const t = CATALOGS.ar.admin.users.actions;
 
@@ -33,6 +34,16 @@ export function suspendTrigger(row: Locator): Locator {
 /** The row's "Reactivate" button. */
 export function reactivateButton(row: Locator): Locator {
   return row.getByRole('button', { name: t.reactivate.submit });
+}
+
+/** The open academic-data dialog of a student (PR-34). */
+export function profileDialog(page: Page): Locator {
+  return page.getByRole('dialog', { name: t.profile.title });
+}
+
+/** A student row's "Academic data" button (PR-34). */
+export function profileTrigger(row: Locator): Locator {
+  return row.getByRole('button', { name: t.profile.open });
 }
 
 /**

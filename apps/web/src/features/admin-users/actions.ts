@@ -1,16 +1,24 @@
 'use server';
 
-import { sessions, users, type UserSummary } from '@masari/db';
+import {
+  divisions,
+  sessions,
+  studentProfiles,
+  users,
+  withTenant,
+  type UserSummary,
+} from '@masari/db';
 import { revalidatePath } from 'next/cache';
-import { parseForm } from '@/lib/form';
+import { isDivisionSelectable, isLevelAllowed } from '@/features/profile/rules';
+import { formFields, parseForm } from '@/lib/form';
 import { LOCALES } from '@/lib/locale';
-import { fail, ok, type ActionResult } from '@/lib/result';
-import { recordAudit } from '@/server/audit';
+import { fail, ok, type ActionResult, type FieldErrorCode } from '@/lib/result';
+import { recordAudit, type AuditAction, type AuditEvent } from '@/server/audit';
 import { getActionContext } from '@/server/auth/action-context';
 import type { SessionContext } from '@/server/auth/session';
 import { log } from '@/server/log';
-import { canActOnUser } from './rules';
-import { changeRoleSchema, setStatusSchema } from './schemas';
+import { canActOnUser, changedStudentFields } from './rules';
+import { adminStudentProfileSchema, changeRoleSchema, setStatusSchema } from './schemas';
 
 /**
  * Row actions of the People screen (contracts/server-actions.md §5.3; FR-030, FR-031, FR-044). `users` and
@@ -36,6 +44,24 @@ function sqlStateOf(error: unknown): string | null {
     current = 'cause' in current ? current.cause : undefined;
   }
   return null;
+}
+
+/**
+ * The audit row of a change already made through the pool (`users`, `sessions`). When it cannot be written
+ * the change stays, so the failure is logged under its own event name only — no personal data — and the
+ * action answers `internal` (contracts/server-actions.md §1 "Audit and transactions").
+ */
+async function auditAfterChange<A extends AuditAction>(
+  ctx: SessionContext,
+  event: AuditEvent<A>,
+): Promise<ActionResult | null> {
+  try {
+    await recordAudit(ctx, event);
+    return null;
+  } catch {
+    log.error('admin.user_audit_failed');
+    return fail('internal');
+  }
 }
 
 /** The People screen, in both languages. */
@@ -73,11 +99,12 @@ async function changeRole(ctx: SessionContext, formData: FormData): Promise<Acti
   const changed = await users.setRole(ctx.tenant.id, userId, role);
   if (changed === null) return fail('not_found');
   if (changed.from !== changed.to) {
-    await recordAudit(ctx, {
+    const failed = await auditAfterChange(ctx, {
       action: 'user.role_changed',
       targetId: userId,
       metadata: { from: changed.from, to: changed.to },
     });
+    if (failed !== null) return failed;
   }
   return ok(undefined);
 }
@@ -105,15 +132,18 @@ export async function changeUserRoleAction(
     });
     result = fail('internal');
   }
-  if (result.ok) revalidateUsersScreens();
+  // Also after an unexpected failure: the role may have changed before it (the list must show it).
+  if (result.ok || result.code === 'internal') revalidateUsersScreens();
   return result;
 }
 
 /**
- * Validate → target → change → audit → end the sessions. Suspending ends every session of the account:
- * also when it was already suspended (a retry after a failed revocation finishes the job), but only a real
- * change is audited. Reactivating never touches sessions: the ones ended by the suspension are deleted
- * rows, so nothing can bring them back — the user signs in again.
+ * Validate → target → change → end the sessions → audit. Suspending ends every session of the account
+ * right after the status change and before the audit row, so it holds at once even when the audit write
+ * fails (FR-031); also when the account was already suspended (a retry after a failed revocation finishes
+ * the job), but only a real change is audited — also when the revocation failed, which then answers
+ * `internal`. Reactivating never touches sessions: the ones ended by the
+ * suspension are deleted rows, so nothing can bring them back — the user signs in again.
  */
 async function setStatus(ctx: SessionContext, formData: FormData): Promise<ActionResult> {
   const parsed = parseForm(setStatusSchema, formData);
@@ -126,20 +156,31 @@ async function setStatus(ctx: SessionContext, formData: FormData): Promise<Actio
   const target = await findTarget(ctx, userId);
   if (!target.ok) return target.result;
 
-  if (target.user.status !== status) {
-    if (!(await users.setStatus(ctx.tenant.id, userId, status))) return fail('not_found');
-    await recordAudit(ctx, {
-      action: status === 'suspended' ? 'user.suspended' : 'user.reactivated',
-      targetId: userId,
-    });
+  const changes = target.user.status !== status;
+  if (changes && !(await users.setStatus(ctx.tenant.id, userId, status))) {
+    return fail('not_found');
   }
   // After the status change: a sign-in racing with it either ends before (its session is deleted here) or
   // after (it reads the suspended status and is refused). Every request also re-reads the status.
+  let revocationError: { error: unknown } | null = null;
   if (status === 'suspended') {
-    const revoked = await sessions.revokeAllForUser(userId);
-    log.info('admin.user_sessions_revoked', { count: revoked });
+    try {
+      const revoked = await sessions.revokeAllForUser(userId);
+      log.info('admin.user_sessions_revoked', { count: revoked });
+    } catch (error) {
+      // The status did change: it is still audited (a retry finds it unchanged and would not audit it).
+      revocationError = { error };
+    }
   }
-  return ok(undefined);
+  const auditFailure = changes
+    ? await auditAfterChange(ctx, {
+        action: status === 'suspended' ? 'user.suspended' : 'user.reactivated',
+        targetId: userId,
+      })
+    : null;
+  // Logged by the caller as a failed status change (an audit failure was logged above).
+  if (revocationError !== null) throw revocationError.error;
+  return auditFailure ?? ok(undefined);
 }
 
 /**
@@ -168,4 +209,145 @@ export async function setUserStatusAction(
   // Also after an unexpected failure: the status may have changed before it (the list must show it).
   if (result.ok || result.code === 'internal') revalidateUsersScreens();
   return result;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// The academic-data dialog (FR-028)
+
+/** Fields echoed back after a failure (`meta.<field>`) so the dialog is re-filled; never the user id. */
+const PROFILE_ENTERED_FIELDS = ['studentCode', 'level', 'divisionId'] as const;
+/** Long enough for any valid value. */
+const MAX_ENTERED_LENGTH = 120;
+
+type ProfileField = (typeof PROFILE_ENTERED_FIELDS)[number];
+
+function withEnteredValues(result: ActionResult, formData: FormData): ActionResult {
+  if (result.ok) return result;
+  const fields = formFields(formData);
+  const meta: Record<string, string | number> = { ...result.meta };
+  for (const key of PROFILE_ENTERED_FIELDS) {
+    const value = fields[key];
+    if (typeof value === 'string') meta[key] = value.slice(0, MAX_ENTERED_LENGTH);
+  }
+  return { ...result, meta };
+}
+
+function invalid(field: ProfileField, code: FieldErrorCode): ActionResult {
+  return fail('validation', { fieldErrors: { [field]: code } });
+}
+
+/** The People screen and the screens that show a student's academic data, in both languages. */
+function revalidateStudentScreens(): void {
+  for (const locale of LOCALES) {
+    revalidatePath(`/${locale}/admin/users`);
+    revalidatePath(`/${locale}/dashboard`);
+    revalidatePath(`/${locale}/profile`);
+  }
+}
+
+/**
+ * Validate → target (a student of the caller's college) → the student form's college rules → create or
+ * change the profile, with its audit row, in one withTenant transaction (the administrator is the actor).
+ * A missing profile is created (`profile.created`); otherwise only the fields that differ are written and
+ * listed in `profile.updated {fields}`; nothing differs → `ok`, no write, no audit row.
+ */
+async function updateStudentProfile(
+  ctx: SessionContext,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = parseForm(adminStudentProfileSchema, formData);
+  if (!parsed.ok) {
+    const fieldErrors = parsed.failure.ok ? undefined : parsed.failure.fieldErrors;
+    return fieldErrors?.userId === undefined ? parsed.failure : fail('not_found');
+  }
+  const { userId, ...input } = parsed.data;
+
+  // Only a student of the caller's college: staff (the administrator included) and other colleges'
+  // accounts are unknown here.
+  const target = await users.findInTenant(ctx.tenant.id, userId);
+  if (target?.role !== 'student') return fail('not_found');
+
+  return withTenant({ tenantId: ctx.tenant.id, userId: ctx.user.id }, async (tx) => {
+    const current = await studentProfiles.findByUserId(tx, userId);
+    if (!isLevelAllowed(input.level, ctx.tenant.levelsCount))
+      return invalid('level', 'out_of_range');
+    const division = await divisions.findById(tx, input.divisionId);
+    if (division === null || !isDivisionSelectable(division, current?.divisionId ?? null)) {
+      return invalid('divisionId', 'invalid_choice');
+    }
+
+    if (current === null) {
+      const created = await studentProfiles.create(tx, {
+        userId,
+        studentCode: input.studentCode,
+        level: input.level,
+        divisionId: division.id,
+      });
+      if (!created.ok) {
+        switch (created.reason) {
+          case 'student_code_taken':
+            return invalid('studentCode', 'student_code_taken');
+          case 'invalid_division':
+            return invalid('divisionId', 'invalid_choice');
+          case 'already_exists':
+            // The student completed the profile at the same moment: nothing is overwritten.
+            return fail('conflict');
+          case 'user_not_in_tenant':
+            return fail('not_found');
+        }
+      }
+      await recordAudit(ctx, { action: 'profile.created', targetId: userId }, tx);
+      return ok(undefined);
+    }
+
+    const patch = changedStudentFields(current, { ...input, divisionId: division.id });
+    const fields = Object.keys(patch);
+    if (fields.length === 0) return ok(undefined);
+
+    const updated = await studentProfiles.update(tx, userId, patch);
+    if (!updated.ok) {
+      switch (updated.reason) {
+        case 'student_code_taken':
+          return invalid('studentCode', 'student_code_taken');
+        case 'invalid_division':
+          return invalid('divisionId', 'invalid_choice');
+        case 'not_found':
+          return fail('not_found');
+      }
+    }
+    await recordAudit(
+      ctx,
+      { action: 'profile.updated', targetId: userId, metadata: { fields } },
+      tx,
+    );
+    return ok(undefined);
+  });
+}
+
+/**
+ * Corrects a student's code, level, and division (contracts/server-actions.md §5.3; FR-028, FR-044), under
+ * the same rules as the student's own form: code 3–20 Latin letters, digits, hyphens, unique in the
+ * college (`student_code_taken`); level up to the college's number of levels; an active division, or the
+ * student's current one. Creates the profile when the student has none yet. A target that is not a
+ * student of the caller's college → `not_found`, and nothing changes. The student code is never logged.
+ */
+export async function adminUpdateStudentProfileAction(
+  _previous: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const guard = await getActionContext('admin.users.manage');
+  if ('failure' in guard) return guard.failure;
+
+  let result: ActionResult;
+  try {
+    result = await updateStudentProfile(guard.ctx, formData);
+  } catch (error) {
+    log.error('admin.student_profile_update_failed', {
+      errorName: errorName(error),
+      sqlState: sqlStateOf(error),
+    });
+    result = fail('internal');
+  }
+  if (result.ok) revalidateStudentScreens();
+  return withEnteredValues(result, formData);
 }

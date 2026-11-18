@@ -34,11 +34,13 @@ export {
   expireInvitation,
   getStudentProfileByEmail,
   getUserByEmail,
+  listAuditEvents,
   listInvitations,
   resetRateLimits,
   setUserStatusByEmail,
 } from './admin/test-support';
 export type {
+  AuditEventDetails,
   DivisionFixture,
   InvitationDetails,
   StudentProfileDetails,

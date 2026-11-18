@@ -2,6 +2,7 @@ import { ROLES } from '@masari/db';
 import { describe, expect, it } from 'vitest';
 import { parseForm } from '@/lib/form';
 import {
+  adminStudentProfileSchema,
   changeRoleSchema,
   MAX_SEARCH_LENGTH,
   MAX_USERS_PAGE,
@@ -192,5 +193,47 @@ describe('setStatusSchema', () => {
     expect(
       fieldErrors(parseForm(setStatusSchema, form({ userId: 'x'.repeat(65), status: 'active' }))),
     ).toEqual({ userId: 'too_long' });
+  });
+});
+
+describe('adminStudentProfileSchema', () => {
+  const DIVISION_ID = '0f0e0d0c-0b0a-4908-8706-050403020100';
+  const valid = { userId: USER_ID, studentCode: 'CS-2026-01', level: '3', divisionId: DIVISION_ID };
+
+  it('accepts the student form’s fields, trimming them, lower-casing the division, dropping unknown ones', () => {
+    const result = parseForm(
+      adminStudentProfileSchema,
+      form({
+        userId: ` ${USER_ID} `,
+        studentCode: ' CS-2026-01 ',
+        level: ' 3 ',
+        divisionId: DIVISION_ID.toUpperCase(),
+        role: 'admin',
+        tenantId: 'other',
+      }),
+    );
+    expect(result).toEqual({
+      ok: true,
+      data: { userId: USER_ID, studentCode: 'CS-2026-01', level: 3, divisionId: DIVISION_ID },
+    });
+  });
+
+  it.each([
+    [{ studentCode: undefined }, { studentCode: 'required' }],
+    [{ studentCode: 'ab' }, { studentCode: 'invalid_format' }],
+    [{ studentCode: 'كود-123' }, { studentCode: 'invalid_format' }],
+    [{ studentCode: 'A'.repeat(21) }, { studentCode: 'invalid_format' }],
+    [{ level: '' }, { level: 'required' }],
+    [{ level: '0' }, { level: 'out_of_range' }],
+    [{ level: '8' }, { level: 'out_of_range' }],
+    [{ level: '٣' }, { level: 'out_of_range' }],
+    [{ divisionId: undefined }, { divisionId: 'required' }],
+    [{ divisionId: 'GEN' }, { divisionId: 'invalid_choice' }],
+    [{ userId: undefined }, { userId: 'required' }],
+    [{ userId: 'x'.repeat(65) }, { userId: 'too_long' }],
+  ])('refuses %j with the same codes as the student form (%j)', (change, errors) => {
+    expect(
+      fieldErrors(parseForm(adminStudentProfileSchema, form({ ...valid, ...change }))),
+    ).toEqual(errors);
   });
 });

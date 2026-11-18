@@ -228,6 +228,8 @@ export function seedDemo(migrationUrl: string):
 export function getUserByEmail(migrationUrl: string, email: string):
   Promise<(UserSummary & { privacyConsentAt: Date | null }) | null>;
 export function countAuditEvents(migrationUrl: string, tenantSlug: string, action: string, targetId?: string): Promise<number>;  // targetId: only events about it
+/** Same filter, oldest first → { actorUserId, targetId, metadata }[] (never the IP); [] for an unknown slug. PR-34. */
+export function listAuditEvents(migrationUrl: string, tenantSlug: string, action: string, targetId?: string): Promise<AuditEventDetails[]>;
 export function countSessionsByEmail(migrationUrl: string, email: string): Promise<number>;   // 0 for an unknown email
 /** Deletes rate-limit counters whose key starts with keyPrefix (default: all) → rows removed. Refuses (before
  *  connecting) a database whose name does not match /^masari_(test|e2e)[a-z0-9_]*$/. e2e global setup. */

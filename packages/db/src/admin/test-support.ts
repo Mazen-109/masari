@@ -48,6 +48,40 @@ export function countAuditEvents(
   });
 }
 
+/** One stored audit event, as e2e tests check who acted and what it lists (never the IP). */
+export interface AuditEventDetails {
+  actorUserId: string | null;
+  targetId: string | null;
+  metadata: Record<string, unknown>;
+}
+
+/**
+ * The audit events with this action in the college with this slug, oldest first (empty for an unknown
+ * slug); with `targetId`, only the events about that target.
+ */
+export function listAuditEvents(
+  migrationUrl: string,
+  tenantSlug: string,
+  action: string,
+  targetId?: string,
+): Promise<AuditEventDetails[]> {
+  return withOwnerTransaction(migrationUrl, async (client) => {
+    const tenant = await client.query<{ id: string }>('SELECT id FROM tenants WHERE slug = $1', [
+      tenantSlug,
+    ]);
+    const tenantId = tenant.rows[0]?.id;
+    if (tenantId === undefined) return [];
+    await setTenantContext(client, tenantId);
+    const result = await client.query<AuditEventDetails>(
+      `SELECT actor_user_id AS "actorUserId", target_id AS "targetId", metadata FROM audit_events
+        WHERE tenant_id = $1 AND action = $2 AND ($3::text IS NULL OR target_id = $3)
+        ORDER BY created_at, id`,
+      [tenantId, action, targetId ?? null],
+    );
+    return result.rows;
+  });
+}
+
 /** A stored invitation as e2e tests compare it before and after a refused action. */
 export interface InvitationDetails {
   id: string;

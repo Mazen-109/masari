@@ -9,6 +9,7 @@ import {
   expireInvitation,
   getStudentProfileByEmail,
   getUserByEmail,
+  listAuditEvents,
   listInvitations,
   resetRateLimits,
   setUserStatusByEmail,
@@ -115,6 +116,46 @@ describe('countAuditEvents', () => {
     await expect(
       countAuditEvents(migrationUrl(), randomSlug('none'), 'user.registered'),
     ).resolves.toBe(0);
+  });
+});
+
+describe('listAuditEvents', () => {
+  it('lists the actor, target, and metadata of one action in one college, oldest first', async () => {
+    const college = await makeTenant();
+    const other = await makeTenant();
+    const actor = await makeUser(college.id, { role: 'admin' });
+    const record = (tenantId: string, targetId: string, fields: string[]) =>
+      withTenant({ tenantId, userId: actor.id }, (tx) =>
+        audit.record(tx, {
+          actorUserId: actor.id,
+          action: 'profile.updated',
+          targetType: 'student_profile',
+          targetId,
+          metadata: { fields },
+        }),
+      );
+    await record(college.id, 'first', ['level']);
+    await record(college.id, 'second', ['studentCode', 'level']);
+    await record(other.id, 'first', ['divisionId']);
+    const list = (targetId?: string) =>
+      listAuditEvents(migrationUrl(), college.slug, 'profile.updated', targetId);
+
+    await expect(list()).resolves.toEqual([
+      { actorUserId: actor.id, targetId: 'first', metadata: { fields: ['level'] } },
+      { actorUserId: actor.id, targetId: 'second', metadata: { fields: ['studentCode', 'level'] } },
+    ]);
+    await expect(list('second')).resolves.toEqual([
+      { actorUserId: actor.id, targetId: 'second', metadata: { fields: ['studentCode', 'level'] } },
+    ]);
+    await expect(listAuditEvents(migrationUrl(), college.slug, 'profile.created')).resolves.toEqual(
+      [],
+    );
+  });
+
+  it('returns an empty list for an unknown college', async () => {
+    await expect(
+      listAuditEvents(migrationUrl(), randomSlug('none'), 'user.registered'),
+    ).resolves.toEqual([]);
   });
 });
 

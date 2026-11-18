@@ -1,5 +1,6 @@
 import { ROLES, USER_STATUSES, type Role, type UserStatus } from '@masari/db';
 import { z } from 'zod';
+import { divisionIdField, levelField, studentCodeField } from '@/features/profile/schemas';
 
 /**
  * Query parameters of the People screen (contracts/routes.md §4; FR-029): `q` (trimmed, 1–100 characters),
@@ -106,3 +107,17 @@ export const setStatusSchema = z.object({
 });
 
 export type SetStatusInput = z.infer<typeof setStatusSchema>;
+
+/**
+ * The academic-data dialog (`adminUpdateStudentProfileAction`, FR-028): the student's account and the same
+ * three fields, with the same rules, as the student's own profile form (features/profile/schemas.ts). The
+ * college's limits (number of levels, active divisions) are checked by the action with the profile rules.
+ */
+export const adminStudentProfileSchema = z.object({
+  userId: userIdField,
+  studentCode: studentCodeField,
+  level: levelField,
+  divisionId: divisionIdField,
+});
+
+export type AdminStudentProfileInput = z.infer<typeof adminStudentProfileSchema>;
