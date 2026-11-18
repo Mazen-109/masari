@@ -1,5 +1,6 @@
 import { ROLES, type Role, type UserStatus } from '@masari/db';
 import { useLocale, useTranslations } from 'next-intl';
+import { EmailAddress } from '@/components/email-address';
 import { ScrollableTable } from '@/components/scrollable-table';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -12,6 +13,7 @@ import {
 } from '@/components/ui/table';
 import { levelLabelKey } from '@/features/profile/level-label';
 import { formatDate } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { RoleDialog, type RoleOption } from './role-dialog';
 import { StatusButton } from './status-button';
 
@@ -35,6 +37,15 @@ const STATUS_VARIANT = {
   active: 'success',
   suspended: 'destructive',
 } as const satisfies Record<UserStatus, string>;
+
+/**
+ * Nine columns must fit the desktop content column (DESIGN.md "Tables", dense variant): 12 px inline
+ * padding, headers and text cells wrap at word boundaries, while badges and student codes stay whole.
+ * Below that width the region scrolls sideways as usual.
+ */
+const CELL = 'px-3';
+const WRAP = 'px-3 whitespace-normal wrap-break-word';
+const HEAD = 'px-3 whitespace-normal';
 
 /** A visual mark, not text: hidden from assistive technology, which reads the word beside it. */
 const DASH = '—';
@@ -84,49 +95,70 @@ export function UsersTable({
       <TableCaption className="sr-only">{t('caption')}</TableCaption>
       <TableHeader>
         <TableRow>
-          <TableHead scope="col">{t('name')}</TableHead>
-          <TableHead scope="col">{t('email')}</TableHead>
-          <TableHead scope="col">{t('role')}</TableHead>
-          <TableHead scope="col">{t('status')}</TableHead>
-          <TableHead scope="col">{t('studentCode')}</TableHead>
-          <TableHead scope="col">{t('level')}</TableHead>
-          <TableHead scope="col">{t('division')}</TableHead>
-          <TableHead scope="col">{t('joinedAt')}</TableHead>
-          <TableHead scope="col">{tActions('column')}</TableHead>
+          <TableHead scope="col" className={HEAD}>
+            {t('name')}
+          </TableHead>
+          <TableHead scope="col" className={HEAD}>
+            {t('email')}
+          </TableHead>
+          <TableHead scope="col" className={HEAD}>
+            {t('role')}
+          </TableHead>
+          <TableHead scope="col" className={HEAD}>
+            {t('status')}
+          </TableHead>
+          <TableHead scope="col" className={HEAD}>
+            {t('studentCode')}
+          </TableHead>
+          <TableHead scope="col" className={HEAD}>
+            {t('level')}
+          </TableHead>
+          <TableHead scope="col" className={HEAD}>
+            {t('division')}
+          </TableHead>
+          <TableHead scope="col" className={HEAD}>
+            {t('joinedAt')}
+          </TableHead>
+          <TableHead scope="col" className={HEAD}>
+            {tActions('column')}
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {rows.map((row) => (
           <TableRow key={row.id} data-user={row.id} data-role={row.role} data-status={row.status}>
-            <TableCell data-field="name" className="min-w-40 whitespace-normal">
+            <TableCell data-field="name" className={WRAP}>
               <bdi>{row.name}</bdi>
             </TableCell>
-            {/* A long address wraps (anywhere) instead of pushing the other columns out of view. */}
-            <TableCell data-field="email" className="min-w-48 wrap-anywhere whitespace-normal">
-              <bdi dir="ltr">{row.email}</bdi>
+            {/* Wraps only after the @ and before a dot, never inside a word (EmailAddress). */}
+            <TableCell data-field="email" className={WRAP}>
+              <EmailAddress email={row.email} />
             </TableCell>
-            <TableCell data-field="role">{tRoles(row.role)}</TableCell>
-            <TableCell data-field="status">
+            <TableCell data-field="role" className={WRAP}>
+              {tRoles(row.role)}
+            </TableCell>
+            <TableCell data-field="status" className={CELL}>
               <Badge variant={STATUS_VARIANT[row.status]}>{tStatuses(row.status)}</Badge>
             </TableCell>
-            <TableCell data-field="studentCode">
+            <TableCell data-field="studentCode" className={CELL}>
               {row.studentCode === null ? none : <bdi dir="ltr">{row.studentCode}</bdi>}
             </TableCell>
-            <TableCell data-field="level">
+            <TableCell data-field="level" className={WRAP}>
               {row.level === null ? none : tCommon(levelLabelKey(row.level))}
             </TableCell>
-            <TableCell data-field="division" className="min-w-32 whitespace-normal">
+            <TableCell data-field="division" className={WRAP}>
               {row.divisionName === null ? none : <bdi>{row.divisionName}</bdi>}
             </TableCell>
-            <TableCell data-field="joinedAt" className="tabular-nums">
+            <TableCell data-field="joinedAt" className={cn(WRAP, 'tabular-nums')}>
               {formatDate(row.createdAt, locale)}
             </TableCell>
-            <TableCell data-field="actions">
+            <TableCell data-field="actions" className={CELL}>
               {row.id === actorId ? (
                 <span className="text-muted-foreground" data-slot="own-account">
                   {tActions('self')}
                 </span>
               ) : (
+                // Side by side when the column has room, one under the other when it does not.
                 <div className="flex flex-wrap items-start gap-2">
                   <RoleDialog userId={row.id} name={row.name} role={row.role} roles={roles} />
                   <StatusButton userId={row.id} name={row.name} status={row.status} />

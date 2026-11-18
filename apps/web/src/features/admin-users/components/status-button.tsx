@@ -72,7 +72,7 @@ function SuspendDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button ref={buttonRef} variant="outline" data-slot="suspend-trigger">
+        <Button ref={buttonRef} variant="outline" size="compact" data-slot="suspend-trigger">
           {t('open')}
           <span className="sr-only"> {t.rich('target', { name, bdi })}</span>
         </Button>
@@ -125,7 +125,7 @@ function ReactivateForm({
     >
       <input type="hidden" name="userId" value={userId} />
       <input type="hidden" name="status" value="active" />
-      <SubmitButton ref={buttonRef} variant="outline">
+      <SubmitButton ref={buttonRef} variant="outline" size="compact">
         {t('submit')}
         <span className="sr-only"> {t.rich('target', { name, bdi })}</span>
       </SubmitButton>

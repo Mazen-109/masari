@@ -545,3 +545,53 @@ test('suspending ends the sessions and blocks sign-in; reactivating restores sig
     await student.context().close();
   }
 });
+
+test('at 1280 px the whole table fits, row actions included, and emails wrap only at @ or a dot', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const token = randomBytes(3).toString('hex');
+  // Realistic addresses and names (not the long generated ones), like a college's real data.
+  const adminEmail = `shot.admin.${token}@example.edu`;
+  const college = await createCollege(uniqueCollegeSlug('fit'), adminEmail);
+  const active = `mona.hassan.${token}@student.example.edu`;
+  const suspended = `omar.farouk.${token}@student.example.edu`;
+  for (const [email, name] of [
+    [active, 'منى حسن عبد الرحمن'],
+    [suspended, 'عمر فاروق السيد'],
+  ] as const) {
+    await registerStudent(page, { college: college.slug, email, name });
+    await page.waitForURL('/ar/verify-email');
+    await createStudentProfile(email, { studentCode: uniqueStudentCode() });
+  }
+  await setUserStatus(suspended, 'suspended');
+  await signInAdmin(page, college, adminEmail, 'Shot Administrator');
+
+  for (const locale of ['ar', 'en'] as const) {
+    await page.goto(`/${locale}/admin/users`);
+    const region = page.getByRole('region', {
+      name: CATALOGS[locale].admin.users.list.title,
+      exact: true,
+    });
+    await expect(rows(page)).toHaveCount(3);
+    // No sideways scrolling: every column, Actions included, is in the content column.
+    expect(await region.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0);
+    const regionBox = await region.boundingBox();
+    expect(regionBox).not.toBeNull();
+    const buttons = rows(page).locator('[data-field="actions"]').getByRole('button');
+    await expect(buttons).toHaveCount(4);
+    for (const button of await buttons.all()) {
+      await expect(button).toBeVisible();
+      const box = await button.boundingBox();
+      expect(box).not.toBeNull();
+      if (box !== null && regionBox !== null) {
+        expect(box.x).toBeGreaterThanOrEqual(regionBox.x - 1);
+        expect(box.x + box.width).toBeLessThanOrEqual(regionBox.x + regionBox.width + 1);
+      }
+    }
+    // Break points only after the @ and before each dot.
+    await expect(
+      rows(page).filter({ hasText: active }).locator('[data-field="email"] wbr'),
+    ).toHaveCount(active.split('.').length);
+  }
+});

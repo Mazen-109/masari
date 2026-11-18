@@ -356,8 +356,12 @@ with 16 px inline padding, aligned `text-start`, header cells 44 px high. Every 
 of the content column, the same as the forms and cards above it. Its container is a focusable region
 (`role="region"`, `tabIndex={0}`) named by the section heading; where the columns cannot fit (below
 640 px) it scrolls sideways, and a `muted-foreground` hint above it (`sm:hidden`, also the region's
-`aria-describedby`) says so — the page itself never scrolls sideways. Long emails wrap (`wrap-anywhere`)
-rather than pushing other columns out; dates and badges stay on one line. Emails and codes sit in
+`aria-describedby`) says so — the page itself never scrolls sideways. Long emails wrap only after the
+`@` and before a dot (`components/email-address.tsx`, `<wbr>` break points), never inside a word, rather
+than pushing other columns out; badges and codes stay on one line. A wide table (the People list, nine
+columns with row actions) uses the dense variant so it fits the desktop content column: 12 px inline
+padding, headers and text cells (names, role, level, division, date) wrap at word boundaries, and row
+actions use the `compact` button size (still 44 px high), side by side when there is room. Emails and codes sit in
 `<bdi dir="ltr">`; dates and numbers use `tabular-nums`; a status is a badge with its word (`info`
 pending, `success` accepted/active, `warning` expired, `neutral` revoked, `destructive` suspended). An
 empty cell shows a `muted-foreground` dash with a visually hidden word («لا يوجد», "None").

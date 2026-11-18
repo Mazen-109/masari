@@ -1,5 +1,6 @@
 import type { InvitationView, Role } from '@masari/db';
 import { useLocale, useTranslations } from 'next-intl';
+import { EmailAddress } from '@/components/email-address';
 import { ScrollableTable } from '@/components/scrollable-table';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -83,9 +84,9 @@ export function InvitationsTable({
       <TableBody>
         {rows.map((row) => (
           <TableRow key={row.id} data-invitation={row.id} data-status={row.displayStatus}>
-            {/* A long address wraps (anywhere) instead of pushing the other columns out of view. */}
-            <TableCell data-field="email" className="min-w-48 wrap-anywhere whitespace-normal">
-              <bdi dir="ltr">{row.email}</bdi>
+            {/* A long address wraps after the @ and before a dot, never inside a word (EmailAddress). */}
+            <TableCell data-field="email" className="min-w-48 wrap-break-word whitespace-normal">
+              <EmailAddress email={row.email} />
             </TableCell>
             <TableCell data-field="role">{tRoles(row.role)}</TableCell>
             <TableCell data-field="status">

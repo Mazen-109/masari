@@ -104,7 +104,7 @@ export function RoleDialog({
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogTrigger asChild>
-          <Button variant="outline" data-slot="role-trigger">
+          <Button variant="outline" size="compact" data-slot="role-trigger">
             {t('open')}
             <span className="sr-only"> {t.rich('target', { name, bdi })}</span>
           </Button>
