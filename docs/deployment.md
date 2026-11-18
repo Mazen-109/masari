@@ -20,6 +20,15 @@ altogether), so a web process holding it would lose tenant isolation (constituti
 `DATABASE_URL` is a superuser or `BYPASSRLS` role, but an owner URL merely present in the environment is
 not detected — keep it out of the hosting provider's runtime variables entirely.
 
+## Build-time environment: `APP_URL` and HSTS
+
+The security headers (`contracts/http-and-env.md` §2) are computed when `next build` loads
+`apps/web/next.config.ts` and are written into the build output; they are not re-read at start-up.
+`Strict-Transport-Security` is included only when `APP_URL` starts with `https://` **at build time**. The
+production build MUST therefore run with the production `APP_URL` set (on Vercel: define it for the build,
+not only for the runtime). A build made without it — like the CI `build` job, which has no application
+variables on purpose — never sends HSTS, whatever `APP_URL` the server later starts with.
+
 ## Client network address
 
 Every proxy counted in `TRUSTED_PROXY_HOPS` MUST append (or overwrite with) the address it received the

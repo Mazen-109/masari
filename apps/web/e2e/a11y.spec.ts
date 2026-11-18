@@ -1,76 +1,25 @@
-import type { Page } from '@playwright/test';
 import { expectNoA11yViolations } from './support/axe';
 import { expect, test } from './support/fixtures';
 import {
   acceptInvitation,
   CATALOGS,
   completeProfile,
-  registerConfirmedStudent,
   registerStudent,
   signIn,
-  signInAsDemoAdmin,
   uniqueEmail,
 } from './support/flows';
 import { createCollege, uniqueCollegeSlug } from './support/operator';
-import { registerStudentWithProfile } from './support/students';
+import {
+  localized,
+  PUBLIC_SCREENS,
+  SCREEN_LOCALES as LOCALES,
+  SIGNED_IN_SCREENS,
+  signInAs,
+} from './support/screens';
 
-// Accessibility scan of every screen in both languages (contracts/ci.md §5, FR-042). Every batch that adds
-// a screen appends it here: public screens to PUBLIC_SCREENS; signed-in screens (scanned once per role
-// that can open them, from PR-18 on when signing in exists) to SIGNED_IN_SCREENS. The pseudo-role
-// `new_student` is a confirmed student who has not completed the academic profile yet (PR-22).
-export const PUBLIC_SCREENS: readonly string[] = [
-  '/sign-in',
-  '/sign-in?reason=account_suspended&reset=1&invited=1',
-  '/privacy',
-  '/register',
-  '/verify-email',
-  '/email-verified',
-  '/email-verified?error=invalid_token',
-  '/forgot-password',
-  '/reset-password',
-  '/reset-password?error=INVALID_TOKEN',
-  `/reset-password?token=${'Tk9'.repeat(8)}`,
-  // An unknown invitation token: the "no longer valid" screen. The form is scanned below.
-  `/invite/${'Iv4_'.repeat(10)}a-Z`,
-];
-
-export const SIGNED_IN_SCREENS: readonly { path: string; roles: readonly string[] }[] = [
-  { path: '/dashboard', roles: ['student', 'admin'] },
-  { path: '/modules/mueed', roles: ['student'] },
-  { path: '/onboarding', roles: ['new_student'] },
-  { path: '/profile', roles: ['student'] },
-  { path: '/admin/users', roles: ['admin'] },
-  { path: '/admin/invitations', roles: ['admin'] },
-  { path: '/admin/divisions', roles: ['admin'] },
-  { path: '/admin/settings', roles: ['admin'] },
-];
-
-/**
- * Signs the page in as a user of `role`: a new student, or the demo college's administrator (whose
- * college already has invitations to list). Faculty and Student Affairs follow with the role matrix (PR-30).
- */
-async function signInAs(page: Page, role: string): Promise<void> {
-  if (role === 'admin') {
-    await signInAsDemoAdmin(page);
-    return;
-  }
-  if (role === 'new_student') {
-    const email = await registerConfirmedStudent(page);
-    await signIn(page, { email });
-    await page.waitForURL('/ar/onboarding');
-    return;
-  }
-  if (role !== 'student') throw new Error(`a11y: no sign-in fixture for the role ${role} yet`);
-  const email = await registerStudentWithProfile(page);
-  await signIn(page, { email });
-  await page.waitForURL('/ar/dashboard');
-}
-
-const LOCALES = ['ar', 'en'] as const;
-
-function localized(locale: string, path: string): string {
-  return path === '/' ? `/${locale}` : `/${locale}${path}`;
-}
+// Accessibility scan of every screen in both languages (contracts/ci.md §5, FR-042). The screen lists
+// live in support/screens.ts (shared with the CSP check of security-headers.spec.ts): every batch that
+// adds a screen appends it there. Signed-in screens are scanned once per role that can open them.
 
 for (const locale of LOCALES) {
   for (const path of PUBLIC_SCREENS) {

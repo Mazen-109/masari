@@ -497,8 +497,8 @@ permissions. **No user-story batch may start before PR-14 is merged.**
 
 ### PR-37 — Browser protections · branch `001-pr37-browser-protections`
 
-- [ ] T141 Add the response headers of contracts/http-and-env.md §2 to `apps/web/next.config.ts` (CSP with the development-only additions; HSTS only when `APP_URL` is https) and create `apps/web/src/app/robots.ts` (`Disallow: /`) (FR-048, FR-049)
-- [ ] T142 Create `apps/web/e2e/security-headers.spec.ts`: every header and exact CSP value on `/ar/sign-in`, `/ar/dashboard`, and `/api/health`; no `X-Powered-By`; `/robots.txt` disallows all; no console CSP violation on any screen of the a11y lists (listen for `securitypolicyviolation`); a cross-origin POST to a Server Action endpoint is rejected
+- [x] T141 Add the response headers of contracts/http-and-env.md §2 to `apps/web/next.config.ts` (CSP with the development-only additions; HSTS only when `APP_URL` is https) and create `apps/web/src/app/robots.ts` (`Disallow: /`) (FR-048, FR-049)
+- [x] T142 Create `apps/web/e2e/security-headers.spec.ts`: every header and exact CSP value on `/ar/sign-in`, `/ar/dashboard`, and `/api/health`; no `X-Powered-By`; `/robots.txt` disallows all; no console CSP violation on any screen of the a11y lists (listen for `securitypolicyviolation`); a cross-origin POST to a Server Action endpoint is rejected
 
 **Accept**: all screens work with the CSP (no violation events in e2e) · headers present on HTML, API, and static asset responses
 

@@ -74,7 +74,7 @@ No Docker (e.g. cloud sessions)? Use the machine's PostgreSQL 16+ as described i
 - **RTL**: logical utilities only (`ms-`, `me-`, `ps-`, `pe-`, `start-`, `end-`, `text-start`); wrap
   emails/codes/URLs in `dir="ltr"` or `<bdi>`; mirror directional icons.
 - **Accessibility**: semantic HTML, labelled controls, visible focus, keyboard-complete flows; add every new
-  screen to the axe scan list in `apps/web/e2e/a11y.spec.ts`.
+  screen to the screen lists in `apps/web/e2e/support/screens.ts` (axe scan and CSP check).
 - **UI work**: follow the Impeccable skill (`.claude/skills/impeccable`) together with `PRODUCT.md` and
   `DESIGN.md`; change design tokens, not one-off colours.
 - **Logging**: use `src/server/log.ts`; never log emails, names, student codes, tokens, or passwords.

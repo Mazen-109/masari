@@ -279,6 +279,7 @@ async function divisionState(college: RoleCollege) {
     created: await countAuditEvents(college.slug, 'division.created'),
     updated: await countAuditEvents(college.slug, 'division.updated'),
     deactivated: await countAuditEvents(college.slug, 'division.deactivated'),
+    activated: await countAuditEvents(college.slug, 'division.activated'),
   };
 }
 
