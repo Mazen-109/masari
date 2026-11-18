@@ -48,6 +48,41 @@ export function countAuditEvents(
   });
 }
 
+/** A stored invitation as e2e tests compare it before and after a refused action. */
+export interface InvitationDetails {
+  id: string;
+  email: string;
+  role: string;
+  /** Stored status (`pending`, `accepted`, `revoked`); "expired" is derived, never stored. */
+  status: string;
+  expiresAt: Date;
+  acceptedAt: Date | null;
+}
+
+/**
+ * Every invitation of the college with this slug, oldest first (created_at, id); empty for an unknown
+ * slug. Read in the college's context and filtered explicitly (a superuser owner bypasses RLS).
+ */
+export function listInvitations(
+  migrationUrl: string,
+  tenantSlug: string,
+): Promise<InvitationDetails[]> {
+  return withOwnerTransaction(migrationUrl, async (client) => {
+    const tenant = await client.query<{ id: string }>('SELECT id FROM tenants WHERE slug = $1', [
+      tenantSlug,
+    ]);
+    const tenantId = tenant.rows[0]?.id;
+    if (tenantId === undefined) return [];
+    await setTenantContext(client, tenantId);
+    const result = await client.query<InvitationDetails>(
+      `SELECT id, email, role, status, expires_at AS "expiresAt", accepted_at AS "acceptedAt"
+         FROM invitations WHERE tenant_id = $1 ORDER BY created_at, id`,
+      [tenantId],
+    );
+    return result.rows;
+  });
+}
+
 /** Number of sessions of the account with this email (input trimmed and lower-cased); 0 if unknown. */
 export function countSessionsByEmail(migrationUrl: string, email: string): Promise<number> {
   return withOwnerTransaction(migrationUrl, async (client) => {

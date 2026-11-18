@@ -10,10 +10,12 @@ import {
   getAdminDbEnv,
   getStudentProfileByEmail as getStudentProfileByEmailIn,
   getUserByEmail as getUserByEmailIn,
+  listInvitations as listInvitationsIn,
   resetRateLimits as resetRateLimitsIn,
   setTenantStatus as setTenantStatusIn,
   withDatabaseName,
   type DivisionFixture,
+  type InvitationDetails,
   type StudentProfileDetails,
   type StudentProfileFixture,
   type UserDetails,
@@ -38,6 +40,11 @@ export function countAuditEvents(
   targetId?: string,
 ): Promise<number> {
   return countAuditEventsIn(ownerUrl(), tenantSlug, action, targetId);
+}
+
+/** Every invitation of the college (oldest first), for before/after comparisons of refused actions. */
+export function listInvitations(tenantSlug: string): Promise<InvitationDetails[]> {
+  return listInvitationsIn(ownerUrl(), tenantSlug);
 }
 
 /** Number of sign-in sessions stored for the account with this email (0 when there is none). */

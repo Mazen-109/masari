@@ -9,6 +9,7 @@ import {
   expireInvitation,
   getStudentProfileByEmail,
   getUserByEmail,
+  listInvitations,
   resetRateLimits,
 } from '../src/admin/test-support';
 import { withTenant } from '../src/context';
@@ -113,6 +114,36 @@ describe('countAuditEvents', () => {
     await expect(
       countAuditEvents(migrationUrl(), randomSlug('none'), 'user.registered'),
     ).resolves.toBe(0);
+  });
+});
+
+describe('listInvitations', () => {
+  it("lists only that college's invitations, oldest first, with their stored status", async () => {
+    const college = await makeTenant();
+    const other = await makeTenant();
+    const invite = (tenantId: string, email: string) =>
+      withTenant({ tenantId, userId: null }, (tx) =>
+        invitations.create(tx, { email, role: 'faculty', invitedBy: null }),
+      );
+    const first = await invite(college.id, `${randomSlug('first')}@example.test`);
+    const second = await invite(college.id, `${randomSlug('second')}@example.test`);
+    await invite(other.id, `${randomSlug('other')}@example.test`);
+    if (!first.ok || !second.ok) throw new Error('listInvitations: not created');
+    await ownerTenantQuery(college.id, "UPDATE invitations SET status = 'revoked' WHERE id = $1", [
+      second.value.id,
+    ]);
+
+    const listed = await listInvitations(migrationUrl(), college.slug);
+    expect(listed.map((row) => [row.id, row.role, row.status])).toEqual([
+      [first.value.id, 'faculty', 'pending'],
+      [second.value.id, 'faculty', 'revoked'],
+    ]);
+    expect(listed[0]?.expiresAt).toBeInstanceOf(Date);
+    expect(listed[0]?.acceptedAt).toBeNull();
+  });
+
+  it('returns an empty list for an unknown college', async () => {
+    await expect(listInvitations(migrationUrl(), randomSlug('none'))).resolves.toEqual([]);
   });
 });
 

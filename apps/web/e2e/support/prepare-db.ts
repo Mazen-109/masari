@@ -13,7 +13,7 @@ import {
   seedDemo,
   withDatabaseName,
 } from '@masari/db/admin';
-import { E2E_DATABASE, E2E_DEMO_ADMIN_DIR } from './constants';
+import { E2E_DATABASE, E2E_DEMO_ADMIN_DIR, E2E_ROLES_DIR } from './constants';
 
 const WEB_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -30,11 +30,19 @@ async function handOverDemoAdmin(token: string | null): Promise<void> {
   await writeFile(path.join(dir, 'token'), token, { mode: 0o600 });
 }
 
+/** The role-based access college lived in the old database: its accounts and sessions are gone too. */
+async function forgetRoleCollege(): Promise<void> {
+  const dir = path.resolve(WEB_ROOT, E2E_ROLES_DIR);
+  await rm(dir, { recursive: true, force: true });
+  await mkdir(dir, { recursive: true });
+}
+
 async function main(): Promise<void> {
   const env = getAdminDbEnv();
   await recreateDatabase(env.DATABASE_MIGRATION_URL, env.DATABASE_URL, E2E_DATABASE);
   const seeded = await seedDemo(withDatabaseName(env.DATABASE_MIGRATION_URL, E2E_DATABASE));
   await handOverDemoAdmin(seeded.adminInvitationToken);
+  await forgetRoleCollege();
   console.log(`E2E database ready: ${E2E_DATABASE} (college ${DEMO_SLUG})`);
 }
 

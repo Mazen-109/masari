@@ -1,8 +1,8 @@
-import type { Locator } from '@playwright/test';
+import type { BrowserContext, Locator, Page } from '@playwright/test';
 
 // Forged submissions (contracts/server-actions.md §6). Tests never build a Server Action request by hand:
 // the browser sends a genuine request from a real rendered form, and the test changes only what an
-// attacker could change in the DOM. `submitAs` (another user's session) comes with PR-30.
+// attacker could change in the DOM, or the session the browser sends with it (`submitAs`).
 
 /**
  * Sets the value of the form's control named `name`, or — when the form has none — appends a hidden input
@@ -39,4 +39,23 @@ export async function setFormField(form: Locator, name: string, value: string): 
     },
     { name, value },
   );
+}
+
+type StorageState = Awaited<ReturnType<BrowserContext['storageState']>>;
+
+/**
+ * Submits a form already on screen with another user's session: replaces the context's cookies with those
+ * of `storageState` (e.g. a student's, from roles.ts) without reloading, then runs `submit`, which clicks
+ * the form's button. The request carries the real action id of the rendered form and the other user's
+ * session. The page must be hydrated first: without JavaScript the form would post as a page navigation.
+ */
+export async function submitAs(
+  page: Page,
+  storageState: StorageState,
+  submit: () => Promise<void>,
+): Promise<void> {
+  const context = page.context();
+  await context.clearCookies();
+  await context.addCookies(storageState.cookies);
+  await submit();
 }

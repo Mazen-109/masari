@@ -34,10 +34,12 @@ export {
   expireInvitation,
   getStudentProfileByEmail,
   getUserByEmail,
+  listInvitations,
   resetRateLimits,
 } from './admin/test-support';
 export type {
   DivisionFixture,
+  InvitationDetails,
   StudentProfileDetails,
   StudentProfileFixture,
   UserDetails,

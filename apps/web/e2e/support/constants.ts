@@ -18,3 +18,11 @@ export const E2E_EMAIL_CAPTURE_DIR = '.tmp/e2e-emails';
  * signed-in cookies (`state.json`) for the others.
  */
 export const E2E_DEMO_ADMIN_DIR = '.tmp/e2e-demo-admin';
+
+/**
+ * The role-based access college, relative to apps/web: the first test that needs a signed-in role creates
+ * one college with an administrator, a faculty member, a Student Affairs member, and a student
+ * (`roles.ts`, guarded by `lock`), records them in `accounts.json`, and saves each role's signed-in
+ * cookies (`<role>.json`) for the others. Emptied by prepare-db.ts with the database.
+ */
+export const E2E_ROLES_DIR = '.tmp/e2e-roles';
