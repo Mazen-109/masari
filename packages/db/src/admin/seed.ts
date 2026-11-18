@@ -39,6 +39,11 @@ export interface SeedResult {
    * college already has an administrator, a usable invitation is pending, or the address has an account).
    */
   adminInvitationToken: string | null;
+  /**
+   * True when no invitation was created because a usable (pending, unexpired) administrator invitation for
+   * DEMO_ADMIN_EMAIL already exists; its link cannot be shown again (only its hash is stored).
+   */
+  adminInvitationPending: boolean;
 }
 
 export function seedDemo(migrationUrl: string): Promise<SeedResult> {
@@ -46,19 +51,27 @@ export function seedDemo(migrationUrl: string): Promise<SeedResult> {
     const created = await insertTenant(client, DEMO_COLLEGE);
     const tenantId = created ?? (await findTenantId(client, DEMO_SLUG));
     await ensureDivisions(client, tenantId, DEMO_DIVISIONS);
-    return { tenantId, adminInvitationToken: await ensureAdminInvitation(client, tenantId) };
+    return { tenantId, ...(await ensureAdminInvitation(client, tenantId)) };
   });
 }
 
 /** A pending admin invitation for DEMO_ADMIN_EMAIL when the college has no administrator yet. */
-async function ensureAdminInvitation(client: pg.Client, tenantId: string): Promise<string | null> {
+async function ensureAdminInvitation(
+  client: pg.Client,
+  tenantId: string,
+): Promise<Omit<SeedResult, 'tenantId'>> {
+  const nothing = { adminInvitationToken: null, adminInvitationPending: false };
   const admins = await client.query(
     `SELECT 1 FROM users WHERE tenant_id = $1 AND role = 'admin' LIMIT 1`,
     [tenantId],
   );
-  if ((admins.rowCount ?? 0) > 0) return null;
+  if ((admins.rowCount ?? 0) > 0) return nothing;
   const invitation = await insertAdminInvitation(client, tenantId, DEMO_ADMIN_EMAIL);
-  return invitation.ok ? invitation.token : null;
+  if (invitation.ok)
+    return { adminInvitationToken: invitation.token, adminInvitationPending: false };
+  return invitation.reason === 'pending_exists'
+    ? { adminInvitationToken: null, adminInvitationPending: true }
+    : nothing;
 }
 
 async function findTenantId(client: pg.Client, slug: string): Promise<string> {

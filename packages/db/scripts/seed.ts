@@ -24,6 +24,10 @@ async function main(): Promise<void> {
   console.log(`Demo college ready: ${DEMO_SLUG}`);
   if (result.adminInvitationToken !== null) {
     console.log(`Admin invitation link: ${env.APP_URL}/ar/invite/${result.adminInvitationToken}`);
+  } else if (result.adminInvitationPending) {
+    console.log(
+      'Admin invitation already pending: no new link was created (revoke it to get a new link).',
+    );
   }
 }
 

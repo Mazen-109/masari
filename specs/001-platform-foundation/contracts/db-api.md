@@ -103,7 +103,7 @@ setRole(tenantId: string, userId: string, role: Role): Promise<{ from: Role; to:
 setStatus(tenantId: string, userId: string, status: UserStatus): Promise<boolean>
 setName(userId: string, name: string): Promise<void>
 setLocale(userId: string, locale: Locale): Promise<void>
-activateInvited(tenantId: string, userId: string, role: Role): Promise<void>  // role + email_verified = true
+activateInvited(tenantId: string, userId: string, role: Role): Promise<void>  // role + email_verified = true; throws (no data) if the college has no such account
 deleteJustCreated(tenantId: string, userId: string): Promise<boolean>
   // compensation only (server-actions.md §4.7 step 6): deletes the user (cascade: accounts, sessions) when it
   // belongs to tenantId AND created_at > now() - interval '10 minutes'; false when nothing matched
@@ -159,7 +159,7 @@ revoke(tx: Tx, id: string): Promise<'revoked' | 'not_found' | 'not_pending'>
 findByTokenHash(tx: Tx, tokenHash: string): Promise<Invitation | null>        // inside withInvitationToken
 claim(tx: Tx, id: string): Promise<Invitation | null>                         // pending & unexpired → accepted (atomic)
 release(tx: Tx, id: string): Promise<void>      // undo a claim not yet linked to an account (accepted_user_id IS NULL)
-setAcceptedUser(tx: Tx, id: string, userId: string): Promise<void>   // throws (no data in the error) if not claimed
+setAcceptedUser(tx: Tx, id: string, userId: string): Promise<void>   // throws (no data in the error) if not claimed or already linked to an account
 ```
 
 **`audit`**
@@ -209,7 +209,9 @@ export function createTenantWithAdmin(migrationUrl: string,
   Promise<{ ok: true; tenantId: string; token: string } | { ok: false; reason: 'slug_taken' | 'email_has_account' }>;
 export function setTenantStatus(migrationUrl: string, slug: string, status: TenantStatus):
   Promise<'updated' | 'not_found'>;                                                     // changes status only; sessions are NOT deleted (cli.md §5)
-export function seedDemo(migrationUrl: string): Promise<{ tenantId: string; adminInvitationToken: string | null }>;
+export function seedDemo(migrationUrl: string):
+  Promise<{ tenantId: string; adminInvitationToken: string | null; adminInvitationPending: boolean }>;
+  // adminInvitationPending: nothing created because a usable demo admin invitation already exists (PR-27)
 
 // Test support (src/admin/test-support.ts) — used only by packages/db/test and apps/web/e2e
 export function getUserByEmail(migrationUrl: string, email: string):

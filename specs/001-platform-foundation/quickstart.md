@@ -105,6 +105,11 @@ pnpm tenant:create --slug sci-demo --name-ar "كلية العلوم (تجريب�
    Set it back to `active`.
 4. Re-open the used invitation link → "invitation no longer valid".
 
+The `demo` college's own admin invitation comes from `pnpm db:seed`, which prints its link only when it
+creates it. A second run prints `Admin invitation already pending: no new link was created (revoke it to get a
+new link).` — the old link still works if you kept it; otherwise revoke the pending invitation (from PR-29 on
+the invitations screen) and run the seed again.
+
 ### V5 — Staff invitations and role-based access (US5) · `invitations.spec.ts`, `rbac.spec.ts` [PR-28…PR-30]
 
 1. As the `demo` admin (accept the link printed by `pnpm db:seed`): `/ar/admin/invitations` → invite

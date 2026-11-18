@@ -189,5 +189,6 @@ export async function setAcceptedUser(tx: Tx, id: string, userId: string): Promi
         )
         .returning({ id: invitations.id })
     : [];
-  if (rows.length === 0) throw new Error('invitations.setAcceptedUser: invitation not claimed');
+  if (rows.length === 0)
+    throw new Error('invitations.setAcceptedUser: invitation not claimed or already linked');
 }

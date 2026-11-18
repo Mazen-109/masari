@@ -5,6 +5,7 @@ import type { Invitation, Role } from '../src/constants';
 import { withInvitationToken, withTenant, type Tx } from '../src/context';
 import * as divisions from '../src/repositories/divisions';
 import * as invitations from '../src/repositories/invitations';
+import * as users from '../src/repositories/users';
 import { hashInvitationToken } from '../src/tokens';
 import {
   closeTestPools,
@@ -469,8 +470,27 @@ describe('invitations.release and setAcceptedUser', () => {
     await inCollege(collegeA, (tx) => invitations.setAcceptedUser(tx, value.id, first.id));
     await expect(
       inCollege(collegeA, (tx) => invitations.setAcceptedUser(tx, value.id, second.id)),
-    ).rejects.toThrow(/not claimed/);
+    ).rejects.toThrow(/not claimed or already linked/);
     expect((await storedRow(value))?.accepted_user_id).toBe(first.id);
+  });
+
+  it('deleting the just-linked account clears the link (FK SET NULL under forced RLS), so release resets it to pending', async () => {
+    // The compensation path of server-actions.md §4.7 step 6 when the link was already written.
+    const { value, token } = await invite(collegeA);
+    const user = await makeUser(collegeA.id);
+    await inCollege(collegeA, (tx) => invitations.claim(tx, value.id));
+    await inCollege(collegeA, (tx) => invitations.setAcceptedUser(tx, value.id, user.id));
+
+    expect(await users.deleteJustCreated(collegeA.id, user.id)).toBe(true);
+    expect((await storedRow(value))?.accepted_user_id).toBeNull();
+    await inCollege(collegeA, (tx) => invitations.release(tx, value.id));
+
+    expect(await lookup(token)).toMatchObject({
+      status: 'pending',
+      acceptedAt: null,
+      acceptedUserId: null,
+    });
+    expect(await inCollege(collegeA, (tx) => invitations.claim(tx, value.id))).not.toBeNull();
   });
 
   it("release does nothing to another college's claimed invitation", async () => {
