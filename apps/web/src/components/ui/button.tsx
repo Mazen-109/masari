@@ -19,6 +19,8 @@ const buttonVariants = cva(
       },
       size: {
         default: 'min-h-11 px-5 py-2',
+        // Row actions inside a dense table: narrower, still a 44 px target.
+        compact: 'min-h-11 px-3 py-2',
         lg: 'min-h-12 px-6 py-2 text-lg',
         icon: 'size-11',
       },

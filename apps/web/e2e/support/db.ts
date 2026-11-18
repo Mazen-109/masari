@@ -72,8 +72,8 @@ export function addDivision(tenantId: string, input: DivisionFixture): Promise<v
 }
 
 /**
- * Suspends or reactivates the account with this email directly (no sessions revoked, no audit row), until
- * the People screen's suspend action exists (PR-33).
+ * Suspends or reactivates the account with this email directly (no sessions revoked, no audit row): a list
+ * fixture only. Suspension itself is tested through the People screen's row action (admin-users.spec.ts).
  */
 export function setUserStatus(email: string, status: 'active' | 'suspended'): Promise<void> {
   return setUserStatusByEmailIn(ownerUrl(), email, status);

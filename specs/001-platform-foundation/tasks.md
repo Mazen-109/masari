@@ -449,10 +449,10 @@ permissions. **No user-story batch may start before PR-14 is merged.**
 
 ### PR-33 — Role change and suspension · branch `001-pr33-role-suspension`
 
-- [ ] T127 [US6] Create `apps/web/src/features/admin-users/rules.ts` (`canActOnUser(actorId, targetId)`) with test, add `changeRoleSchema`, `setStatusSchema` (+ tests) to `schemas.ts`, and create `apps/web/src/features/admin-users/actions.ts` with `changeUserRoleAction`, `setUserStatusAction` (contracts/server-actions.md §5.3; revoke sessions on suspend; audits) (FR-030, FR-031, FR-044)
-- [ ] T128 [P] [US6] Add shadcn/ui `dialog` to `apps/web/src/components/ui/`
-- [ ] T129 [US6] Create `apps/web/src/features/admin-users/components/role-dialog.tsx` and `status-button.tsx` (confirmation step for suspend) and add them as row actions in `users-table.tsx`; no actions rendered on the acting admin's own row
-- [ ] T130 [US6] Extend `apps/web/e2e/admin-users.spec.ts` (part 2): change faculty → student_affairs, the target's next page load shows the new navigation; suspend a student → their open context is sent to sign-in on next navigation, sign-in shows `account_suspended` only with the correct password, reactivate → sign-in works; forged self role change / self suspension → `forbidden`; forged id of another college's user → `not_found`, no change; append both actions to the forbidden-for-non-admin test in `apps/web/e2e/rbac.spec.ts`
+- [x] T127 [US6] Create `apps/web/src/features/admin-users/rules.ts` (`canActOnUser(actorId, targetId)`) with test, add `changeRoleSchema`, `setStatusSchema` (+ tests) to `schemas.ts`, and create `apps/web/src/features/admin-users/actions.ts` with `changeUserRoleAction`, `setUserStatusAction` (contracts/server-actions.md §5.3; revoke sessions on suspend; audits) (FR-030, FR-031, FR-044)
+- [x] T128 [P] [US6] Add shadcn/ui `dialog` to `apps/web/src/components/ui/`
+- [x] T129 [US6] Create `apps/web/src/features/admin-users/components/role-dialog.tsx` and `status-button.tsx` (confirmation step for suspend) and add them as row actions in `users-table.tsx`; no actions rendered on the acting admin's own row
+- [x] T130 [US6] Extend `apps/web/e2e/admin-users.spec.ts` (part 2): change faculty → student_affairs, the target's next page load shows the new navigation; suspend a student → their open context is sent to sign-in on next navigation, sign-in shows `account_suspended` only with the correct password, reactivate → sign-in works; forged self role change / self suspension → `forbidden`; forged id of another college's user → `not_found`, no change; append both actions to the forbidden-for-non-admin test in `apps/web/e2e/rbac.spec.ts`
 
 **Accept**: US6 acceptance scenarios 2, 3, 4, 6 pass · audit rows `user.role_changed {from,to}`, `user.suspended`, `user.reactivated` written · dialogs trap focus and close on Escape
 

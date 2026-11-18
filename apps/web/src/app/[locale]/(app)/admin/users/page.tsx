@@ -35,7 +35,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!hasLocale(routing.locales, locale)) return {};
   await requirePermission(PERMISSION, RETURN_TO);
   const t = await getTranslations({ locale, namespace: 'meta' });
-  return { title: t('adminUsers') };
+  // The search terms (names, emails, student codes) are in the address: never send it to another site as
+  // a referrer. Masari's own requests still carry it, so access logs redact the query string of this
+  // path (docs/deployment.md "Access logs").
+  return { title: t('adminUsers'), referrer: 'same-origin' };
 }
 
 /**
@@ -60,9 +63,12 @@ export default async function UsersPage({ params, searchParams }: Props) {
     list = await withTenant({ tenantId: ctx.tenant.id, userId: ctx.user.id }, (tx) =>
       users.listInTenant(tx, ctx.tenant.id, { ...filter, page, pageSize: USERS_PAGE_SIZE }),
     );
-  } catch {
-    // The error is not passed on: only the event is logged, and the error screen shows no details.
-    log.error('admin.users_list_failed');
+  } catch (error) {
+    // The error is not passed on: only the event and the SQLSTATE are logged (UsersQueryError keeps nothing
+    // else), and the error screen shows no details.
+    log.error('admin.users_list_failed', {
+      sqlState: error instanceof users.UsersQueryError ? (error.code ?? null) : null,
+    });
     throw new Error('admin.users: the list could not be loaded');
   }
 
@@ -107,7 +113,7 @@ export default async function UsersPage({ params, searchParams }: Props) {
             {t('list.empty')}
           </p>
         ) : (
-          <UsersTable rows={rows} labelledBy="users-list-title" />
+          <UsersTable rows={rows} labelledBy="users-list-title" actorId={ctx.user.id} />
         )}
         <UsersPagination filter={filter} page={page} pages={pages} />
       </section>

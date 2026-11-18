@@ -1,22 +1,46 @@
 import { randomBytes } from 'node:crypto';
-import type { Page } from '@playwright/test';
-import { createStudentProfile, setUserStatus } from './support/db';
+import type { Browser, Locator, Page } from '@playwright/test';
+import { expectNoA11yViolations } from './support/axe';
+import {
+  countAuditEvents,
+  countSessions,
+  createStudentProfile,
+  getUserByEmail,
+  setUserStatus,
+} from './support/db';
+import { firstLink, waitForEmail } from './support/emails';
 import { expect, test } from './support/fixtures';
 import {
   acceptInvitation,
   CATALOGS,
+  INVITATION_SUBJECT,
+  inviteStaff,
+  registerConfirmedStudent,
   registerStudent,
   signIn,
   uniqueEmail,
   uniqueStudentCode,
   type TestLocale,
 } from './support/flows';
+import { setFormField } from './support/forge';
 import { createCollege, uniqueCollegeSlug, type OnboardedCollege } from './support/operator';
+import {
+  clickAndWait,
+  openDialog,
+  reactivateButton,
+  roleDialog,
+  roleTrigger,
+  suspendDialog,
+  suspendTrigger,
+  userRow,
+} from './support/people';
 
-// The People screen (US6 acceptance scenario 1; contracts/routes.md §4; FR-029). Part 1: the list — only
+// The People screen (contracts/routes.md §4). Part 1 (US6 acceptance scenario 1; FR-029): the list — only
 // the administrator's own college, search by part of a name, email, or student code, filters by role and
 // status (also without JavaScript), 20 per page with pagination that keeps the filters, and invalid
-// parameters ignored. Each test builds a college of its own, so its counts are exact.
+// parameters ignored. Part 2 (US6 acceptance scenarios 2, 3, 4, 6; FR-030, FR-031): role change and
+// suspension from the row actions, refused on the own account and for another college's account. Each
+// test builds a college of its own, so its counts are exact.
 
 const { ar, en } = CATALOGS;
 
@@ -268,4 +292,306 @@ test('shows 20 accounts per page; pagination keeps the filters; an invalid page 
   await page.goto(`/ar/admin/users?q=${token}&page=9`);
   await expect(page).toHaveURL(`/ar/admin/users?q=${token}&page=2`);
   await expect(emailCells(page)).toHaveText([students[0] ?? '']);
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// Part 2: row actions (PR-33)
+
+const tActions = ar.admin.users.actions;
+const USERS_PATH = '/ar/admin/users';
+
+type ContextOptions = {
+  baseURL: string | undefined;
+  extraHTTPHeaders: Record<string, string> | undefined;
+};
+
+/** A second browser (another person's), with the test's client address. */
+async function otherBrowser(browser: Browser, options: ContextOptions): Promise<Page> {
+  const context = await browser.newContext(options);
+  return context.newPage();
+}
+
+/** The account's stored id (it must exist). */
+async function userId(email: string): Promise<string> {
+  const user = await getUserByEmail(email);
+  if (user === null) throw new Error('userId: no such account');
+  return user.id;
+}
+
+/** The links of the signed-in navigation, in order. */
+function navLinks(page: Page): Locator {
+  return page.getByRole('navigation', { name: ar.nav.label }).getByRole('link');
+}
+
+/** Focus stays inside `dialog` through `count` presses of Tab, then of Shift+Tab. */
+async function expectFocusTrapped(page: Page, dialog: Locator, count = 6): Promise<void> {
+  for (const key of ['Tab', 'Shift+Tab']) {
+    for (let press = 0; press < count; press += 1) {
+      await page.keyboard.press(key);
+      await expect(dialog.locator(':focus')).toHaveCount(1);
+    }
+  }
+}
+
+/** The form's error summary shows `code`. */
+async function expectFormError(form: Locator, code: 'forbidden' | 'not_found'): Promise<void> {
+  const error = form.locator('[data-slot="form-error"]');
+  await expect(error).toHaveAttribute('data-code', code);
+  await expect(error).toContainText(ar.errors[code]);
+}
+
+/** A student of another college (registered through the screens); returns the address. */
+async function strangerOfAnotherCollege(page: Page): Promise<string> {
+  const other = await createCollege(uniqueCollegeSlug('people-o'), uniqueEmail('people-o-admin'));
+  return registerIn(page, other, 'Stranger Student');
+}
+
+test('changes another user’s role, which applies on their next page; own row has no actions; forged ids are refused', async ({
+  page,
+  browser,
+  baseURL,
+  extraHTTPHeaders,
+}) => {
+  const adminEmail = uniqueEmail('role-admin');
+  const facultyEmail = uniqueEmail('role-faculty');
+  const college = await createCollege(uniqueCollegeSlug('role'), adminEmail);
+  const stranger = await strangerOfAnotherCollege(page);
+  await signInAdmin(page, college, adminEmail, 'Role Administrator');
+
+  // The administrator invites a faculty member, who accepts and signs in in their own browser.
+  const since = new Date();
+  await page.goto('/ar/admin/invitations');
+  await inviteStaff(page, { email: facultyEmail, role: 'faculty' });
+  await expect(page.locator('main [data-slot="invite-sent"]')).toBeVisible();
+  const message = await waitForEmail({
+    to: facultyEmail,
+    subjectIncludes: INVITATION_SUBJECT,
+    since,
+  });
+  const faculty = await otherBrowser(browser, { baseURL, extraHTTPHeaders });
+  try {
+    await faculty.goto(firstLink(message));
+    await acceptInvitation(faculty, { invitePath: '', open: false, name: 'Faculty Member' });
+    await faculty.waitForURL('/ar/sign-in?invited=1');
+    await signIn(faculty, { email: facultyEmail, open: false });
+    await faculty.waitForURL('/ar/dashboard');
+    await expect(navLinks(faculty)).toHaveText([
+      ar.nav.home,
+      ar.modules.codejudge.name,
+      ar.modules.mizan.name,
+    ]);
+
+    // The administrator's own row has no actions (never on the own account).
+    await page.goto(USERS_PATH);
+    const ownRow = userRow(page, adminEmail);
+    await expect(ownRow.locator('[data-slot="own-account"]')).toHaveText(tActions.self);
+    await expect(ownRow.getByRole('button')).toHaveCount(0);
+
+    // The dialog traps focus, closes on Escape, and gives focus back to its trigger.
+    const row = userRow(page, facultyEmail);
+    const trigger = roleTrigger(row);
+    await openDialog(trigger, roleDialog(page));
+    await expectFocusTrapped(page, roleDialog(page));
+    await expectNoA11yViolations(page);
+    await page.keyboard.press('Escape');
+    await expect(roleDialog(page)).toBeHidden();
+    await expect(trigger).toBeFocused();
+
+    // Faculty → Student Affairs.
+    const form = await openDialog(trigger, roleDialog(page));
+    const roleSelect = form.getByLabel(tActions.role.label, { exact: true });
+    await expect(roleSelect).toHaveValue('faculty');
+    await roleSelect.selectOption('student_affairs');
+    await clickAndWait(page, USERS_PATH, form.getByRole('button', { name: tActions.role.submit }));
+    await expect(roleDialog(page)).toBeHidden();
+    await expect(row.locator('[data-field="role"]')).toHaveText(ar.common.roles.student_affairs);
+    await expect(row.locator('[data-slot="role-status"]')).toHaveText(tActions.role.done);
+    const facultyId = await userId(facultyEmail);
+    expect((await getUserByEmail(facultyEmail))?.role).toBe('student_affairs');
+    expect(await countAuditEvents(college.slug, 'user.role_changed', facultyId)).toBe(1);
+
+    // The target's very next page load has the new role's navigation.
+    await faculty.reload();
+    await expect(navLinks(faculty)).toHaveText([ar.nav.home, ar.modules.mueed.name]);
+
+    // Forged: the administrator's own id → forbidden; another college's account → not_found. No change.
+    const adminId = await userId(adminEmail);
+    const strangerId = await userId(stranger);
+    const changesBefore = await countAuditEvents(college.slug, 'user.role_changed');
+    for (const [forgedId, code] of [
+      [adminId, 'forbidden'],
+      [strangerId, 'not_found'],
+    ] as const) {
+      const forged = await openDialog(trigger, roleDialog(page));
+      await forged.getByLabel(tActions.role.label, { exact: true }).selectOption('student');
+      await setFormField(forged, 'userId', forgedId);
+      await clickAndWait(
+        page,
+        USERS_PATH,
+        forged.getByRole('button', { name: tActions.role.submit }),
+      );
+      await expectFormError(forged, code);
+      await page.keyboard.press('Escape');
+      await expect(roleDialog(page)).toBeHidden();
+    }
+    expect((await getUserByEmail(adminEmail))?.role).toBe('admin');
+    expect((await getUserByEmail(stranger))?.role).toBe('student');
+    expect((await getUserByEmail(facultyEmail))?.role).toBe('student_affairs');
+    expect(await countAuditEvents(college.slug, 'user.role_changed')).toBe(changesBefore);
+  } finally {
+    await faculty.context().close();
+  }
+});
+
+test('suspending ends the sessions and blocks sign-in; reactivating restores sign-in, not the sessions; forged ids are refused', async ({
+  page,
+  browser,
+  baseURL,
+  extraHTTPHeaders,
+}) => {
+  const adminEmail = uniqueEmail('suspend-admin');
+  const college = await createCollege(uniqueCollegeSlug('suspend'), adminEmail);
+  const stranger = await strangerOfAnotherCollege(page);
+  await signInAdmin(page, college, adminEmail, 'Suspend Administrator');
+
+  // A student of the college, signed in in their own browser.
+  const student = await otherBrowser(browser, { baseURL, extraHTTPHeaders });
+  try {
+    const studentEmail = await registerConfirmedStudent(student, {
+      college: college.slug,
+      name: 'Suspended Student',
+    });
+    await createStudentProfile(studentEmail, { studentCode: uniqueStudentCode() });
+    await signIn(student, { email: studentEmail });
+    await student.waitForURL('/ar/dashboard');
+    expect(await countSessions(studentEmail)).toBeGreaterThan(0);
+    const studentId = await userId(studentEmail);
+
+    // Suspend asks for confirmation; Escape cancels it and gives focus back to the button.
+    await page.goto(USERS_PATH);
+    const row = userRow(page, studentEmail);
+    await openDialog(suspendTrigger(row), suspendDialog(page));
+    await expect(suspendDialog(page)).toContainText('Suspended Student');
+    await expectFocusTrapped(page, suspendDialog(page));
+    await expectNoA11yViolations(page);
+    await page.keyboard.press('Escape');
+    await expect(suspendDialog(page)).toBeHidden();
+    await expect(suspendTrigger(row)).toBeFocused();
+    expect((await getUserByEmail(studentEmail))?.status).toBe('active');
+
+    const form = await openDialog(suspendTrigger(row), suspendDialog(page));
+    await clickAndWait(
+      page,
+      USERS_PATH,
+      form.getByRole('button', { name: tActions.suspend.submit }),
+    );
+    await expect(suspendDialog(page)).toBeHidden();
+    await expect(row.locator('[data-field="status"]')).toHaveText(ar.common.statuses.suspended);
+    // The row's button is now "Reactivate", and keyboard focus is on it.
+    await expect(reactivateButton(row)).toBeFocused();
+    expect((await getUserByEmail(studentEmail))?.status).toBe('suspended');
+    expect(await countSessions(studentEmail)).toBe(0);
+    expect(await countAuditEvents(college.slug, 'user.suspended', studentId)).toBe(1);
+
+    // The student's open browser is sent to sign-in on the next navigation …
+    await student.goto('/ar/dashboard');
+    await expect(student).toHaveURL('/ar/sign-in?next=%2Fdashboard');
+    // … a wrong password says nothing about the suspension; the right one does, and opens no session.
+    const studentError = student.locator('main [data-slot="form-error"]');
+    await signIn(student, { email: studentEmail, password: 'Zz9'.repeat(4), open: false });
+    await expect(studentError).toHaveAttribute('data-code', 'invalid_credentials');
+    await signIn(student, { email: studentEmail, open: false });
+    await expect(studentError).toHaveAttribute('data-code', 'account_suspended');
+    await expect(studentError).toContainText(ar.errors.account_suspended);
+    expect(await countSessions(studentEmail)).toBe(0);
+
+    // Reactivate: sign-in works again, but the ended sessions stay ended.
+    await clickAndWait(page, USERS_PATH, reactivateButton(row));
+    await expect(row.locator('[data-field="status"]')).toHaveText(ar.common.statuses.active);
+    await expect(suspendTrigger(row)).toBeFocused();
+    expect(await countAuditEvents(college.slug, 'user.reactivated', studentId)).toBe(1);
+    expect(await countSessions(studentEmail)).toBe(0);
+    await student.goto('/ar/dashboard');
+    await expect(student).toHaveURL('/ar/sign-in?next=%2Fdashboard');
+    await signIn(student, { email: studentEmail, open: false });
+    await student.waitForURL('/ar/dashboard');
+
+    // Forged: suspending the own account → forbidden; another college's account → not_found. No change.
+    const adminId = await userId(adminEmail);
+    const strangerId = await userId(stranger);
+    const adminSessions = await countSessions(adminEmail);
+    const suspendedBefore = await countAuditEvents(college.slug, 'user.suspended');
+    for (const [forgedId, code] of [
+      [adminId, 'forbidden'],
+      [strangerId, 'not_found'],
+    ] as const) {
+      const forged = await openDialog(suspendTrigger(row), suspendDialog(page));
+      await setFormField(forged, 'userId', forgedId);
+      await clickAndWait(
+        page,
+        USERS_PATH,
+        forged.getByRole('button', { name: tActions.suspend.submit }),
+      );
+      await expectFormError(forged, code);
+      await page.keyboard.press('Escape');
+      await expect(suspendDialog(page)).toBeHidden();
+    }
+    expect((await getUserByEmail(adminEmail))?.status).toBe('active');
+    expect(await countSessions(adminEmail)).toBe(adminSessions);
+    expect((await getUserByEmail(stranger))?.status).toBe('active');
+    expect((await getUserByEmail(studentEmail))?.status).toBe('active');
+    expect(await countAuditEvents(college.slug, 'user.suspended')).toBe(suspendedBefore);
+  } finally {
+    await student.context().close();
+  }
+});
+
+test('at 1280 px the whole table fits, row actions included, and emails wrap only at @ or a dot', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const token = randomBytes(3).toString('hex');
+  // Realistic addresses and names (not the long generated ones), like a college's real data.
+  const adminEmail = `shot.admin.${token}@example.edu`;
+  const college = await createCollege(uniqueCollegeSlug('fit'), adminEmail);
+  const active = `mona.hassan.${token}@student.example.edu`;
+  const suspended = `omar.farouk.${token}@student.example.edu`;
+  for (const [email, name] of [
+    [active, 'منى حسن عبد الرحمن'],
+    [suspended, 'عمر فاروق السيد'],
+  ] as const) {
+    await registerStudent(page, { college: college.slug, email, name });
+    await page.waitForURL('/ar/verify-email');
+    await createStudentProfile(email, { studentCode: uniqueStudentCode() });
+  }
+  await setUserStatus(suspended, 'suspended');
+  await signInAdmin(page, college, adminEmail, 'Shot Administrator');
+
+  for (const locale of ['ar', 'en'] as const) {
+    await page.goto(`/${locale}/admin/users`);
+    const region = page.getByRole('region', {
+      name: CATALOGS[locale].admin.users.list.title,
+      exact: true,
+    });
+    await expect(rows(page)).toHaveCount(3);
+    // No sideways scrolling: every column, Actions included, is in the content column.
+    expect(await region.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0);
+    const regionBox = await region.boundingBox();
+    expect(regionBox).not.toBeNull();
+    const buttons = rows(page).locator('[data-field="actions"]').getByRole('button');
+    await expect(buttons).toHaveCount(4);
+    for (const button of await buttons.all()) {
+      await expect(button).toBeVisible();
+      const box = await button.boundingBox();
+      expect(box).not.toBeNull();
+      if (box !== null && regionBox !== null) {
+        expect(box.x).toBeGreaterThanOrEqual(regionBox.x - 1);
+        expect(box.x + box.width).toBeLessThanOrEqual(regionBox.x + regionBox.width + 1);
+      }
+    }
+    // Break points only after the @ and before each dot.
+    await expect(
+      rows(page).filter({ hasText: active }).locator('[data-field="email"] wbr'),
+    ).toHaveCount(active.split('.').length);
+  }
 });

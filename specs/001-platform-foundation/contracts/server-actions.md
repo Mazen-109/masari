@@ -264,7 +264,7 @@ returns `fail('internal')`; the administrator revokes and re-invites.
 | Action | Fields | Rules | Audit | Result |
 |---|---|---|---|---|
 | `changeUserRoleAction` (form) — FR-030 | `userId`, `role` | target in caller's college else `not_found`; target ≠ caller else `forbidden`; no-op if unchanged | `user.role_changed {from,to}` | `ok`; revalidate `/admin/users` |
-| `setUserStatusAction` (form) — FR-031 | `userId`, `status` (`active` \| `suspended`) | same college else `not_found`; target ≠ caller else `forbidden`; on `suspended` revoke all the target's sessions | `user.suspended` / `user.reactivated` | `ok`; revalidate |
+| `setUserStatusAction` (form) — FR-031 | `userId`, `status` (`active` \| `suspended`) | same college else `not_found`; target ≠ caller else `forbidden`; on `suspended` revoke all the target's sessions (always, even if already suspended, so a retry completes a failed revocation); unchanged status → no-op, no audit | `user.suspended` / `user.reactivated` | `ok`; revalidate |
 | `adminUpdateStudentProfileAction` (form) — FR-028 | `userId`, `studentCode`, `level`, `divisionId` | target in caller's college with role `student` else `not_found`; same field rules as the student's own form; creates the profile if missing | `profile.updated {fields}` (or `profile.created`) | `ok`; revalidate |
 
 ### 5.4 `features/tenant-settings/actions.ts` — permission `admin.settings.manage`
