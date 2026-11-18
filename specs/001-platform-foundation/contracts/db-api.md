@@ -240,6 +240,7 @@ export function getStudentProfileByEmail(migrationUrl: string, email: string):
 export function addDivision(migrationUrl: string, tenantId: string,
   input: { code: string; nameAr: string; nameEn: string; sortOrder?: number; isActive?: boolean }): Promise<void>;
 export function expireInvitation(migrationUrl: string, email: string): Promise<void>;   // sets expires_at to the past
+export function listInvitations(migrationUrl: string, tenantSlug: string): Promise<{ id; email; role; status; expiresAt; acceptedAt }[]>;  // oldest first; [] for an unknown slug (PR-30)
 ```
 
 All `admin` functions that write tenant-scoped rows set the tenant context exactly like `withTenant` does.
