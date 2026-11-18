@@ -171,13 +171,22 @@ export async function release(tx: Tx, id: string): Promise<void> {
     );
 }
 
-/** Links a claimed invitation to the account created for it. Throws when the invitation is not claimed. */
+/**
+ * Links a claimed invitation to the account created for it. Throws when the invitation is not claimed or is
+ * already linked to an account (an existing link is never overwritten).
+ */
 export async function setAcceptedUser(tx: Tx, id: string, userId: string): Promise<void> {
   const rows = isUuid(id)
     ? await tx
         .update(invitations)
         .set({ acceptedUserId: userId })
-        .where(and(eq(invitations.id, id), eq(invitations.status, 'accepted')))
+        .where(
+          and(
+            eq(invitations.id, id),
+            eq(invitations.status, 'accepted'),
+            isNull(invitations.acceptedUserId),
+          ),
+        )
         .returning({ id: invitations.id })
     : [];
   if (rows.length === 0) throw new Error('invitations.setAcceptedUser: invitation not claimed');

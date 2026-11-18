@@ -4,10 +4,27 @@ export { getAdminDbEnv } from './env';
 export { recreateDatabase, withDatabaseName } from './admin/database';
 export { applyMigrations, ensureRuntimeRole, runMigrations } from './admin/migrate';
 export { connectionTarget } from './admin/identifiers';
-export { failureReason } from './admin/error-reason';
-export { createTenant, setTenantStatus } from './admin/tenants';
-export type { CreateTenantResult, NewTenantInput } from './admin/tenants';
-export { DEMO_SLUG, seedDemo } from './admin/seed';
+export { failureReason, safeFailureReason } from './admin/error-reason';
+export {
+  createAdminInvitation,
+  createTenant,
+  createTenantWithAdmin,
+  setTenantStatus,
+} from './admin/tenants';
+export type {
+  CreateAdminInvitationResult,
+  CreateTenantResult,
+  CreateTenantWithAdminResult,
+  NewTenantInput,
+  NewTenantWithAdminInput,
+} from './admin/tenants';
+export {
+  parseTenantCreateArgs,
+  parseTenantSetStatusArgs,
+  TENANT_CREATE_USAGE,
+  TENANT_SET_STATUS_USAGE,
+} from './admin/tenant-args';
+export { DEMO_ADMIN_EMAIL, DEMO_SLUG, seedDemo } from './admin/seed';
 export type { SeedResult } from './admin/seed';
 export {
   addDivision,

@@ -58,7 +58,11 @@ college slug and, when an administrator invitation was created (from PR-26), the
 `Admin invitation link: <APP_URL>/ar/invite/<token>`. Fails closed: runs only when `APP_ENV` is explicitly
 `development` or `test` (read through `getAdminDbEnv()`); when it is `production` or not set, it prints
 `Refusing to seed demo data: APP_ENV is <value|not set>; it must be development or test. Nothing was changed.`
-and exits 1 without connecting to the database.
+and exits 1 without connecting to the database. `APP_URL` is required (the invitation link is built from it
+and the token is never stored in plain form): when `APP_ENV` allows seeding but `APP_URL` is not set, it
+prints `APP_URL is not set; it is needed for the admin invitation link. Nothing was changed.` and exits 1
+without connecting to the database. Any other failure prints `Seed failed: <reason>` (a PostgreSQL error is
+reduced to `database error <SQLSTATE>`; never a connection string) and exits 1.
 
 ## 4. `pnpm tenant:create` — `packages/db/scripts/tenant-create.ts` (FR-018)
 
@@ -72,6 +76,8 @@ pnpm tenant:create --slug <slug> --name-ar "<Arabic name>" --name-en "<English n
 | Missing/invalid argument (slug pattern, name length 1–120, email) | 2 | usage + which argument is invalid |
 | Slug already used | 1 | `A college with slug "<slug>" already exists. Nothing was changed.` |
 | Email already has an account | 1 | `This email already has an account. Nothing was changed.` (the college is not created) |
+| `APP_URL` not set | 1 | `APP_URL is not set; … Nothing was changed.` (checked before connecting; also applies to `db:seed`) |
+| Unexpected error | 1 | `Creating the college failed: <reason>. Nothing was changed.` — database errors are reduced to `database error <SQLSTATE>`, never the server's message |
 
 Creation of the college, its `GEN` division, and the invitation happens in one transaction: the script calls
 `createTenantWithAdmin` (`db-api.md` §3), not `createTenant` + `createAdminInvitation` separately. The
@@ -83,7 +89,9 @@ invitation link is printed once and never stored in plain form.
 pnpm tenant:set-status --slug <slug> --status active|suspended
 ```
 
-Exit 0 with `College <slug> is now <status>`; exit 1 with `College not found`; exit 2 on invalid arguments.
+Exit 0 with `College <slug> is now <status>`; exit 1 with `College not found`; exit 2 on invalid arguments
+(including a malformed slug); unexpected error → exit 1 with `Changing the college status failed: <reason>`
+(database errors reduced to `database error <SQLSTATE>`).
 Suspending does **not** delete sessions: every request re-checks the college status (`permissions.md` §3),
 so existing sessions are refused with the "college suspended" reason while the college is suspended and work
 again after reactivation (until they expire normally).

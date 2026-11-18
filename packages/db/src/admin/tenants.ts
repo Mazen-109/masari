@@ -1,5 +1,6 @@
 import type pg from 'pg';
 import type { TenantStatus } from '../constants';
+import { generateInvitationToken } from '../tokens';
 import { setTenantContext, withOwnerTransaction } from './owner';
 
 /**
@@ -22,6 +23,17 @@ export interface NewTenantInput {
 
 export type CreateTenantResult =
   { ok: true; tenantId: string } | { ok: false; reason: 'slug_taken' };
+
+export type CreateAdminInvitationResult =
+  { ok: true; token: string } | { ok: false; reason: 'pending_exists' | 'email_has_account' };
+
+export interface NewTenantWithAdminInput extends NewTenantInput {
+  adminEmail: string;
+}
+
+export type CreateTenantWithAdminResult =
+  | { ok: true; tenantId: string; token: string }
+  | { ok: false; reason: 'slug_taken' | 'email_has_account' };
 
 export const DEFAULT_DIVISION: DivisionSeed = {
   code: 'GEN',
@@ -91,4 +103,114 @@ export function createTenant(
     await ensureDivisions(client, tenantId, [DEFAULT_DIVISION]);
     return { ok: true, tenantId };
   });
+}
+
+function normaliseEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+/** True when an account with this (normalised) email exists in any college; `users` is global. */
+async function emailHasAccount(client: pg.Client, normalisedEmail: string): Promise<boolean> {
+  const account = await client.query('SELECT 1 FROM users WHERE email = $1 LIMIT 1', [
+    normalisedEmail,
+  ]);
+  return (account.rowCount ?? 0) > 0;
+}
+
+/**
+ * Inserts a pending `admin` invitation (7 days, invited_by NULL = operator) into tenantId and records the
+ * audit event `invitation.created {role}` with a NULL actor, on the caller's transaction. Same rules as
+ * repositories/invitations.create (data-model.md §3.7): an account with this email in any college gives
+ * `email_has_account` and writes nothing; an expired pending invitation for the email in THIS college is
+ * revoked first; a non-expired one in this college gives `pending_exists`. Only the token hash is stored;
+ * the plain token is returned once.
+ *
+ * Every statement names tenant_id explicitly instead of relying on the tenant context: the owner role may be
+ * a superuser (local, CI), which bypasses row-level security, so without the filter the revoke would also
+ * hit other colleges' invitations for the same email.
+ */
+export async function insertAdminInvitation(
+  client: pg.Client,
+  tenantId: string,
+  email: string,
+): Promise<CreateAdminInvitationResult> {
+  const normalised = normaliseEmail(email);
+  if (await emailHasAccount(client, normalised)) return { ok: false, reason: 'email_has_account' };
+
+  // Still set for a non-superuser owner, whose writes are checked by the forced RLS policies.
+  await setTenantContext(client, tenantId);
+  await client.query(
+    `UPDATE invitations SET status = 'revoked'
+      WHERE tenant_id = $1 AND email = $2 AND status = 'pending' AND expires_at <= now()`,
+    [tenantId, normalised],
+  );
+  const { token, tokenHash } = generateInvitationToken();
+  const inserted = await client.query<{ id: string }>(
+    `INSERT INTO invitations (tenant_id, email, role, token_hash, expires_at)
+     VALUES ($1, $2, 'admin', $3, now() + interval '7 days')
+     ON CONFLICT (tenant_id, email) WHERE status = 'pending' DO NOTHING
+     RETURNING id`,
+    [tenantId, normalised, tokenHash],
+  );
+  const invitationId = inserted.rows[0]?.id;
+  if (invitationId === undefined) return { ok: false, reason: 'pending_exists' };
+  await client.query(
+    `INSERT INTO audit_events (tenant_id, actor_user_id, action, target_type, target_id, metadata)
+     VALUES ($1, NULL, 'invitation.created', 'invitation', $2, $3::jsonb)`,
+    [tenantId, invitationId, JSON.stringify({ role: 'admin' })],
+  );
+  return { ok: true, token };
+}
+
+/** Creates a pending administrator invitation for an existing college (contracts/db-api.md §3). */
+export function createAdminInvitation(
+  migrationUrl: string,
+  tenantId: string,
+  email: string,
+): Promise<CreateAdminInvitationResult> {
+  return withOwnerTransaction(migrationUrl, (client) =>
+    insertAdminInvitation(client, tenantId, email),
+  );
+}
+
+/** Carries a refusal out of the transaction so that it is rolled back. */
+class RefusedCreation extends Error {
+  constructor(readonly reason: 'email_has_account') {
+    super('createTenantWithAdmin: refused');
+  }
+}
+
+/**
+ * The college, its GEN division, and its first administrator invitation in ONE transaction (`pnpm
+ * tenant:create`, e2e operator helper): when any step fails or is refused, nothing is created. A used slug
+ * and an email that has an account are checked before anything is written (slug first); the insert steps
+ * check again, so a concurrent change still rolls the whole transaction back.
+ */
+export async function createTenantWithAdmin(
+  migrationUrl: string,
+  input: NewTenantWithAdminInput,
+): Promise<CreateTenantWithAdminResult> {
+  try {
+    return await withOwnerTransaction(
+      migrationUrl,
+      async (client): Promise<CreateTenantWithAdminResult> => {
+        const existing = await client.query('SELECT 1 FROM tenants WHERE slug = $1', [input.slug]);
+        if ((existing.rowCount ?? 0) > 0) return { ok: false, reason: 'slug_taken' };
+        if (await emailHasAccount(client, normaliseEmail(input.adminEmail))) {
+          return { ok: false, reason: 'email_has_account' };
+        }
+        const tenantId = await insertTenant(client, input);
+        if (!tenantId) return { ok: false, reason: 'slug_taken' };
+        await ensureDivisions(client, tenantId, [DEFAULT_DIVISION]);
+        const invitation = await insertAdminInvitation(client, tenantId, input.adminEmail);
+        if (invitation.ok) return { ok: true, tenantId, token: invitation.token };
+        if (invitation.reason === 'email_has_account') throw new RefusedCreation(invitation.reason);
+        // A brand-new college has no invitations, so pending_exists cannot happen.
+        throw new Error('createTenantWithAdmin: unexpected pending invitation in a new college');
+      },
+    );
+  } catch (error) {
+    if (error instanceof RefusedCreation) return { ok: false, reason: error.reason };
+    throw error;
+  }
 }

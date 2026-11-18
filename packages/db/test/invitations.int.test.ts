@@ -204,6 +204,35 @@ describe('invitations.create', () => {
       ),
     ).toBe('42501');
   });
+
+  it('refuses an explicit tenant_id of another college (row-level security)', async () => {
+    const email = freshEmail();
+    const code = await pgErrorCode(
+      inCollege(collegeA, (tx) =>
+        tx.execute(
+          sql`INSERT INTO invitations (tenant_id, email, role, token_hash, expires_at)
+              VALUES (${collegeB.id}::uuid, ${email}, 'admin',
+                      ${hashInvitationToken(email)}, now() + interval '1 day')`,
+        ),
+      ),
+    );
+    expect(code).toBe('42501');
+    expect(await inCollege(collegeB, (tx) => invitations.list(tx))).toEqual([]);
+  });
+
+  it('refuses moving an invitation to another college (row-level security)', async () => {
+    const { value } = await invite(collegeA);
+    const code = await pgErrorCode(
+      inCollege(collegeA, (tx) =>
+        tx.execute(
+          sql`UPDATE invitations SET tenant_id = ${collegeB.id}::uuid WHERE id = ${value.id}::uuid`,
+        ),
+      ),
+    );
+    expect(code).toBe('42501');
+    expect(await inCollege(collegeB, (tx) => invitations.list(tx))).toEqual([]);
+    expect((await storedRow(value))?.status).toBe('pending');
+  });
 });
 
 describe('invitations.list', () => {
@@ -430,6 +459,18 @@ describe('invitations.release and setAcceptedUser', () => {
     await expect(link('not-a-uuid')).rejects.toThrow(/not claimed/);
     await expect(link(inB.value.id)).rejects.toThrow(/not claimed/);
     expect((await storedRow(inB.value))?.accepted_user_id).toBeNull();
+  });
+
+  it('setAcceptedUser never overwrites an invitation already linked to an account', async () => {
+    const { value } = await invite(collegeA);
+    const first = await makeUser(collegeA.id);
+    const second = await makeUser(collegeA.id);
+    await inCollege(collegeA, (tx) => invitations.claim(tx, value.id));
+    await inCollege(collegeA, (tx) => invitations.setAcceptedUser(tx, value.id, first.id));
+    await expect(
+      inCollege(collegeA, (tx) => invitations.setAcceptedUser(tx, value.id, second.id)),
+    ).rejects.toThrow(/not claimed/);
+    expect((await storedRow(value))?.accepted_user_id).toBe(first.id);
   });
 
   it("release does nothing to another college's claimed invitation", async () => {
