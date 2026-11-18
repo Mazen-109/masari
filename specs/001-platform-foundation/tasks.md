@@ -35,7 +35,7 @@ previous batch is merged.
    smaller). The reviewer may instead ask for a split when the diff mixes separable concerns; the
    orchestrator then re-assigns the batch as `PR-Na` / `PR-Nb` (constitution: "split or written reason").
 4. Every user-facing string goes into both `apps/web/messages/ar.json` and `en.json` (namespaces in
-   contracts/routes.md §6). Every new screen is appended to the lists in `apps/web/e2e/a11y.spec.ts`.
+   contracts/routes.md §6). Every new screen is appended to the lists in `apps/web/e2e/support/screens.ts`.
 5. "Accept" lines are the reviewer's checklist. In addition, every batch must pass `pnpm check`,
    `pnpm build`, and — from PR-10 on — `pnpm test:e2e`, and all CI jobs.
 6. Never commit secrets; `.env.example` holds only the documented local values.
@@ -504,10 +504,10 @@ permissions. **No user-story batch may start before PR-14 is merged.**
 
 ### PR-38 — Final sweep and documentation · branch `001-pr38-final-sweep`
 
-- [ ] T143 Complete the lists in `apps/web/e2e/a11y.spec.ts` and `apps/web/e2e/perf-budget.spec.ts` so every screen of contracts/routes.md §2–4 is scanned in both locales (signed-in screens with the appropriate role) and budgets cover `/ar/sign-in`, `/ar/register`, `/ar/dashboard`, `/ar/admin/users`; add an `@mobile` check that no screen scrolls horizontally at 320 px and that every screen is usable at 200% zoom (viewport 640×400 at device scale factor 2) (FR-042, FR-043)
-- [ ] T144 [P] Complete `docs/deployment.md` per research.md §21 (pilot on Vercel + Neon + SMTP provider: environment variables including `TRUSTED_PROXY_HOPS` and the proxy rule of contracts/http-and-env.md §5, two database URLs, running `pnpm db:migrate` and `pnpm tenant:create` against the hosted database, what the owner must create and keep secret, smoke test with `/api/health`)
-- [ ] T145 [P] Update `README.md` (status, links), verify `CLAUDE.md` commands/conventions against the final code and correct any drift, and make sure `.env.example` lists every variable read by `getEnv()`/`getDbEnv()`/`getAdminDbEnv()` (add a unit test `apps/web/src/server/env-example.test.ts` that parses `.env.example` and fails on a missing variable)
-- [ ] T146 Run quickstart.md end to end on a clean clone (Option A or B) and V1–V8 by hand; run Lighthouse (mobile preset) on `/ar/sign-in` and `/ar/dashboard` against the production build; record timings (setup minutes; LCP, INP/TBT, CLS) in the PR description; fix or report anything outside SC-006/SC-008 (FR-047)
+- [x] T143 Complete the screen lists in `apps/web/e2e/support/screens.ts` (shared by the axe scan of `apps/web/e2e/a11y.spec.ts`, the CSP check of `apps/web/e2e/security-headers.spec.ts`, and the small-screen/zoom checks of `apps/web/e2e/responsive.spec.ts`) and the budgets in `apps/web/e2e/perf-budget.spec.ts` so every screen of contracts/routes.md §2–4 is scanned in both locales (signed-in screens with the appropriate role) and budgets cover `/ar/sign-in`, `/ar/register`, `/ar/dashboard`, `/ar/admin/users`; add an `@mobile` check that no screen scrolls horizontally at 320 px and that every screen is usable at 200% zoom (viewport 640×400 at device scale factor 2) (FR-042, FR-043)
+- [x] T144 [P] Complete `docs/deployment.md` per research.md §21 (pilot on Vercel + Neon + SMTP provider: environment variables including `TRUSTED_PROXY_HOPS` and the proxy rule of contracts/http-and-env.md §5, two database URLs, running `pnpm db:migrate` and `pnpm tenant:create` against the hosted database, what the owner must create and keep secret, smoke test with `/api/health`)
+- [x] T145 [P] Update `README.md` (status, links), verify `CLAUDE.md` commands/conventions against the final code and correct any drift, and make sure `.env.example` lists every variable read by `getEnv()`/`getDbEnv()`/`getAdminDbEnv()` (add a unit test `apps/web/src/server/env-example.test.ts` that parses `.env.example` and fails on a missing variable)
+- [x] T146 Run quickstart.md end to end on a clean clone (Option A or B) and V1–V8 by hand; run Lighthouse (mobile preset) on `/ar/sign-in` and `/ar/dashboard` against the production build; record timings (setup minutes; LCP, INP/TBT, CLS) in the PR description; fix or report anything outside SC-006/SC-008 (FR-047)
 
 **Accept**: axe: zero serious/critical on every listed screen in `ar` and `en` · script budgets pass with the measured values printed · quickstart completed in < 15 minutes (SC-008) · every FR in spec.md is ticked against a merged batch in the PR description's traceability table
 

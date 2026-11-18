@@ -22,7 +22,7 @@ Use the official docs of the **pinned** versions (see `package.json`), not memor
 
 ```text
 apps/web/            Next.js app: src/app (routes), src/features/<feature> (schemas, rules, actions, components),
-                     src/server (auth, email, env, audit, rate-limit), src/components, src/i18n, messages/, e2e/
+                     src/server (auth, email, env, audit, rate-limit, log, errors), src/components, src/i18n, messages/, e2e/
 packages/db/         Drizzle schema, SQL migrations (+RLS), repositories, withTenant(), scripts (migrate, seed, tenant-create)
 specs/NNN-name/      Spec Kit documents per feature
 docs/                Product spec, roadmap, delegation, deployment
@@ -31,7 +31,7 @@ docs/                Product spec, roadmap, delegation, deployment
 
 ## Commands
 
-Available once feature 001 / PR-1 is merged (run from the repo root):
+Run from the repo root:
 
 | Purpose | Command |
 |---|---|
@@ -48,7 +48,7 @@ Available once feature 001 / PR-1 is merged (run from the repo root):
 | Unit + integration tests (needs PostgreSQL) | `pnpm test` |
 | End-to-end tests (builds first) | `pnpm test:e2e` |
 | Production build | `pnpm build` |
-| Everything CI runs except e2e | `pnpm check` |
+| Format, lint, types, i18n/RTL, unit + integration tests (CI `quality` + `test`) | `pnpm check` |
 
 Local setup: copy `.env.example` to `.env` (repo root) and follow `specs/001-platform-foundation/quickstart.md`.
 No Docker (e.g. cloud sessions)? Use the machine's PostgreSQL 16+ as described in the quickstart.
@@ -74,10 +74,12 @@ No Docker (e.g. cloud sessions)? Use the machine's PostgreSQL 16+ as described i
 - **RTL**: logical utilities only (`ms-`, `me-`, `ps-`, `pe-`, `start-`, `end-`, `text-start`); wrap
   emails/codes/URLs in `dir="ltr"` or `<bdi>`; mirror directional icons.
 - **Accessibility**: semantic HTML, labelled controls, visible focus, keyboard-complete flows; add every new
-  screen to the screen lists in `apps/web/e2e/support/screens.ts` (axe scan and CSP check).
+  screen to the screen lists in `apps/web/e2e/support/screens.ts` (axe scan, CSP check, 320 px and 200%
+  zoom checks).
 - **UI work**: follow the Impeccable skill (`.claude/skills/impeccable`) together with `PRODUCT.md` and
   `DESIGN.md`; change design tokens, not one-off colours.
-- **Logging**: use `src/server/log.ts`; never log emails, names, student codes, tokens, or passwords.
+- **Logging**: use `src/server/log.ts`; never log emails, names, student codes, tokens, or passwords. Log an
+  unexpected error with `errorName()` / `sqlStateOf()` from `src/server/errors.ts`, never its message.
 - **Dependencies**: justify every new runtime dependency in the PR; permissive licences only.
 - **Migrations**: forward-only; never edit a merged migration.
 

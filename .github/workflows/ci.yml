@@ -72,8 +72,8 @@ jobs:
 
   build:
     # Gate 5. No application environment variables on purpose: the build must not need them.
-    # Exception by design: next.config.ts reads APP_URL at build time to decide HSTS, so this build
-    # sends no HSTS; a production build must set APP_URL (docs/deployment.md).
+    # next.config.ts reads APP_URL if present; without it (as here) no HSTS is emitted. A production
+    # build must set APP_URL (docs/deployment.md).
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

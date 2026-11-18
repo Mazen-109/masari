@@ -9,9 +9,31 @@ import { registerStudentWithProfile } from './support/students';
 // `signedIn` names who is signed in: a new student, or the demo college's administrator.
 const BUDGETS: readonly { path: string; limitKB: number; signedIn?: 'student' | 'admin' }[] = [
   { path: '/ar/sign-in', limitKB: 200 },
+  { path: '/ar/register', limitKB: 200 },
   { path: '/ar/dashboard', limitKB: 300, signedIn: 'student' },
   { path: '/ar/admin/users', limitKB: 300, signedIn: 'admin' },
 ];
+
+/** A `layout-shift` performance entry (not in TypeScript's DOM library). */
+type LayoutShift = PerformanceEntry & { value: number; hadRecentInput: boolean };
+
+/** Runs in the page: the last largest-contentful-paint time and the layout shifts not caused by input. */
+function paintAndShifts(): Promise<{ lcp: number; cls: number }> {
+  return new Promise((resolve) => {
+    let lcp = 0;
+    let cls = 0;
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) lcp = entry.startTime;
+    }).observe({ type: 'largest-contentful-paint', buffered: true });
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries() as LayoutShift[]) {
+        if (!entry.hadRecentInput) cls += entry.value;
+      }
+    }).observe({ type: 'layout-shift', buffered: true });
+    // Buffered entries are delivered in a later task.
+    setTimeout(() => resolve({ lcp, cls }), 250);
+  });
+}
 
 for (const { path, limitKB, signedIn } of BUDGETS) {
   test(`scripts on ${path} stay within ${limitKB} KB`, async ({ page: setupPage }, testInfo) => {
@@ -43,6 +65,13 @@ for (const { path, limitKB, signedIn } of BUDGETS) {
     const summary = `${path}: ${measuredKB} KB of scripts in ${scriptRequests.size} files (limit ${limitKB} KB)`;
     console.log(`[script budget] ${summary}`);
     testInfo.annotations.push({ type: 'script-budget', description: summary });
+
+    // Recorded, not asserted: LCP and CLS of this load on the unthrottled local machine. They are no
+    // substitute for the throttled Lighthouse run of T146 (FR-043), only a reference when it cannot run.
+    const vitals = await page.evaluate(paintAndShifts);
+    const timings = `${path}: LCP ${Math.round(vitals.lcp)} ms, CLS ${vitals.cls.toFixed(3)} (unthrottled)`;
+    console.log(`[web vitals] ${timings}`);
+    testInfo.annotations.push({ type: 'web-vitals', description: timings });
 
     expect(scriptRequests.size).toBeGreaterThan(0);
     expect(measuredKB).toBeLessThanOrEqual(limitKB);

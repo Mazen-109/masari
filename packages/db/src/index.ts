@@ -23,6 +23,7 @@ export type {
   UserSummary,
 } from './constants';
 export { closePool } from './client';
+export { DB_ENV_VARIABLES } from './env';
 export { withInvitationToken, withTenant } from './context';
 export { generateInvitationToken, hashInvitationToken } from './tokens';
 export type { TenantContext, Tx } from './context';

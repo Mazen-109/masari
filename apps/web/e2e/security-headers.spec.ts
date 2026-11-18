@@ -11,6 +11,7 @@ import {
   PUBLIC_SCREENS,
   SCREEN_LOCALES,
   SIGNED_IN_SCREENS,
+  SIGNED_IN_TEST_TIMEOUT_MS,
   signInAs,
 } from './support/screens';
 
@@ -130,8 +131,12 @@ async function expectNoCspViolation(page: Page, path: string, consoleViolations:
 test('no CSP violation on any public screen, or on the not-found screens', async ({ page }) => {
   test.setTimeout(120_000);
   const consoleViolations = await watchCsp(page);
+  // The 404 checks (the localized `/no-such-screen` in PUBLIC_SCREENS, and `/fr`, `/no-such-file.txt`
+  // below) depend on `window.next` being loaded: expectNoCspViolation polls for it to prove the page's
+  // scripts were allowed to run. If a not-found page ever stops loading the Next.js client runtime, the
+  // poll times out; then make the check wait for something else that page runs — never drop the check.
   for (const locale of SCREEN_LOCALES) {
-    for (const path of [...PUBLIC_SCREENS, '/', '/no-such-screen']) {
+    for (const path of [...PUBLIC_SCREENS, '/']) {
       await expectNoCspViolation(page, localized(locale, path), consoleViolations);
     }
   }
@@ -145,7 +150,7 @@ const SIGNED_IN_ROLES = [...new Set(SIGNED_IN_SCREENS.flatMap(({ roles }) => rol
 
 for (const role of SIGNED_IN_ROLES) {
   test(`no CSP violation on any signed-in screen as ${role}`, async ({ page }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(SIGNED_IN_TEST_TIMEOUT_MS);
     const consoleViolations = await watchCsp(page);
     await signInAs(page, role);
     for (const locale of SCREEN_LOCALES) {

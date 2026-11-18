@@ -7,29 +7,12 @@ import { fail, ok, type ActionResult } from '@/lib/result';
 import { recordAudit } from '@/server/audit';
 import { getActionContext } from '@/server/auth/action-context';
 import type { SessionContext } from '@/server/auth/session';
+import { errorName, sqlStateOf } from '@/server/errors';
 import { log } from '@/server/log';
 import { changedFields, type TenantSettings } from './rules';
 import { MAX_DOMAINS_TEXT_LENGTH, tenantSettingsSchema, type TenantSettingsInput } from './schemas';
 
 /** The college settings form (contracts/server-actions.md §5.4). */
-
-function errorName(error: unknown): string {
-  return error instanceof Error ? error.name : 'unknown';
-}
-
-const SQLSTATE = /^[0-9A-Z]{5}$/;
-
-/** The SQLSTATE of a database error (also when wrapped as `cause`), for the log; null when there is none. */
-function sqlStateOf(error: unknown): string | null {
-  let current = error;
-  for (let depth = 0; depth < 3 && typeof current === 'object' && current !== null; depth += 1) {
-    if ('code' in current && typeof current.code === 'string' && SQLSTATE.test(current.code)) {
-      return current.code;
-    }
-    current = 'cause' in current ? current.cause : undefined;
-  }
-  return null;
-}
 
 /** Text fields echoed back after a failure (`meta.<field>`) so the form is re-filled. */
 const ENTERED_TEXT_FIELDS = ['nameAr', 'nameEn', 'allowedEmailDomains', 'levelsCount'] as const;

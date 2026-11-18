@@ -11,6 +11,7 @@ import { fail, ok, type ActionResult, type FieldErrorCode } from '@/lib/result';
 import { recordAudit } from '@/server/audit';
 import { getActionContext } from '@/server/auth/action-context';
 import type { SessionContext } from '@/server/auth/session';
+import { errorName, sqlStateOf } from '@/server/errors';
 import { log } from '@/server/log';
 import { changedProfileFields, isDivisionSelectable, isLevelAllowed } from './rules';
 import { accountSchema, studentProfileSchema, studentProfileUpdateSchema } from './schemas';
@@ -18,22 +19,6 @@ import { accountSchema, studentProfileSchema, studentProfileUpdateSchema } from 
 /** Account and academic-profile actions (contracts/server-actions.md §5.1). */
 
 const localeSchema = z.enum(LOCALES);
-
-function errorName(error: unknown): string {
-  return error instanceof Error ? error.name : 'unknown';
-}
-
-const SQLSTATE = /^[0-9A-Z]{5}$/;
-
-/**
- * The SQLSTATE an error carries in its own `code` (e.g. StudentProfileQueryError), for the log: five
- * characters, never personal data. null when there is none.
- */
-function sqlStateOf(error: unknown): string | null {
-  if (typeof error !== 'object' || error === null || !('code' in error)) return null;
-  const { code } = error;
-  return typeof code === 'string' && SQLSTATE.test(code) ? code : null;
-}
 
 async function currentLocale(): Promise<Locale> {
   const locale = await getLocale();

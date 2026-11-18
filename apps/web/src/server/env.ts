@@ -35,39 +35,42 @@ const httpOrigin = z.string().refine((value) => {
 const integerString = (min: number, max: number) =>
   z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().min(min).max(max));
 
-const envSchema = z
-  .object({
-    APP_ENV: z.enum(['development', 'test', 'production']),
-    APP_URL: httpOrigin,
-    DATABASE_URL: postgresUrl,
-    BETTER_AUTH_SECRET: z.string().min(32),
-    TRUSTED_PROXY_HOPS: integerString(0, MAX_PROXY_HOPS).default(0),
-    EMAIL_TRANSPORT: z.enum(['capture', 'smtp']),
-    // No line breaks: the value becomes a mail header.
-    EMAIL_FROM: z.string().regex(/^[^\r\n]+$/),
-    EMAIL_CAPTURE_DIR: z.string().default('.tmp/emails'),
-    SMTP_HOST: z.string().optional(),
-    SMTP_PORT: integerString(1, 65_535).default(587),
-    SMTP_USER: z.string().optional(),
-    SMTP_PASSWORD: z.string().optional(),
-    SMTP_SECURE: z
-      .enum(['true', 'false'])
-      .default('false')
-      .transform((value) => value === 'true'),
-  })
-  .superRefine((env, ctx) => {
-    const invalid = (name: string) => ctx.addIssue({ code: 'custom', path: [name], message: '' });
-    if (env.APP_ENV === 'production') {
-      if (!env.APP_URL.startsWith('https://')) invalid('APP_URL');
-      if (env.EMAIL_TRANSPORT === 'capture') invalid('EMAIL_TRANSPORT');
-      if (env.TRUSTED_PROXY_HOPS < 1) invalid('TRUSTED_PROXY_HOPS');
+const envFields = z.object({
+  APP_ENV: z.enum(['development', 'test', 'production']),
+  APP_URL: httpOrigin,
+  DATABASE_URL: postgresUrl,
+  BETTER_AUTH_SECRET: z.string().min(32),
+  TRUSTED_PROXY_HOPS: integerString(0, MAX_PROXY_HOPS).default(0),
+  EMAIL_TRANSPORT: z.enum(['capture', 'smtp']),
+  // No line breaks: the value becomes a mail header.
+  EMAIL_FROM: z.string().regex(/^[^\r\n]+$/),
+  EMAIL_CAPTURE_DIR: z.string().default('.tmp/emails'),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: integerString(1, 65_535).default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASSWORD: z.string().optional(),
+  SMTP_SECURE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+});
+
+/** Every variable getEnv() reads (`.env.example` must list each one: env-example.test.ts). */
+export const ENV_VARIABLES: readonly string[] = Object.keys(envFields.shape);
+
+const envSchema = envFields.superRefine((env, ctx) => {
+  const invalid = (name: string) => ctx.addIssue({ code: 'custom', path: [name], message: '' });
+  if (env.APP_ENV === 'production') {
+    if (!env.APP_URL.startsWith('https://')) invalid('APP_URL');
+    if (env.EMAIL_TRANSPORT === 'capture') invalid('EMAIL_TRANSPORT');
+    if (env.TRUSTED_PROXY_HOPS < 1) invalid('TRUSTED_PROXY_HOPS');
+  }
+  if (env.EMAIL_TRANSPORT === 'smtp') {
+    for (const name of ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD'] as const) {
+      if (env[name] === undefined) invalid(name);
     }
-    if (env.EMAIL_TRANSPORT === 'smtp') {
-      for (const name of ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD'] as const) {
-        if (env[name] === undefined) invalid(name);
-      }
-    }
-  });
+  }
+});
 
 export type Env = z.infer<typeof envSchema>;
 
