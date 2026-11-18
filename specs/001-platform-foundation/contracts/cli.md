@@ -58,7 +58,11 @@ college slug and, when an administrator invitation was created (from PR-26), the
 `Admin invitation link: <APP_URL>/ar/invite/<token>`. Fails closed: runs only when `APP_ENV` is explicitly
 `development` or `test` (read through `getAdminDbEnv()`); when it is `production` or not set, it prints
 `Refusing to seed demo data: APP_ENV is <value|not set>; it must be development or test. Nothing was changed.`
-and exits 1 without connecting to the database.
+and exits 1 without connecting to the database. `APP_URL` is required (the invitation link is built from it
+and the token is never stored in plain form): when `APP_ENV` allows seeding but `APP_URL` is not set, it
+prints `APP_URL is not set; it is needed for the admin invitation link. Nothing was changed.` and exits 1
+without connecting to the database. Any other failure prints `Seed failed: <reason>` (a PostgreSQL error is
+reduced to `database error <SQLSTATE>`; never a connection string) and exits 1.
 
 ## 4. `pnpm tenant:create` — `packages/db/scripts/tenant-create.ts` (FR-018)
 

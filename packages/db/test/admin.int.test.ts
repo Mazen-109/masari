@@ -305,6 +305,44 @@ describe('createAdminInvitation', () => {
     expect(await countInvitations(tenant.id, email)).toBe(1);
   });
 
+  it("revokes an expired pending invitation only in its own college, never in another one's", async () => {
+    // Runs under the default owner connection — a superuser locally and in CI, which bypasses RLS — so only
+    // the explicit tenant_id filter keeps college B's invitation out of reach.
+    const collegeA = await makeTenant();
+    const collegeB = await makeTenant();
+    const email = adminEmail();
+    const inB = await createAdminInvitation(migrationUrl(), collegeB.id, email);
+    if (!inB.ok) throw new Error(`createAdminInvitation: ${inB.reason}`);
+    const expired = await ownerTenantQuery(
+      collegeB.id,
+      `UPDATE invitations SET expires_at = now() - interval '1 minute'
+        WHERE tenant_id = $1 AND email = $2`,
+      [collegeB.id, email],
+    );
+    expect(expired.rowCount).toBe(1);
+
+    const inA = await createAdminInvitation(migrationUrl(), collegeA.id, email);
+    expect(inA.ok).toBe(true);
+    expect((await invitationByToken(collegeB.id, inB.token))?.status).toBe('pending');
+    expect(await countInvitations(collegeA.id, email)).toBe(1);
+  });
+
+  it('revokes an expired pending invitation for the same email in the same college', async () => {
+    const tenant = await makeTenant();
+    const email = adminEmail();
+    const old = await createAdminInvitation(migrationUrl(), tenant.id, email);
+    if (!old.ok) throw new Error(`createAdminInvitation: ${old.reason}`);
+    await ownerTenantQuery(
+      tenant.id,
+      `UPDATE invitations SET expires_at = now() - interval '1 minute'
+        WHERE tenant_id = $1 AND email = $2`,
+      [tenant.id, email],
+    );
+    const fresh = await createAdminInvitation(migrationUrl(), tenant.id, email);
+    expect(fresh.ok).toBe(true);
+    expect((await invitationByToken(tenant.id, old.token))?.status).toBe('revoked');
+  });
+
   it('answers email_has_account when the email has an account in any college', async () => {
     const tenant = await makeTenant();
     const elsewhere = await makeTenant();

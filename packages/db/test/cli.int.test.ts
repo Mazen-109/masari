@@ -26,14 +26,26 @@ interface Outcome {
 
 afterAll(closeTestPools);
 
-/** Runs a script with only the variables it reads; the URLs point at the test database. */
-async function script(name: string, args: string[]): Promise<Outcome> {
+/**
+ * Runs a script with only the variables it reads; the URLs point at the test database. `overrides` replaces
+ * variables; an undefined value removes the variable.
+ */
+async function script(
+  name: string,
+  args: string[],
+  overrides: Record<string, string | undefined> = {},
+): Promise<Outcome> {
   const { DATABASE_URL, DATABASE_MIGRATION_URL } = getAdminDbEnv();
+  const env = Object.fromEntries(
+    Object.entries({ DATABASE_URL, DATABASE_MIGRATION_URL, APP_URL, ...overrides }).filter(
+      (entry): entry is [string, string] => entry[1] !== undefined,
+    ),
+  );
   try {
     const { stdout, stderr } = await run(
       process.execPath,
       ['--import', 'tsx', `scripts/${name}.ts`, ...args],
-      { cwd: PACKAGE_ROOT, env: { DATABASE_URL, DATABASE_MIGRATION_URL, APP_URL } },
+      { cwd: PACKAGE_ROOT, env },
     );
     return { code: 0, stdout, stderr };
   } catch (error) {
@@ -246,34 +258,91 @@ describe('tenant-set-status', () => {
 });
 
 describe('failures never leak connection details', () => {
+  /** The owner URL of the test server with a port where nothing listens. */
+  function unreachableMigrationUrl(): string {
+    const url = new URL(getAdminDbEnv().DATABASE_MIGRATION_URL);
+    url.port = '1';
+    return url.toString();
+  }
+
   it(
-    'reports an unreachable database in one safe line with exit 1',
+    'tenant-create reports an unreachable database in one safe line with exit 1',
+    {
+      timeout: 60_000,
+    },
+    async () => {
+      const email = freshEmail();
+      const outcome = await script('tenant-create', createArgs({ slug: freshSlug(), email }), {
+        DATABASE_MIGRATION_URL: unreachableMigrationUrl(),
+      });
+      expect(outcome.code).toBe(1);
+      expect(outcome.stdout).toBe('');
+      expect(outcome.stderr).toMatch(/^Creating the college failed: .+\. Nothing was changed\.\n$/);
+      expectNothingSecret(outcome, email);
+    },
+  );
+
+  it(
+    'tenant-set-status reports an unreachable database in one safe line with exit 1',
+    {
+      timeout: 60_000,
+    },
+    async () => {
+      const tenant = await makeTenant();
+      const outcome = await script(
+        'tenant-set-status',
+        ['--slug', tenant.slug, '--status', 'suspended'],
+        { DATABASE_MIGRATION_URL: unreachableMigrationUrl() },
+      );
+      expect(outcome.code).toBe(1);
+      expect(outcome.stdout).toBe('');
+      expect(outcome.stderr).toMatch(/^Changing the college status failed: .+\n$/);
+      expect(outcome.stderr.trim().split('\n')).toHaveLength(1);
+      expectNothingSecret(outcome);
+      const status = await ownerQuery<{ status: string }>(
+        'SELECT status FROM tenants WHERE id = $1',
+        [tenant.id],
+      );
+      expect(status.rows).toEqual([{ status: 'active' }]);
+    },
+  );
+});
+
+describe('required settings and arguments', () => {
+  it(
+    'tenant-create without APP_URL exits 1 and creates no college',
     { timeout: 60_000 },
     async () => {
-      const { DATABASE_URL } = getAdminDbEnv();
-      const unreachable = new URL(DATABASE_URL);
-      unreachable.port = '1';
-      const email = freshEmail();
-      const { code, stdout, stderr } = await run(
-        process.execPath,
-        [
-          '--import',
-          'tsx',
-          'scripts/tenant-create.ts',
-          ...createArgs({ slug: freshSlug(), email }),
-        ],
-        {
-          cwd: PACKAGE_ROOT,
-          env: { DATABASE_URL, DATABASE_MIGRATION_URL: unreachable.toString(), APP_URL },
-        },
-      ).then(
-        (result) => ({ code: 0, ...result }),
-        (error: unknown) => error as Outcome,
+      const slug = freshSlug();
+      const outcome = await script('tenant-create', createArgs({ slug, email: freshEmail() }), {
+        APP_URL: undefined,
+      });
+      expect(outcome).toEqual({
+        code: 1,
+        stdout: '',
+        stderr: 'APP_URL is not set; it is needed for the invitation link. Nothing was changed.\n',
+      });
+      expect(await tenantsWithSlug(slug)).toEqual([]);
+    },
+  );
+
+  it(
+    'tenant-set-status with a malformed slug exits 2 with usage',
+    { timeout: 60_000 },
+    async () => {
+      const outcome = await script('tenant-set-status', [
+        '--slug',
+        'Not_A_Slug',
+        '--status',
+        'active',
+      ]);
+      expect(outcome.code).toBe(2);
+      expect(outcome.stdout).toBe('');
+      const lines = outcome.stderr.trim().split('\n');
+      expect(lines[0]).toMatch(/^Invalid argument --slug: /);
+      expect(lines[1]).toBe(
+        'Usage: pnpm tenant:set-status --slug <slug> --status active|suspended',
       );
-      expect(code).toBe(1);
-      expect(stdout).toBe('');
-      expect(stderr).toMatch(/^Creating the college failed: .+\. Nothing was changed\.\n$/);
-      expectNothingSecret({ code, stdout, stderr }, email);
     },
   );
 });
