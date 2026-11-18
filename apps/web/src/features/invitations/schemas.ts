@@ -20,3 +20,18 @@ export const createInvitationSchema = z.object({
 });
 
 export type CreateInvitationInput = z.infer<typeof createInvitationSchema>;
+
+/**
+ * The revoke form (contracts/server-actions.md §5.2 `revokeInvitationAction`): the invitation's id, from a
+ * hidden field. Only its presence and length are checked here; an id that is not a uuid is an unknown
+ * invitation, which the action answers with `not_found`.
+ */
+export const revokeInvitationSchema = z.object({
+  invitationId: z
+    .string({ error: 'required' })
+    .trim()
+    .min(1, { error: 'required' })
+    .max(64, { error: 'too_long' }),
+});
+
+export type RevokeInvitationInput = z.infer<typeof revokeInvitationSchema>;

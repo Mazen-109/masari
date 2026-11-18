@@ -6,6 +6,7 @@ import {
   countAuditEvents,
   countSessionsByEmail,
   createStudentProfile,
+  expireInvitation,
   getStudentProfileByEmail,
   getUserByEmail,
   resetRateLimits,
@@ -14,8 +15,16 @@ import { withTenant } from '../src/context';
 import { getAdminDbEnv } from '../src/env';
 import * as audit from '../src/repositories/audit';
 import * as divisions from '../src/repositories/divisions';
+import * as invitations from '../src/repositories/invitations';
 import * as studentProfiles from '../src/repositories/student-profiles';
-import { closeTestPools, makeTenant, makeUser, ownerQuery, randomSlug } from './helpers';
+import {
+  closeTestPools,
+  makeTenant,
+  makeUser,
+  ownerQuery,
+  ownerTenantQuery,
+  randomSlug,
+} from './helpers';
 
 // contracts/db-api.md §3 "Test support": the owner-connection reads used by the e2e tests.
 
@@ -327,6 +336,62 @@ describe('resetRateLimits', () => {
     const unreachable = 'postgres://owner:owner-pw@127.0.0.1:1/masari';
     await expect(resetRateLimits(unreachable)).rejects.toThrow('outside a test database');
     await expect(resetRateLimits(withDatabaseName(unreachable, 'masari_dev'))).rejects.toThrow(
+      'outside a test database',
+    );
+  });
+});
+
+describe('expireInvitation', () => {
+  async function inviteIn(tenantId: string, email: string): Promise<string> {
+    const result = await withTenant({ tenantId, userId: null }, (tx) =>
+      invitations.create(tx, { email, role: 'faculty', invitedBy: null }),
+    );
+    if (!result.ok) throw new Error('inviteIn: not created');
+    return result.value.id;
+  }
+
+  async function isExpired(tenantId: string, id: string): Promise<boolean | undefined> {
+    const result = await ownerTenantQuery<{ expired: boolean }>(
+      tenantId,
+      'SELECT expires_at <= now() AS expired FROM invitations WHERE id = $1',
+      [id],
+    );
+    return result.rows[0]?.expired;
+  }
+
+  it("expires the email's pending invitations in every college and nothing else", async () => {
+    const collegeA = await makeTenant();
+    const collegeB = await makeTenant();
+    const email = `${randomSlug('expire')}@example.test`;
+    const other = `${randomSlug('keep')}@example.test`;
+    const inA = await inviteIn(collegeA.id, email);
+    const inB = await inviteIn(collegeB.id, email);
+    const untouched = await inviteIn(collegeA.id, other);
+
+    await expireInvitation(migrationUrl(), ` ${email.toUpperCase()} `);
+
+    expect(await isExpired(collegeA.id, inA)).toBe(true);
+    expect(await isExpired(collegeB.id, inB)).toBe(true);
+    expect(await isExpired(collegeA.id, untouched)).toBe(false);
+    // Still pending: the list derives "expired", and a new invitation replaces it.
+    const listed = await withTenant({ tenantId: collegeA.id, userId: null }, (tx) =>
+      invitations.list(tx),
+    );
+    expect(listed.find((row) => row.id === inA)).toMatchObject({
+      status: 'pending',
+      displayStatus: 'expired',
+    });
+  });
+
+  it('throws when the email has no pending invitation', async () => {
+    await expect(
+      expireInvitation(migrationUrl(), `${randomSlug('none')}@example.test`),
+    ).rejects.toThrow('no pending invitation');
+  });
+
+  it('refuses a database that is not a throw-away test database, before connecting', async () => {
+    const unreachable = 'postgres://owner:owner-pw@127.0.0.1:1/masari';
+    await expect(expireInvitation(unreachable, 'a@example.test')).rejects.toThrow(
       'outside a test database',
     );
   });

@@ -190,3 +190,30 @@ export async function resetRateLimits(migrationUrl: string, keyPrefix = ''): Pro
     return result.rowCount ?? 0;
   });
 }
+
+/**
+ * e2e fixture: moves the expiry of the pending invitations for this email (input trimmed and lower-cased),
+ * in any college, one minute into the past. Throws when there is none; only on a throw-away test database
+ * (refused before a connection is opened).
+ */
+export async function expireInvitation(migrationUrl: string, email: string): Promise<void> {
+  if (!isThrowAwayUrl(migrationUrl)) {
+    throw new Error('Refusing to expire an invitation outside a test database');
+  }
+  await withOwnerTransaction(migrationUrl, async (client) => {
+    // Forced row-level security: each college's rows are updated in its own context (tenants is global).
+    // Filtered explicitly as well: a superuser owner bypasses even forced row-level security.
+    const colleges = await client.query<{ id: string }>('SELECT id FROM tenants ORDER BY id');
+    let changed = 0;
+    for (const college of colleges.rows) {
+      await setTenantContext(client, college.id);
+      const result = await client.query(
+        `UPDATE invitations SET expires_at = now() - interval '1 minute'
+          WHERE tenant_id = $1 AND email = $2 AND status = 'pending'`,
+        [college.id, email.trim().toLowerCase()],
+      );
+      changed += result.rowCount ?? 0;
+    }
+    if (changed === 0) throw new Error('expireInvitation: no pending invitation for this email');
+  });
+}

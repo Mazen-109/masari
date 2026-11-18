@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import type { Invitation, InvitationView, Role } from '../constants';
 import { isUuid, type Tx } from '../context';
 import { invitations } from '../schema';
@@ -98,6 +98,29 @@ export async function hasUsablePending(tx: Tx, email: string): Promise<boolean> 
     .select({ id: invitations.id })
     .from(invitations)
     .where(and(eq(invitations.email, normaliseEmail(email)), isPending, isUnexpired))
+    .limit(1);
+  return rows.length > 0;
+}
+
+/**
+ * True when an invitation of the current college for this email has not produced its account yet:
+ * pending and unexpired, or claimed (`accepted`) but not yet linked to an account (accepted_user_id IS NULL
+ * — an acceptance in flight). Self-registration treats both alike (server-actions.md §4.1 step 6), so it
+ * cannot race an acceptance.
+ */
+export async function awaitsAccount(tx: Tx, email: string): Promise<boolean> {
+  const rows = await tx
+    .select({ id: invitations.id })
+    .from(invitations)
+    .where(
+      and(
+        eq(invitations.email, normaliseEmail(email)),
+        or(
+          and(isPending, isUnexpired),
+          and(eq(invitations.status, 'accepted'), isNull(invitations.acceptedUserId)),
+        ),
+      ),
+    )
     .limit(1);
   return rows.length > 0;
 }

@@ -155,6 +155,7 @@ create(tx: Tx, input: { email: string; role: Role; invitedBy: string | null }):
   // revokes an expired pending invitation for the same email first; expires_at = now + 7 days
 list(tx: Tx): Promise<InvitationView[]>                                        // newest first, max 200
 hasUsablePending(tx: Tx, email: string): Promise<boolean>
+awaitsAccount(tx: Tx, email: string): Promise<boolean>   // pending & unexpired, or accepted with accepted_user_id IS NULL (registration step 6)
 revoke(tx: Tx, id: string): Promise<'revoked' | 'not_found' | 'not_pending'>
 findByTokenHash(tx: Tx, tokenHash: string): Promise<Invitation | null>        // inside withInvitationToken
 claim(tx: Tx, id: string): Promise<Invitation | null>                         // pending & unexpired → accepted (atomic)

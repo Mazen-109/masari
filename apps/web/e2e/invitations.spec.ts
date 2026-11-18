@@ -1,24 +1,29 @@
 import type { Page } from '@playwright/test';
 import { DEMO_COLLEGE, DEMO_SLUG } from '@masari/db/admin';
 import { E2E_BASE_URL } from './support/constants';
-import { countAuditEvents, getUserByEmail } from './support/db';
+import { countAuditEvents, expireInvitation, getUserByEmail, resetRateLimits } from './support/db';
 import { countEmails, expectEmailCountStays, firstLink, waitForEmail } from './support/emails';
 import { expect, test } from './support/fixtures';
 import {
   acceptInvitation,
   CATALOGS,
   INVITATION_SUBJECT,
+  inviteForm,
   inviteStaff,
   registerConfirmedStudent,
+  registerStudent,
   signIn,
   signInAsDemoAdmin,
   uniqueEmail,
 } from './support/flows';
+import { setFormField } from './support/forge';
+import { createCollege, uniqueCollegeSlug } from './support/operator';
 import { registerStudentWithProfile } from './support/students';
 
-// The college administration invites staff (US5 acceptance scenarios 1–2; contracts/server-actions.md §5.2,
-// contracts/routes.md §4; FR-020, FR-022, FR-040). Part 1: create and list. The demo administrator only
-// adds invitations for new addresses; nothing about the demo college itself changes.
+// The college administration invites staff (US5 acceptance scenarios 1–3, 6; contracts/server-actions.md
+// §4.1 step 6, §5.2, contracts/routes.md §4; FR-020, FR-022, FR-023, FR-040). Part 1: create and list;
+// part 2: revoke, expiry, and self-registration with an invited address. The demo administrator only adds
+// (and revokes) invitations for new addresses; nothing about the demo college itself changes.
 
 const { ar } = CATALOGS;
 
@@ -33,6 +38,16 @@ function invitationRow(page: Page, email: string) {
 function formError(page: Page) {
   return page.locator('main [data-slot="form-error"]');
 }
+
+function inviteSent(page: Page) {
+  return page.locator('main [data-slot="invite-sent"]');
+}
+
+// The demo administrator's `invite-create` bucket (60 per hour) is shared by every test of the run, also
+// by retries and repeated local runs against one database: each test starts with an empty one.
+test.beforeEach(async () => {
+  await resetRateLimits('invite-create:');
+});
 
 test('the administrator invites a faculty member, who accepts and signs in', async ({ page }) => {
   const email = uniqueEmail('faculty');
@@ -134,7 +149,7 @@ for (const locale of ['ar', 'en'] as const) {
         t.admin.invitations.form.emailUnavailable,
       );
       await expect(page.locator('main [data-slot="invite-sent"]')).toHaveCount(0);
-      refusals.push(await page.locator('main form').innerText());
+      refusals.push(await inviteForm(page).innerText());
     }
     // Word for word the same screen: the two cases cannot be told apart.
     expect(refusals[0]).toBe(refusals[1]);
@@ -185,7 +200,11 @@ test('the form card and the table share one column', async ({ page }) => {
   }
   // Wide enough on a desktop: no sideways scrolling and no hint.
   expect(await tableRegion(page).evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0);
-  await expect(page.getByText(ar.admin.invitations.list.scrollHint)).toBeHidden();
+  // Once measured in the browser, the hint stays hidden and describes nothing.
+  const hint = page.locator('main [data-slot="scroll-hint"]');
+  await expect(hint).toHaveClass(/(^|\s)hidden(\s|$)/);
+  await expect(hint).toBeHidden();
+  await expect(tableRegion(page)).not.toHaveAttribute('aria-describedby');
 });
 
 test('@mobile at 320 px the table scrolls sideways inside a labelled, focusable region', async ({
@@ -209,14 +228,179 @@ test('@mobile at 320 px the table scrolls sideways inside a labelled, focusable 
   ).toBeLessThanOrEqual(0);
 
   // Keyboard: focus the region and the arrow key scrolls it towards the last column (to the left in Arabic).
+  // Only the horizontal position is compared: with many invitations the region is taller than the screen,
+  // so whether the header row is vertically in view depends on where focusing scrolled the page.
   const lastHeader = region.getByRole('columnheader', {
-    name: ar.admin.invitations.list.expiresAt,
+    name: ar.admin.invitations.list.actions,
   });
-  await expect(lastHeader).not.toBeInViewport();
+  const lastColumnShown = async (): Promise<boolean> => {
+    const [header, box] = [await lastHeader.boundingBox(), await region.boundingBox()];
+    if (header === null || box === null) return false;
+    return header.x >= box.x - 1 && header.x + header.width <= box.x + box.width + 1;
+  };
+  expect(await lastColumnShown()).toBe(false);
   await region.focus();
   await expect(region).toBeFocused();
-  await expect(async () => {
+  // Each press scrolls about 40 px: press until the last column is in view (a plain loop, not toPass,
+  // whose growing retry intervals would allow only a dozen presses).
+  let shown = false;
+  for (let press = 0; press < 80 && !shown; press += 1) {
     await page.keyboard.press('ArrowLeft');
-    await expect(lastHeader).toBeInViewport({ timeout: 200 });
-  }).toPass({ timeout: 10_000 });
+    shown = await lastColumnShown();
+  }
+  // A smooth scroll may still be running after the last press.
+  await expect.poll(lastColumnShown).toBe(true);
+  await expect(region).toBeFocused();
+});
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** The revoke button of a row; its name ends with the (visually hidden) address. */
+function revokeButton(page: Page, email: string) {
+  return invitationRow(page, email).getByRole('button', {
+    name: ar.admin.invitations.list.revoke,
+  });
+}
+
+test('the administrator revokes a pending invitation and its link stops working', async ({
+  page,
+}) => {
+  const email = uniqueEmail('revoked');
+  const since = new Date();
+  const auditsBefore = await countAuditEvents(DEMO_SLUG, 'invitation.revoked');
+
+  await signInAsDemoAdmin(page);
+  await page.goto('/ar/admin/invitations');
+  await inviteStaff(page, { email, role: 'faculty' });
+  await expect(inviteSent(page)).toBeVisible();
+  const link = firstLink(
+    await waitForEmail({ to: email, subjectIncludes: INVITATION_SUBJECT, since }),
+  );
+
+  const button = revokeButton(page, email);
+  await expect(button).toHaveAccessibleName(
+    `${ar.admin.invitations.list.revoke} ${ar.admin.invitations.list.revokeTarget.replace('<bdi>{email}</bdi>', email)}`,
+  );
+  await button.click();
+  const row = invitationRow(page, email);
+  await expect(row).toHaveAttribute('data-status', 'revoked');
+  await expect(row.locator('[data-field="status"]')).toHaveText(ar.common.statuses.revoked);
+  await expect(revokeButton(page, email)).toHaveCount(0);
+  expect(await countAuditEvents(DEMO_SLUG, 'invitation.revoked')).toBeGreaterThan(auditsBefore);
+
+  // The invitee's link now shows the "no longer valid" screen, without the form.
+  await page.context().clearCookies();
+  await page.goto(link);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(ar.auth.invite.invalidTitle);
+  await expect(page.locator('main form')).toHaveCount(0);
+});
+
+test("revoking another college's invitation through a forged form is not_found and changes nothing", async ({
+  page,
+}) => {
+  // Another college's administrator invites someone; the row's id is read from their own screen.
+  const otherAdmin = uniqueEmail('other-admin');
+  const college = await createCollege(uniqueCollegeSlug('rvk'), otherAdmin);
+  await acceptInvitation(page, { invitePath: college.invitePath, name: 'Other Administrator' });
+  await page.waitForURL('/ar/sign-in?invited=1');
+  await signIn(page, { email: otherAdmin, open: false });
+  await page.waitForURL('/ar/dashboard');
+  const foreignEmail = uniqueEmail('foreign');
+  const since = new Date();
+  await page.goto('/ar/admin/invitations');
+  await inviteStaff(page, { email: foreignEmail, role: 'faculty' });
+  await expect(inviteSent(page)).toBeVisible();
+  const foreignId = await invitationRow(page, foreignEmail).getAttribute('data-invitation');
+  expect(foreignId).toMatch(UUID);
+  const foreignLink = firstLink(
+    await waitForEmail({ to: foreignEmail, subjectIncludes: INVITATION_SUBJECT, since }),
+  );
+
+  // The demo administrator puts that id into the revoke form of a row of their own screen.
+  await page.context().clearCookies();
+  const ownEmail = uniqueEmail('own');
+  await signInAsDemoAdmin(page);
+  await page.goto('/ar/admin/invitations');
+  await inviteStaff(page, { email: ownEmail, role: 'faculty' });
+  await expect(inviteSent(page)).toBeVisible();
+  const ownRow = invitationRow(page, ownEmail);
+  const form = ownRow.locator('form');
+  await setFormField(form, 'invitationId', foreignId ?? '');
+  await revokeButton(page, ownEmail).click();
+  await expect(form.locator('[data-slot="form-error"]')).toHaveAttribute('data-code', 'not_found');
+  await expect(form.locator('[data-slot="form-error"]')).toContainText(ar.errors.not_found);
+
+  // Nothing changed: the own row is still pending, the other college has no revocation, and its
+  // invitation still opens the accept form.
+  await expect(ownRow).toHaveAttribute('data-status', 'pending');
+  expect(await countAuditEvents(college.slug, 'invitation.revoked')).toBe(0);
+  await page.context().clearCookies();
+  await page.goto(foreignLink);
+  await expect(page.locator('[data-slot="invite-college"]')).toHaveText(college.nameAr);
+});
+
+test('registering with an invited address only reminds of the invitation and creates no account', async ({
+  page,
+}) => {
+  const email = uniqueEmail('invited-student');
+  // FR-020 allows inviting students too.
+  await signInAsDemoAdmin(page);
+  await page.goto('/ar/admin/invitations');
+  await inviteStaff(page, { email, role: 'student' });
+  await expect(inviteSent(page)).toBeVisible();
+  await page.context().clearCookies();
+
+  const since = new Date();
+  await registerStudent(page, { email });
+  // The same "check your email" screen as for a new address (FR-005).
+  await expect(page).toHaveURL('/ar/verify-email');
+  const message = await waitForEmail({
+    to: email,
+    subjectIncludes: 'You have an invitation to join Masari',
+    since,
+  });
+  expect(message.template).toBe('invitation-pending');
+  expect(message.text).toContain(DEMO_COLLEGE.nameAr);
+  // One message, and no confirmation email among them.
+  await expectEmailCountStays(email, since, 1);
+  expect(await getUserByEmail(email)).toBeNull();
+});
+
+test('an expired invitation shows as expired and can be replaced by a new one', async ({
+  page,
+}) => {
+  const email = uniqueEmail('expired');
+  await signInAsDemoAdmin(page);
+  await page.goto('/ar/admin/invitations');
+  await inviteStaff(page, { email, role: 'student_affairs' });
+  await expect(inviteSent(page)).toBeVisible();
+
+  await expireInvitation(email);
+  await page.goto('/ar/admin/invitations');
+  const row = invitationRow(page, email);
+  await expect(row).toHaveAttribute('data-status', 'expired');
+  await expect(row.locator('[data-field="status"]')).toHaveText(ar.common.statuses.expired);
+  // An expired invitation is still pending in storage: it can be revoked.
+  await expect(revokeButton(page, email)).toHaveCount(1);
+
+  const since = new Date();
+  await inviteStaff(page, { email, role: 'student_affairs' });
+  await expect(inviteSent(page)).toBeVisible();
+  // The new invitation is pending; the expired one was revoked when it was replaced.
+  const rowWith = (status: string) =>
+    page.locator(`main [data-slot="invitations-table"] tbody tr[data-status="${status}"]`, {
+      hasText: email,
+    });
+  await expect(invitationRow(page, email)).toHaveCount(2);
+  await expect(rowWith('pending')).toHaveCount(1);
+  await expect(rowWith('revoked')).toHaveCount(1);
+
+  const link = firstLink(
+    await waitForEmail({ to: email, subjectIncludes: INVITATION_SUBJECT, since }),
+  );
+  await page.context().clearCookies();
+  await page.goto(link);
+  await expect(page.locator('[data-slot="invite-role"]')).toHaveText(
+    ar.common.roles.student_affairs,
+  );
 });

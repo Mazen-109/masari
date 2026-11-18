@@ -1,6 +1,14 @@
 'use server';
 
-import { invitations, sessions, tenants, users, withTenant, type Invitation } from '@masari/db';
+import {
+  invitations,
+  sessions,
+  tenants,
+  users,
+  withTenant,
+  type Invitation,
+  type Tenant,
+} from '@masari/db';
 import { isAPIError } from 'better-auth/api';
 import { headers } from 'next/headers';
 import { redirect, unstable_rethrow } from 'next/navigation';
@@ -15,6 +23,7 @@ import { findUsableInvitation } from '@/server/auth/invitation-lookup';
 import { getSessionContext } from '@/server/auth/session';
 import { sendEmail } from '@/server/email/send';
 import { accountExists } from '@/server/email/templates/account-exists';
+import { invitationPending } from '@/server/email/templates/invitation-pending';
 import { getEnv } from '@/server/env';
 import { log } from '@/server/log';
 import { enforceRateLimit, rateLimitRules } from '@/server/rate-limit';
@@ -54,6 +63,32 @@ async function sendAccountExists(to: string): Promise<void> {
     log.info('email.sent', { template: 'account-exists' });
   } catch {
     log.error('email.failed', { template: 'account-exists' });
+  }
+}
+
+/**
+ * Step 6: the college has an invitation for this address that has not produced its account yet — pending
+ * and unexpired, or claimed by an acceptance still in flight (accepted, no account linked yet). Then no
+ * student account is created: the invitation decides the role.
+ */
+function hasInvitationAwaitingAccount(tenantId: string, email: string): Promise<boolean> {
+  return withTenant({ tenantId, userId: null }, (tx) => invitations.awaitsAccount(tx, email));
+}
+
+/**
+ * "You already have an invitation" (contracts/emails.md §3; no link — the token is stored only as a hash);
+ * a failure is logged by template name only and swallowed (§4.1).
+ */
+async function sendInvitationPending(
+  to: string,
+  tenant: Pick<Tenant, 'nameAr' | 'nameEn'>,
+): Promise<void> {
+  const message = invitationPending({ collegeNameAr: tenant.nameAr, collegeNameEn: tenant.nameEn });
+  try {
+    await sendEmail({ template: 'invitation-pending', to, ...message });
+    log.info('email.sent', { template: 'invitation-pending' });
+  } catch {
+    log.error('email.failed', { template: 'invitation-pending' });
   }
 }
 
@@ -151,17 +186,19 @@ async function register(formData: FormData, locale: Locale): Promise<ActionResul
 
   if (await users.findByEmail(input.email)) {
     await sendAccountExists(input.email);
+  } else if (await hasInvitationAwaitingAccount(tenant.id, input.email)) {
+    await sendInvitationPending(input.email, tenant);
   } else {
-    // Step 6 (pending invitation → `invitation-pending` email) is added in PR-29.
     await createStudent(input, tenant.id, locale);
   }
   return ok(undefined);
 }
 
 /**
- * Student self-registration (contracts/server-actions.md §4.1; FR-001…FR-005, FR-009, FR-011, FR-013).
- * A new address, an address that already has an account, and (from PR-29) one with a pending invitation
- * all end in the same redirect to the "check your email" screen.
+ * Student self-registration (contracts/server-actions.md §4.1; FR-001…FR-005, FR-009, FR-011, FR-013,
+ * FR-023).
+ * A new address, an address that already has an account, and one with an invitation of this college that
+ * has not produced its account yet (FR-023) all end in the same redirect to the "check your email" screen.
  */
 export async function registerStudentAction(
   _previous: ActionResult | null,

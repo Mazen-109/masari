@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fail, ok } from '@/lib/result';
-import { createInvitationAction } from './actions';
+import { createInvitationAction, revokeInvitationAction } from './actions';
 
 // createInvitationAction (contracts/server-actions.md §5.2): the branches the e2e tests cannot reach —
 // a failing email, a concurrent create, unexpected errors — and the rule that "has an account" and
@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   findByEmail: vi.fn(),
   hasUsablePending: vi.fn(),
   createInvitation: vi.fn(),
+  revokeInvitation: vi.fn(),
   withTenant: vi.fn(),
   recordAudit: vi.fn(),
   getActionContext: vi.fn(),
@@ -23,7 +24,11 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@masari/db', () => ({
   ROLES: ['student', 'faculty', 'student_affairs', 'admin'],
   users: { findByEmail: mocks.findByEmail },
-  invitations: { hasUsablePending: mocks.hasUsablePending, create: mocks.createInvitation },
+  invitations: {
+    hasUsablePending: mocks.hasUsablePending,
+    create: mocks.createInvitation,
+    revoke: mocks.revokeInvitation,
+  },
   withTenant: mocks.withTenant,
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
@@ -241,5 +246,81 @@ describe('createInvitationAction', () => {
       errorName: 'TypeError',
       sqlState: null,
     });
+  });
+});
+
+describe('revokeInvitationAction', () => {
+  function revokeForm(invitationId?: string): FormData {
+    const data = new FormData();
+    if (invitationId !== undefined) data.append('invitationId', invitationId);
+    return data;
+  }
+
+  it('revokes, audits in the same transaction, and revalidates both languages', async () => {
+    mocks.revokeInvitation.mockResolvedValue('revoked');
+    expect(await revokeInvitationAction(null, revokeForm(` ${INVITATION_ID} `))).toEqual(
+      ok(undefined),
+    );
+    expect(mocks.getActionContext).toHaveBeenCalledExactlyOnceWith('admin.invitations.manage');
+    expect(mocks.withTenant).toHaveBeenCalledWith(
+      { tenantId: TENANT_ID, userId: ADMIN_ID },
+      expect.any(Function),
+    );
+    expect(mocks.revokeInvitation).toHaveBeenCalledExactlyOnceWith(TX, INVITATION_ID);
+    expect(mocks.recordAudit).toHaveBeenCalledExactlyOnceWith(
+      CTX,
+      { action: 'invitation.revoked', targetId: INVITATION_ID },
+      TX,
+    );
+    expect(mocks.revalidatePath.mock.calls.map(([path]) => path as string)).toEqual([
+      '/ar/admin/invitations',
+      '/en/admin/invitations',
+    ]);
+  });
+
+  it("answers not_found for an unknown or another college's id, changing and auditing nothing", async () => {
+    mocks.revokeInvitation.mockResolvedValue('not_found');
+    expect(await revokeInvitationAction(null, revokeForm(INVITATION_ID))).toEqual(
+      fail('not_found'),
+    );
+    expect(mocks.recordAudit).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it('answers conflict for an invitation no longer pending and refreshes the list', async () => {
+    mocks.revokeInvitation.mockResolvedValue('not_pending');
+    expect(await revokeInvitationAction(null, revokeForm(INVITATION_ID))).toEqual(fail('conflict'));
+    expect(mocks.recordAudit).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([[undefined], [''], ['x'.repeat(65)]])(
+    'answers not_found for a missing or malformed id %j without touching the database',
+    async (invitationId) => {
+      expect(await revokeInvitationAction(null, revokeForm(invitationId))).toEqual(
+        fail('not_found'),
+      );
+      expect(mocks.withTenant).not.toHaveBeenCalled();
+    },
+  );
+
+  it('answers the guard failure and does nothing else', async () => {
+    mocks.getActionContext.mockResolvedValue({ failure: fail('forbidden') });
+    expect(await revokeInvitationAction(null, revokeForm(INVITATION_ID))).toEqual(
+      fail('forbidden'),
+    );
+    expect(mocks.withTenant).not.toHaveBeenCalled();
+    expect(mocks.revokeInvitation).not.toHaveBeenCalled();
+  });
+
+  it('answers internal on an unexpected error, logging only the error class and SQLSTATE', async () => {
+    const cause = Object.assign(new Error(`failed for ${INVITATION_ID}`), { code: '40001' });
+    mocks.revokeInvitation.mockRejectedValue(new Error('Failed query', { cause }));
+    expect(await revokeInvitationAction(null, revokeForm(INVITATION_ID))).toEqual(fail('internal'));
+    expect(mocks.log.error).toHaveBeenCalledExactlyOnceWith('invitation.revoke_failed', {
+      errorName: 'Error',
+      sqlState: '40001',
+    });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 });

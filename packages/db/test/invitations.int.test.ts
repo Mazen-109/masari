@@ -277,6 +277,33 @@ describe('invitations.hasUsablePending', () => {
   });
 });
 
+describe('invitations.awaitsAccount', () => {
+  it('is true for a usable pending invitation and for a claim not yet linked to an account', async () => {
+    const usable = await invite(collegeA);
+    const expired = await invite(collegeA);
+    await expire(expired.value);
+    const revoked = await invite(collegeA);
+    await inCollege(collegeA, (tx) => invitations.revoke(tx, revoked.value.id));
+    const inFlight = await invite(collegeA);
+    await inCollege(collegeA, (tx) => invitations.claim(tx, inFlight.value.id));
+    const linked = await invite(collegeA);
+    const user = await makeUser(collegeA.id);
+    await inCollege(collegeA, (tx) => invitations.claim(tx, linked.value.id));
+    await inCollege(collegeA, (tx) => invitations.setAcceptedUser(tx, linked.value.id, user.id));
+    const check = (college: TenantFixture, email: string) =>
+      inCollege(college, (tx) => invitations.awaitsAccount(tx, email));
+
+    expect(await check(collegeA, usable.value.email.toUpperCase())).toBe(true);
+    expect(await check(collegeA, inFlight.value.email)).toBe(true);
+    expect(await check(collegeA, expired.value.email)).toBe(false);
+    expect(await check(collegeA, revoked.value.email)).toBe(false);
+    expect(await check(collegeA, linked.value.email)).toBe(false);
+    expect(await check(collegeA, freshEmail())).toBe(false);
+    expect(await check(collegeB, usable.value.email)).toBe(false);
+    expect(await check(collegeB, inFlight.value.email)).toBe(false);
+  });
+});
+
 describe('invitations.revoke', () => {
   it('revokes a pending (also an expired) invitation and reports the other states', async () => {
     const pending = await invite(collegeA);

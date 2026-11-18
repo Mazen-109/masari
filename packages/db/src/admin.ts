@@ -31,6 +31,7 @@ export {
   countAuditEvents,
   countSessionsByEmail,
   createStudentProfile,
+  expireInvitation,
   getStudentProfileByEmail,
   getUserByEmail,
   resetRateLimits,

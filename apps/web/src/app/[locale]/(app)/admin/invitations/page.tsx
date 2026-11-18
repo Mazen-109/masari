@@ -52,6 +52,7 @@ export default async function InvitationsPage({ params }: Props) {
     id: invitation.id,
     email: invitation.email,
     role: invitation.role,
+    status: invitation.status,
     displayStatus: invitation.displayStatus,
     createdAt: invitation.createdAt,
     expiresAt: invitation.expiresAt,

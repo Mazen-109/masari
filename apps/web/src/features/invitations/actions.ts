@@ -13,7 +13,11 @@ import { invitation as invitationEmail } from '@/server/email/templates/invitati
 import { getEnv } from '@/server/env';
 import { log } from '@/server/log';
 import { enforceRateLimit, rateLimitRules } from '@/server/rate-limit';
-import { createInvitationSchema, type CreateInvitationInput } from './schemas';
+import {
+  createInvitationSchema,
+  revokeInvitationSchema,
+  type CreateInvitationInput,
+} from './schemas';
 
 /** Invitation actions of the administration (contracts/server-actions.md §5.2). */
 
@@ -172,4 +176,53 @@ export async function createInvitationAction(
   // Also after a failed email: the new pending invitation is in the list.
   if (result.ok || result.code === 'internal') revalidateInvitationScreens();
   return withEnteredValues(result, formData, INVITE_ENTERED_FIELDS);
+}
+
+/**
+ * Revokes the pending invitation in one withTenant transaction with its audit row. Row-level security
+ * limits the update to the caller's college, so another college's id is answered like an unknown one.
+ */
+async function revokeInvitation(ctx: SessionContext, formData: FormData): Promise<ActionResult> {
+  const parsed = parseForm(revokeInvitationSchema, formData);
+  // The id comes from a hidden field: a missing or malformed one names no invitation.
+  if (!parsed.ok) return fail('not_found');
+  const { invitationId } = parsed.data;
+
+  const outcome = await withTenant({ tenantId: ctx.tenant.id, userId: ctx.user.id }, async (tx) => {
+    const revoked = await invitations.revoke(tx, invitationId);
+    if (revoked === 'revoked') {
+      await recordAudit(ctx, { action: 'invitation.revoked', targetId: invitationId }, tx);
+    }
+    return revoked;
+  });
+  if (outcome === 'revoked') return ok(undefined);
+  return outcome === 'not_pending' ? fail('conflict') : fail('not_found');
+}
+
+/**
+ * Revokes a pending invitation of the caller's college (contracts/server-actions.md §5.2; FR-022, FR-044):
+ * its link stops working at once. An unknown id or one of another college → `not_found`; an invitation
+ * already accepted or revoked → `conflict`. Audit `invitation.revoked`. Nothing but the error class and
+ * SQLSTATE of an unexpected failure is logged.
+ */
+export async function revokeInvitationAction(
+  _previous: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const guard = await getActionContext('admin.invitations.manage');
+  if ('failure' in guard) return guard.failure;
+
+  let result: ActionResult;
+  try {
+    result = await revokeInvitation(guard.ctx, formData);
+  } catch (error) {
+    log.error('invitation.revoke_failed', {
+      errorName: errorName(error),
+      sqlState: sqlStateOf(error),
+    });
+    result = fail('internal');
+  }
+  // `conflict`: the list on screen is out of date, so it is refreshed too.
+  if (result.ok || result.code === 'conflict') revalidateInvitationScreens();
+  return result;
 }

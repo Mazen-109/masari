@@ -1,7 +1,7 @@
 import { ROLES } from '@masari/db';
 import { describe, expect, it } from 'vitest';
 import { parseForm } from '@/lib/form';
-import { createInvitationSchema } from './schemas';
+import { createInvitationSchema, revokeInvitationSchema } from './schemas';
 
 const VALID = { email: 'dean@college.example', role: 'faculty' };
 
@@ -64,6 +64,36 @@ describe('createInvitationSchema', () => {
     expect(result.ok).toBe(false);
     if (!result.ok && !result.failure.ok) {
       expect(result.failure.fieldErrors).toEqual({ email: 'required', role: 'invalid_choice' });
+    }
+  });
+});
+
+describe('revokeInvitationSchema', () => {
+  const ID = '33333333-3333-4333-8333-333333333333';
+
+  it('accepts a trimmed id and drops unknown fields', () => {
+    expect(
+      parseForm(revokeInvitationSchema, form({ invitationId: ` ${ID} `, tenantId: 'other' })),
+    ).toEqual({ ok: true, data: { invitationId: ID } });
+  });
+
+  it('leaves the uuid check to the action (an unknown id is not_found there)', () => {
+    expect(parseForm(revokeInvitationSchema, form({ invitationId: 'not-a-uuid' }))).toEqual({
+      ok: true,
+      data: { invitationId: 'not-a-uuid' },
+    });
+  });
+
+  it.each([
+    [undefined, 'required'],
+    ['', 'required'],
+    ['   ', 'required'],
+    ['x'.repeat(65), 'too_long'],
+  ] as const)('refuses the id %j with %s', (value, code) => {
+    const result = parseForm(revokeInvitationSchema, form({ invitationId: value }));
+    expect(result.ok).toBe(false);
+    if (!result.ok && !result.failure.ok) {
+      expect(result.failure.fieldErrors).toEqual({ invitationId: code });
     }
   });
 });

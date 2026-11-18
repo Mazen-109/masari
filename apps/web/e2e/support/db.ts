@@ -5,6 +5,7 @@ import {
   countSessionsByEmail as countSessionsByEmailIn,
   createStudentProfile as createStudentProfileIn,
   createTenant,
+  expireInvitation as expireInvitationIn,
   getAdminDbEnv,
   getStudentProfileByEmail as getStudentProfileByEmailIn,
   getUserByEmail as getUserByEmailIn,
@@ -66,9 +67,18 @@ export async function setCollegeStatus(
   }
 }
 
-/** Empties the rate-limit counters of the e2e database (global setup: every run starts with fresh buckets). */
-export async function resetRateLimits(): Promise<void> {
-  await resetRateLimitsIn(ownerUrl());
+/**
+ * Empties the rate-limit counters of the e2e database whose key starts with `keyPrefix` (default: all —
+ * global setup, so every run starts with fresh buckets). Keys are `"<purpose>:<kind>:<hash>"`, so
+ * `'invite-create:'` empties one purpose's buckets.
+ */
+export async function resetRateLimits(keyPrefix?: string): Promise<void> {
+  await resetRateLimitsIn(ownerUrl(), keyPrefix);
+}
+
+/** Moves the expiry of the pending invitations for this email into the past (throws when there is none). */
+export function expireInvitation(email: string): Promise<void> {
+  return expireInvitationIn(ownerUrl(), email);
 }
 
 export type College = { tenantId: string; slug: string; nameAr: string; nameEn: string };
