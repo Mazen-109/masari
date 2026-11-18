@@ -12,6 +12,10 @@ import { revokeInvitationAction } from '../actions';
  * so it also works without JavaScript. The button's name ends with the address (visually hidden), so each
  * row's button is distinguishable for screen-reader users. A refusal (`not_found`, `conflict`, …) shows
  * under the button; after a success the list is refreshed and the row shows "revoked".
+ *
+ * After a `conflict` (the invitation was accepted or revoked meanwhile) the action refreshes the list too:
+ * the row then shows its new status and, no longer pending, loses this form — so the `conflict` message
+ * may disappear with it. The row's status is what tells the administrator what happened.
  */
 export function RevokeInvitationForm({
   invitationId,

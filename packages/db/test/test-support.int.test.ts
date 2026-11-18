@@ -86,6 +86,29 @@ describe('countAuditEvents', () => {
     await expect(countAuditEvents(migrationUrl(), collegeB.slug, 'auth.sign_in')).resolves.toBe(0);
   });
 
+  it('counts only the events about the given target', async () => {
+    const college = await makeTenant();
+    const record = (targetId: string) =>
+      withTenant({ tenantId: college.id, userId: null }, (tx) =>
+        audit.record(tx, {
+          actorUserId: null,
+          action: 'invitation.revoked',
+          targetType: 'invitation',
+          targetId,
+        }),
+      );
+    await record('first');
+    await record('first');
+    await record('second');
+    const count = (targetId?: string) =>
+      countAuditEvents(migrationUrl(), college.slug, 'invitation.revoked', targetId);
+
+    await expect(count('first')).resolves.toBe(2);
+    await expect(count('second')).resolves.toBe(1);
+    await expect(count('third')).resolves.toBe(0);
+    await expect(count()).resolves.toBe(3);
+  });
+
   it('returns 0 for an unknown college', async () => {
     await expect(
       countAuditEvents(migrationUrl(), randomSlug('none'), 'user.registered'),

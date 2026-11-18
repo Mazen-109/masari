@@ -16,6 +16,8 @@ import { generateInvitationToken } from '../tokens';
 
 const LIST_LIMIT = 200;
 const VALIDITY = sql`interval '7 days'`;
+/** How long an unlinked claim counts as an acceptance in flight (users.deleteJustCreated's window). */
+const CLAIM_IN_FLIGHT = sql`interval '10 minutes'`;
 
 /** Every column except token_hash. */
 const columns = {
@@ -45,7 +47,8 @@ function normaliseEmail(email: string): string {
 
 /**
  * Creates a pending invitation in the college in context (tenant_id from the column default), valid for
- * 7 days. An expired pending invitation for the same email is revoked first; a non-expired one gives
+ * 7 days. An expired pending invitation for the same email is revoked first — without an
+ * `invitation.revoked` audit row (contracts/db-api.md §1.6); a non-expired one gives
  * `pending_exists`. The pending-per-email rule is enforced by the partial unique index with ON CONFLICT DO
  * NOTHING (not a caught violation), so concurrent creates yield one invitation and the caller's transaction
  * stays usable (e.g. for an audit entry). Whether an account with this email exists is the caller's check.
@@ -104,9 +107,12 @@ export async function hasUsablePending(tx: Tx, email: string): Promise<boolean> 
 
 /**
  * True when an invitation of the current college for this email has not produced its account yet:
- * pending and unexpired, or claimed (`accepted`) but not yet linked to an account (accepted_user_id IS NULL
- * — an acceptance in flight). Self-registration treats both alike (server-actions.md §4.1 step 6), so it
- * cannot race an acceptance.
+ * pending and unexpired, or claimed (`accepted`) within the last 10 minutes but not yet linked to an
+ * account (accepted_user_id IS NULL — an acceptance in flight). Self-registration treats both alike
+ * (server-actions.md §4.1 step 6), so it cannot race an acceptance. Older unlinked claims — a claim left
+ * behind by a failed compensation or a killed process, or an accepted invitation whose account was later
+ * deleted (FK ON DELETE SET NULL) — no longer count, so they never block registration for good. The window
+ * is the same as users.deleteJustCreated's.
  */
 export async function awaitsAccount(tx: Tx, email: string): Promise<boolean> {
   const rows = await tx
@@ -117,7 +123,11 @@ export async function awaitsAccount(tx: Tx, email: string): Promise<boolean> {
         eq(invitations.email, normaliseEmail(email)),
         or(
           and(isPending, isUnexpired),
-          and(eq(invitations.status, 'accepted'), isNull(invitations.acceptedUserId)),
+          and(
+            eq(invitations.status, 'accepted'),
+            isNull(invitations.acceptedUserId),
+            sql`${invitations.acceptedAt} > now() - ${CLAIM_IN_FLIGHT}`,
+          ),
         ),
       ),
     )

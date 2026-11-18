@@ -68,8 +68,9 @@ async function sendAccountExists(to: string): Promise<void> {
 
 /**
  * Step 6: the college has an invitation for this address that has not produced its account yet — pending
- * and unexpired, or claimed by an acceptance still in flight (accepted, no account linked yet). Then no
- * student account is created: the invitation decides the role.
+ * and unexpired, or claimed within the last 10 minutes by an acceptance still in flight (accepted, no
+ * account linked yet). Then no student account is created: the invitation decides the role. An older
+ * unlinked claim (stuck, or its account deleted later) does not block registration.
  */
 function hasInvitationAwaitingAccount(tenantId: string, email: string): Promise<boolean> {
   return withTenant({ tenantId, userId: null }, (tx) => invitations.awaitsAccount(tx, email));

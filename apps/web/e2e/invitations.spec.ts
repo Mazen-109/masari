@@ -1,7 +1,12 @@
 import type { Page } from '@playwright/test';
 import { DEMO_COLLEGE, DEMO_SLUG } from '@masari/db/admin';
 import { E2E_BASE_URL } from './support/constants';
-import { countAuditEvents, expireInvitation, getUserByEmail, resetRateLimits } from './support/db';
+import {
+  countAuditEvents,
+  expireInvitation,
+  getUserByEmail,
+  resetDemoAdminInviteBucket,
+} from './support/db';
 import { countEmails, expectEmailCountStays, firstLink, waitForEmail } from './support/emails';
 import { expect, test } from './support/fixtures';
 import {
@@ -44,9 +49,10 @@ function inviteSent(page: Page) {
 }
 
 // The demo administrator's `invite-create` bucket (60 per hour) is shared by every test of the run, also
-// by retries and repeated local runs against one database: each test starts with an empty one.
+// by retries and repeated local runs against one database: each test starts with it empty. Only that
+// administrator's bucket is emptied; other administrators' buckets are left as they are.
 test.beforeEach(async () => {
-  await resetRateLimits('invite-create:');
+  await resetDemoAdminInviteBucket();
 });
 
 test('the administrator invites a faculty member, who accepts and signs in', async ({ page }) => {
@@ -267,8 +273,6 @@ test('the administrator revokes a pending invitation and its link stops working'
 }) => {
   const email = uniqueEmail('revoked');
   const since = new Date();
-  const auditsBefore = await countAuditEvents(DEMO_SLUG, 'invitation.revoked');
-
   await signInAsDemoAdmin(page);
   await page.goto('/ar/admin/invitations');
   await inviteStaff(page, { email, role: 'faculty' });
@@ -277,6 +281,9 @@ test('the administrator revokes a pending invitation and its link stops working'
     await waitForEmail({ to: email, subjectIncludes: INVITATION_SUBJECT, since }),
   );
 
+  const invitationId = await invitationRow(page, email).getAttribute('data-invitation');
+  expect(invitationId).toMatch(UUID);
+  expect(await countAuditEvents(DEMO_SLUG, 'invitation.revoked', invitationId ?? '')).toBe(0);
   const button = revokeButton(page, email);
   await expect(button).toHaveAccessibleName(
     `${ar.admin.invitations.list.revoke} ${ar.admin.invitations.list.revokeTarget.replace('<bdi>{email}</bdi>', email)}`,
@@ -286,7 +293,8 @@ test('the administrator revokes a pending invitation and its link stops working'
   await expect(row).toHaveAttribute('data-status', 'revoked');
   await expect(row.locator('[data-field="status"]')).toHaveText(ar.common.statuses.revoked);
   await expect(revokeButton(page, email)).toHaveCount(0);
-  expect(await countAuditEvents(DEMO_SLUG, 'invitation.revoked')).toBeGreaterThan(auditsBefore);
+  // Exactly one invitation.revoked row, about this invitation.
+  expect(await countAuditEvents(DEMO_SLUG, 'invitation.revoked', invitationId ?? '')).toBe(1);
 
   // The invitee's link now shows the "no longer valid" screen, without the form.
   await page.context().clearCookies();

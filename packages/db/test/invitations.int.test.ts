@@ -302,6 +302,45 @@ describe('invitations.awaitsAccount', () => {
     expect(await check(collegeB, usable.value.email)).toBe(false);
     expect(await check(collegeB, inFlight.value.email)).toBe(false);
   });
+
+  it('counts an unlinked claim only within 10 minutes of the claim', async () => {
+    const claimAgo = async (minutes: number): Promise<string> => {
+      const { value } = await invite(collegeA);
+      await inCollege(collegeA, (tx) => invitations.claim(tx, value.id));
+      const result = await ownerTenantQuery(
+        collegeA.id,
+        `UPDATE invitations SET accepted_at = now() - make_interval(mins => $2) WHERE id = $1`,
+        [value.id, minutes],
+      );
+      expect(result.rowCount).toBe(1);
+      return value.email;
+    };
+    const fresh = await claimAgo(9);
+    const stale = await claimAgo(11);
+    const check = (email: string) =>
+      inCollege(collegeA, (tx) => invitations.awaitsAccount(tx, email));
+
+    expect(await check(fresh)).toBe(true);
+    // A stuck claim (failed compensation, killed process) never blocks registration for good.
+    expect(await check(stale)).toBe(false);
+  });
+
+  it('no longer counts an accepted invitation whose account was deleted long ago', async () => {
+    const { value } = await invite(collegeA);
+    const user = await makeUser(collegeA.id);
+    await inCollege(collegeA, (tx) => invitations.claim(tx, value.id));
+    await inCollege(collegeA, (tx) => invitations.setAcceptedUser(tx, value.id, user.id));
+    expect(await users.deleteJustCreated(collegeA.id, user.id)).toBe(true);
+    expect((await storedRow(value))?.accepted_user_id).toBeNull();
+    await ownerTenantQuery(
+      collegeA.id,
+      `UPDATE invitations SET accepted_at = now() - interval '1 day' WHERE id = $1`,
+      [value.id],
+    );
+    expect(await inCollege(collegeA, (tx) => invitations.awaitsAccount(tx, value.email))).toBe(
+      false,
+    );
+  });
 });
 
 describe('invitations.revoke', () => {

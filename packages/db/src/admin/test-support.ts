@@ -22,11 +22,15 @@ export function getUserByEmail(migrationUrl: string, email: string): Promise<Use
   });
 }
 
-/** Number of audit events with this action in the college with this slug (0 for an unknown slug). */
+/**
+ * Number of audit events with this action in the college with this slug (0 for an unknown slug); with
+ * `targetId`, only the events about that target.
+ */
 export function countAuditEvents(
   migrationUrl: string,
   tenantSlug: string,
   action: string,
+  targetId?: string,
 ): Promise<number> {
   return withOwnerTransaction(migrationUrl, async (client) => {
     const tenant = await client.query<{ id: string }>('SELECT id FROM tenants WHERE slug = $1', [
@@ -36,8 +40,9 @@ export function countAuditEvents(
     if (tenantId === undefined) return 0;
     await setTenantContext(client, tenantId);
     const result = await client.query<{ count: number }>(
-      `SELECT count(*)::int AS count FROM audit_events WHERE tenant_id = $1 AND action = $2`,
-      [tenantId, action],
+      `SELECT count(*)::int AS count FROM audit_events
+        WHERE tenant_id = $1 AND action = $2 AND ($3::text IS NULL OR target_id = $3)`,
+      [tenantId, action, targetId ?? null],
     );
     return result.rows[0]?.count ?? 0;
   });
