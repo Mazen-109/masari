@@ -5,8 +5,9 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import type { ReactNode } from 'react';
 import { routing } from '@/i18n/routing';
 import { dirOf } from '@/lib/locale';
-// Tokens and the self-hosted IBM Plex Sans Arabic font (both in globals.css).
+// Tokens (globals.css) and the self-hosted IBM Plex Sans Arabic font with its preload (fonts.ts).
 import '../globals.css';
+import '../fonts';
 
 type Props = Readonly<{
   children: ReactNode;

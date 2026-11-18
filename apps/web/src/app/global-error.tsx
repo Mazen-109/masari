@@ -6,6 +6,7 @@ import {
   FALLBACK_TEXT as TEXT,
 } from '@/lib/fallback-text';
 import './globals.css';
+import './fonts';
 
 type Props = Readonly<{
   error: unknown;

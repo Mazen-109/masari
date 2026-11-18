@@ -5,6 +5,7 @@ import ar from '../../messages/ar.json';
 import en from '../../messages/en.json';
 import { FALLBACK_NOT_FOUND_TITLE } from '@/lib/fallback-text';
 import './globals.css';
+import './fonts';
 
 // Fallback 404 for paths without a valid locale (e.g. `/fr`). The language is unknown here, so the
 // page is bilingual: Arabic first (document language), then English. The title is rendered as a
