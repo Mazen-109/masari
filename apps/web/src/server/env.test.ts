@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { EnvError, parseEnv } from './env';
+import { EnvError, isDevServer, parseEnv } from './env';
 
 const SECRET = 'a-very-long-local-only-secret-value-0123456789';
 
@@ -213,5 +213,21 @@ describe('getEnv', () => {
     expect(() => getEnv()).toThrow('Invalid environment variables: BETTER_AUTH_SECRET');
     vi.stubEnv('BETTER_AUTH_SECRET', SECRET);
     expect(getEnv().BETTER_AUTH_SECRET).toBe(SECRET);
+  });
+});
+
+describe('isDevServer', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('is true only when NODE_ENV is development (next dev), whatever APP_ENV says', () => {
+    vi.stubEnv('APP_ENV', 'development');
+    vi.stubEnv('NODE_ENV', 'production');
+    expect(isDevServer()).toBe(false);
+    vi.stubEnv('NODE_ENV', 'test');
+    expect(isDevServer()).toBe(false);
+    vi.stubEnv('NODE_ENV', 'development');
+    expect(isDevServer()).toBe(true);
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { fieldErrorsOf } from '@/lib/form';
 import {
   createDivisionSchema,
+  DIVISION_CODE,
   MAX_DIVISION_CODE_LENGTH,
   MAX_DIVISION_NAME_LENGTH,
   MAX_SORT_ORDER,
@@ -42,6 +43,19 @@ describe('createDivisionSchema', () => {
     expect(createDivisionSchema.parse({ ...valid, divisionCode: code }).divisionCode).toBe(code);
   });
 
+  it('upper-cases a lower-case code of 16 characters', () => {
+    expect(
+      createDivisionSchema.parse({ ...valid, divisionCode: 'a1_b2-c3'.repeat(2) }).divisionCode,
+    ).toBe('A1_B2-C3'.repeat(2));
+  });
+
+  it('stores only codes matching the contract pattern ^[A-Z0-9_-]{1,16}$', () => {
+    expect(DIVISION_CODE.test('A'.repeat(MAX_DIVISION_CODE_LENGTH))).toBe(true);
+    expect(DIVISION_CODE.test('S'.repeat(MAX_DIVISION_CODE_LENGTH * 2))).toBe(false);
+    expect(DIVISION_CODE.test('')).toBe(false);
+    expect(DIVISION_CODE.test('se')).toBe(false);
+  });
+
   it('reads an empty order as 0 and accepts 0 to 9999', () => {
     expect(createDivisionSchema.parse({ ...valid, sortOrder: '' }).sortOrder).toBe(0);
     expect(createDivisionSchema.parse({ ...valid, sortOrder: '0' }).sortOrder).toBe(0);
@@ -72,6 +86,13 @@ describe('createDivisionSchema', () => {
     ['divisionCode', 'SE.1', 'invalid_format'],
     ['divisionCode', 'عام', 'invalid_format'],
     ['divisionCode', 'café', 'invalid_format'],
+    // `toUpperCase()` turns these into A–Z: `ß` → `SS` (16 → 32 characters), dotless `ı` → `I`,
+    // long `ſ` → `S`. They are not Latin letters and must not reach the database CHECK.
+    ['divisionCode', 'ß'.repeat(MAX_DIVISION_CODE_LENGTH), 'invalid_format'],
+    ['divisionCode', 'ß', 'invalid_format'],
+    ['divisionCode', 'ı', 'invalid_format'],
+    ['divisionCode', 'cı', 'invalid_format'],
+    ['divisionCode', 'ſe', 'invalid_format'],
     ['nameAr', '', 'required'],
     ['nameEn', undefined, 'required'],
     ['nameAr', 'ش'.repeat(MAX_DIVISION_NAME_LENGTH + 1), 'too_long'],

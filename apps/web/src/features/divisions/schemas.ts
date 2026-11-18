@@ -14,15 +14,27 @@ export const MAX_DIVISION_NAME_LENGTH = 80;
 /** Highest display order (CHECK constraint of data-model.md §3.5). */
 export const MAX_SORT_ORDER = 9999;
 
-/** The stored form of a code: upper-case Latin letters, digits, hyphens, and underscores. */
-export const DIVISION_CODE = /^[A-Z0-9_-]+$/;
+/**
+ * The stored form of a code (contracts/server-actions.md §5.5): 1–16 upper-case Latin letters, digits,
+ * hyphens, and underscores — the same rule as the database CHECK constraint.
+ */
+export const DIVISION_CODE = /^[A-Z0-9_-]{1,16}$/;
 
-/** Trimmed and upper-cased (`se` is stored as `SE`), 1–16 of A–Z, 0–9, `-`, `_`. */
+/** What a user may type: the stored form in either letter case (ASCII only). */
+const TYPED_DIVISION_CODE = /^[A-Za-z0-9_-]+$/;
+
+/**
+ * Trimmed and upper-cased (`se` is stored as `SE`), 1–16 of A–Z, 0–9, `-`, `_`. Only ASCII letters are
+ * accepted before upper-casing, and the upper-cased value is checked again against the stored form:
+ * `toUpperCase()` can change the length or map a non-Latin letter onto A–Z (`ß` → `SS`, dotless `ı` → `I`),
+ * which would otherwise pass here and fail the database CHECK constraint (an `internal` error).
+ */
 const divisionCodeField = z
   .string({ error: 'required' })
   .trim()
   .min(1, { error: 'required' })
   .max(MAX_DIVISION_CODE_LENGTH, { error: 'too_long' })
+  .regex(TYPED_DIVISION_CODE, { error: 'invalid_format' })
   .transform((value) => value.toUpperCase())
   .pipe(z.string().regex(DIVISION_CODE, { error: 'invalid_format' }));
 

@@ -100,3 +100,12 @@ export function getEnv(): Env {
   cached ??= parseEnv(process.env);
   return cached;
 }
+
+/**
+ * True only under `next dev` (Next.js sets `NODE_ENV`; it is inlined at build time). Decides the
+ * development-only CSP additions (contracts/http-and-env.md §2) — the same test `next.config.ts` uses —
+ * and is independent of `APP_ENV`, which a production build run locally may also set to `development`.
+ */
+export function isDevServer(): boolean {
+  return process.env.NODE_ENV === 'development';
+}

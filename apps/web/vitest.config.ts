@@ -10,6 +10,9 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.{ts,tsx}'],
+    // next-intl's ESM build imports `next/server` without an extension, which Node's resolver refuses
+    // (Next.js has no `exports` map); inlined, it is resolved by Vite (src/proxy.test.ts).
+    server: { deps: { inline: ['next-intl'] } },
     coverage: {
       provider: 'v8',
       include: [

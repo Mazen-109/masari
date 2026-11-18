@@ -88,7 +88,7 @@ size 20.
 | `src/app/not-found.tsx` (+ whatever root file the pinned next-intl requires) | Fallback 404 for paths without a valid locale. Renders the bilingual `<title>` as an element (not `metadata`), because the unknown-locale 404 gets no metadata title (PR-10). |
 | `src/app/global-error.tsx` | Last-resort error page when the locale layout itself fails: static bilingual text from `lib/fallback-text.ts` (no message catalog available; a test keeps it equal to the catalogs), "try again", no error details. |
 | `src/app/robots.ts` | `Disallow: /` for all user agents. |
-| `src/proxy.ts` | next-intl locale routing only; matcher excludes `/api`, `/_next`, and static files. No authorisation logic. |
+| `src/proxy.ts` | next-intl locale routing and the page Content-Security-Policy with a per-request nonce (http-and-env.md §2); matcher excludes `/api/`, `/_next/`, `/_vercel/`; paths with a dot (files) pass through without locale routing. No authorisation logic. |
 
 ## 6. Message namespaces (`apps/web/messages/{ar,en}.json`)
 

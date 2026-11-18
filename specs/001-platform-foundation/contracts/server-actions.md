@@ -93,11 +93,12 @@ still applied, on the shared value `unknown`.
 | `role` | one of `ROLES` | `invalid_choice` |
 | `studentCode` | `^[A-Za-z0-9-]{3,20}$` after trim | `required`, `invalid_format` |
 | `level` | integer 1–7 (then ≤ college `levelsCount`) | `required`, `out_of_range` |
-| `divisionId` | uuid | `required`, `invalid_choice` |
-| `divisionCode` | upper-cased, `^[A-Z0-9_-]{1,16}$` | `required`, `invalid_format` |
+| `divisionId` (profile forms, §5.1 and §5.3) | uuid | `required`, `invalid_choice` |
+| `divisionId` (divisions screen, §5.5 — hidden field) | any value; a missing, empty, over-long (> 64 chars), malformed (not a uuid), unknown, or other-college id names no division and the action answers `not_found` — never a field error | none (`not_found`) |
+| `divisionCode` | trimmed, ≤ 16 chars, ASCII `[A-Za-z0-9_-]` only, then upper-cased and checked again against `^[A-Z0-9_-]{1,16}$` (`ß` → `SS` and dotless `ı` → `I` are refused, not stored) | `required`, `too_long`, `invalid_format` |
 | `nameAr` / `nameEn` (division) | 1–80 chars | `required`, `too_long` |
 | `nameAr` / `nameEn` (college) | 1–120 chars | `required`, `too_long` |
-| `sortOrder` | integer 0–9999, default 0 | `out_of_range` |
+| `sortOrder` | Western digits only, trimmed; empty → 0; integer 0–9999 | `invalid_format` (not a whole number written in Western digits, e.g. `-1`, `1.5`, `first`, `٣`, missing), `out_of_range` (> 9999) |
 | `allowedEmailDomains` | text split on commas/whitespace/newlines → lower-cased domains, each valid, de-duplicated, ≤ 20 | `invalid_format`, `too_many` |
 | `levelsCount` | integer 1–7 | `out_of_range`, `levels_in_use` |
 | `enabledModules` | subset of `MODULE_KEYS` (repeated form field) | `invalid_choice` |

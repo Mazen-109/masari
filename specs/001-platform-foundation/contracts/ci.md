@@ -108,8 +108,9 @@ Thresholds are switched on in the batch that adds the first real code to each pa
 
 - `apps/web/e2e/support/axe.ts` exports `expectNoA11yViolations(page)`: runs axe with tags `wcag2a`,
   `wcag2aa`, `wcag21a`, `wcag21aa` and fails on any violation with impact `serious` or `critical`.
-- `apps/web/e2e/a11y.spec.ts` holds two lists — public screens and signed-in screens (per role) — and scans
-  each in `ar` and `en`. **Every batch that adds a screen appends it to the list.**
+- `apps/web/e2e/support/screens.ts` holds two lists — public screens and signed-in screens (per role);
+  `apps/web/e2e/a11y.spec.ts` scans each in `ar` and `en`, and `apps/web/e2e/security-headers.spec.ts` visits
+  each to prove the CSP raises no violation. **Every batch that adds a screen appends it to the list.**
 - `apps/web/e2e/perf-budget.spec.ts` loads a fresh context, sums `encodedDataLength` of all `Script`
   responses (Chromium DevTools protocol) until network idle, and asserts ≤ 200 KB for public screens
   (`/ar/sign-in`, `/ar/register`; `/ar` until those exist) and ≤ 300 KB for signed-in screens (`/ar/dashboard`, `/ar/admin/users` once

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { connection } from 'next/server';
 import { hasLocale, NextIntlClientProvider } from 'next-intl';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import type { ReactNode } from 'react';
@@ -31,6 +32,9 @@ export async function generateMetadata({ params }: Omit<Props, 'children'>): Pro
 }
 
 export default async function LocaleLayout({ children, params }: Props) {
+  // Every page is rendered per request: the CSP script nonce of src/proxy.ts is applied only while
+  // rendering, so a page prerendered at build time would carry no nonce and its scripts would be blocked.
+  await connection();
   const { locale } = await params;
   if (!hasLocale(routing.locales, locale)) {
     notFound();

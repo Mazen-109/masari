@@ -39,17 +39,24 @@ and trailing-slash variants.
 If the pinned auth-library version uses different link paths, adjust the allow-list to exactly the paths
 its emails link to and record it as a Spec deviation.
 
-## 2. Response headers (all routes) — `apps/web/next.config.ts` (FR-048, FR-049)
+## 2. Response headers (all routes) — `apps/web/next.config.ts` and `apps/web/src/proxy.ts` (FR-048, FR-049)
 
 | Header | Value |
 |---|---|
-| `Content-Security-Policy` | `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'` (development only: add `'unsafe-eval'` to `script-src` and `ws:` to `connect-src`) |
+| `Content-Security-Policy` | `default-src 'self'; script-src 'self' 'nonce-<n>' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'` — pages, set by `src/proxy.ts` with a fresh nonce `<n>` (16 random bytes, base64) per request. API routes and `/_next/*` assets (the paths the proxy skips) get the same policy from `next.config.ts` with `script-src 'self'` only. Scripts never get `'unsafe-inline'`. Development server only (`next dev`): add `'unsafe-eval'` to `script-src` and `ws:` to `connect-src` |
 | `X-Content-Type-Options` | `nosniff` |
 | `X-Frame-Options` | `DENY` |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` |
 | `X-Robots-Tag` | `noindex, nofollow` |
 | `Strict-Transport-Security` | `max-age=63072000; includeSubDomains` — only when `APP_URL` starts with `https://` |
+
+Nonce rule (Next.js 16 guide "Content Security Policy"): the proxy also sets the policy on the request, and
+Next.js adds the nonce to its scripts while rendering — so every page is rendered per request
+(`[locale]/layout.tsx` and `app/not-found.tsx` call `connection()`); a page prerendered at build time would
+carry no nonce and its scripts would be blocked. The other headers come from `next.config.ts` for every path;
+they and HSTS are fixed when `next build` loads the configuration, so `APP_URL` must be set at build time
+for HSTS. `/robots.txt` (`app/robots.ts`) disallows every path for every user agent.
 
 `poweredByHeader: false`. Session cookie: `HttpOnly`, `SameSite=Lax`, `Path=/`, `Secure` when `APP_URL` is
 https. Server Actions accept only same-origin requests (framework default; do not widen

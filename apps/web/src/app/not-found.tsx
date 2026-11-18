@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { connection } from 'next/server';
 import { createTranslator } from 'next-intl';
 import ar from '../../messages/ar.json';
 import en from '../../messages/en.json';
@@ -18,7 +19,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function RootNotFound() {
+export default async function RootNotFound() {
+  // Rendered per request so its scripts carry the CSP nonce (see `[locale]/layout.tsx`).
+  await connection();
   return (
     <html lang="ar" dir="rtl">
       <body>

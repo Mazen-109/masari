@@ -40,8 +40,9 @@ Every unknown in the plan's Technical Context is resolved here. Format per item:
 - **Decision**: Server Components by default; mutations are Server Actions used with React 19
   `useActionState`; route handlers only for `/api/health` and the restricted `/api/auth/*`. Request
   interception lives in `apps/web/src/proxy.ts` (Next.js 16 name for middleware) and does **only** locale
-  routing. `params`/`searchParams` are awaited (they are Promises). Cache Components, React Compiler, typed
-  routes, and edge runtime are not enabled. All signed-in pages are dynamic.
+  routing and the page CSP nonce (contracts/http-and-env.md §2). `params`/`searchParams` are awaited (they
+  are Promises). Cache Components, React Compiler, typed routes, and edge runtime are not enabled. All pages
+  are dynamic (the CSP nonce is applied while rendering; from PR-37).
 - **Rationale**: server-first rendering suits slow phones; Server Actions give CSRF protection (same-origin
   check) and progressive enhancement without a hand-written API; keeping authorisation out of the proxy
   avoids the class of middleware-bypass vulnerabilities.

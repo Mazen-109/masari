@@ -1,5 +1,6 @@
 import type { Browser, Locator, Page } from '@playwright/test';
 import {
+  addDivision as addDivisionFixture,
   countAuditEvents,
   createStudentProfile,
   getStudentProfile,
@@ -359,4 +360,38 @@ test('a forged id of another college’s division is refused with not_found and 
     expect(await countAuditEvents(college.slug, action)).toBe(0);
     expect(await countAuditEvents(other.slug, action)).toBe(0);
   }
+});
+
+test('a forged id of another college’s inactive division on reactivate is refused with not_found', async ({
+  page,
+}) => {
+  const college = await newCollege();
+  const other = await createCollege(uniqueCollegeSlug('div-y'), uniqueEmail('div-y-admin'));
+  // Both colleges have an inactive division, so the own row offers "activate" and a hijack would show.
+  const inactive = { nameAr: 'قديمة', nameEn: 'Retired', sortOrder: 5, isActive: false };
+  await addDivisionFixture(college.tenantId, { code: 'OLD', ...inactive });
+  await addDivisionFixture(other.tenantId, { code: 'GONE', ...inactive });
+  const foreign = (await listDivisions(other.slug)).find((division) => division.code === 'GONE');
+  if (foreign === undefined) throw new Error('the other college has no inactive division');
+  expect(foreign.isActive).toBe(false);
+  const otherBefore = await listDivisions(other.slug);
+  const ownBefore = await listDivisions(college.slug);
+  await signInAdmin(page, college);
+  await page.goto(DIVISIONS_PATH);
+
+  const status = divisionStatusForm(divisionRow(page, 'OLD'));
+  await setFormField(status, 'divisionId', foreign.id);
+  await clickAndWait(
+    page,
+    DIVISIONS_PATH,
+    status.getByRole('button', { name: t.actions.activate.submit }),
+  );
+  const statusError = status.locator('[data-slot="form-error"]');
+  await expect(statusError).toHaveAttribute('data-code', 'not_found');
+  await expect(statusError).toContainText(ar.errors.not_found);
+
+  expect(await listDivisions(other.slug)).toEqual(otherBefore);
+  expect(await listDivisions(college.slug)).toEqual(ownBefore);
+  expect(await countAuditEvents(college.slug, 'division.activated')).toBe(0);
+  expect(await countAuditEvents(other.slug, 'division.activated')).toBe(0);
 });

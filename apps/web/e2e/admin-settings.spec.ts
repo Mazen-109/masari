@@ -22,6 +22,7 @@ import {
   uniqueCollegeSlug,
   type OnboardedCollege,
 } from './support/operator';
+import { setFormField } from './support/forge';
 import { clickAndWait } from './support/people';
 
 // The college settings screen (US7 acceptance scenarios 1, 2, 3, 6 and US1 acceptance scenario 8;
@@ -335,4 +336,41 @@ test('a disabled module disappears for every role and is not found; enabling it 
     await expect(user.getByRole('heading', { level: 1 })).toHaveText(kitabi);
   }
   await studentPage.context().close();
+});
+
+test('an unknown module key is refused and the module switches announce the error', async ({
+  page,
+}) => {
+  const college = await newCollege();
+  await signInAdmin(page, college);
+  await page.goto(SETTINGS_PATH);
+  const group = settingsForm(page).getByRole('group', { name: t.modules.legend });
+  const boxes = group.getByRole('checkbox');
+  await expect(boxes).toHaveCount(ALL_MODULES.length);
+  await expect(group).toHaveAttribute('aria-describedby', 'settings-modules-hint');
+  for (const box of await boxes.all()) {
+    await expect(box).not.toHaveAttribute('aria-invalid');
+  }
+
+  // A forged form: every checked switch carries a key no module has.
+  await setFormField(settingsForm(page), 'enabledModules', 'not-a-module');
+  await save(page);
+
+  await expect(page.locator('main [data-slot="form-error"]')).toHaveAttribute(
+    'data-code',
+    'validation',
+  );
+  await expect(group).toHaveAttribute(
+    'aria-describedby',
+    'settings-modules-error settings-modules-hint',
+  );
+  await expect(group.locator('#settings-modules-error')).toHaveText(ar.errors.invalid_choice);
+  await expect(group).toHaveAccessibleDescription(`${ar.errors.invalid_choice} ${t.modules.hint}`);
+  await expect(boxes).toHaveCount(ALL_MODULES.length);
+  for (const box of await boxes.all()) {
+    await expect(box).toHaveAttribute('aria-invalid', 'true');
+  }
+  // Nothing was saved and nothing was audited.
+  expect((await getCollegeSettings(college.slug)).enabledModules).toEqual(ALL_MODULES);
+  expect(await countAuditEvents(college.slug, 'tenant.modules_updated')).toBe(0);
 });
