@@ -327,6 +327,32 @@
         "joinedAt": "Joined on",
         "none": "None"
       },
+      "actions": {
+        "column": "Actions",
+        "self": "Your account",
+        "role": {
+          "open": "Change role",
+          "target": "for <bdi>{name}</bdi>",
+          "title": "Change role",
+          "description": "Choose a new role for <bdi>{name}</bdi>. It applies from the next page they open.",
+          "label": "New role",
+          "submit": "Save role",
+          "done": "Role changed."
+        },
+        "suspend": {
+          "open": "Suspend",
+          "target": "the account of <bdi>{name}</bdi>",
+          "title": "Suspend this account?",
+          "description": "<bdi>{name}</bdi> will be signed out on every device at once and won’t be able to sign in until you reactivate the account.",
+          "submit": "Suspend account",
+          "done": "Account suspended."
+        },
+        "reactivate": {
+          "submit": "Reactivate",
+          "target": "the account of <bdi>{name}</bdi>",
+          "done": "Account reactivated."
+        }
+      },
       "pagination": {
         "label": "Pages of the accounts list",
         "previous": "Previous page",

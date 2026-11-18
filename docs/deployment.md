@@ -25,3 +25,12 @@ not detected — keep it out of the hosting provider's runtime variables entirel
 Every proxy counted in `TRUSTED_PROXY_HOPS` MUST append (or overwrite with) the address it received the
 connection from, and the application port MUST NOT be reachable except through those proxies. Vercel: `1`.
 One nginx/Caddy in front of the container: `1` (`contracts/http-and-env.md` §5).
+
+## Access logs
+
+The People screen keeps its search in the address (`/{locale}/admin/users?q=…`), and the search term can be
+a person's name, email, or student code. Access logs of the hosting provider, CDN, and any reverse proxy
+MUST redact the query string of `/ar/admin/users` and `/en/admin/users` (log the path only), and MUST also
+redact it from the `Referer` header when that header is logged: the page sends a `same-origin` referrer
+policy, so the full address leaves the browser only towards Masari itself. Personal data never belongs in
+logs (constitution; `contracts/http-and-env.md` §4).

@@ -1,9 +1,13 @@
+import { ROLES } from '@masari/db';
 import { describe, expect, it } from 'vitest';
+import { parseForm } from '@/lib/form';
 import {
+  changeRoleSchema,
   MAX_SEARCH_LENGTH,
   MAX_USERS_PAGE,
   pageCount,
   parseUsersFilter,
+  setStatusSchema,
   USERS_PAGE_SIZE,
   usersQueryString,
 } from './schemas';
@@ -114,5 +118,79 @@ describe('pageCount', () => {
     expect(pageCount(21)).toBe(2);
     expect(pageCount(41, 20)).toBe(3);
     expect(pageCount(5, 2)).toBe(3);
+  });
+});
+
+const USER_ID = 'usr1'.repeat(6);
+
+function form(entries: Record<string, string | undefined>): FormData {
+  const data = new FormData();
+  for (const [key, value] of Object.entries(entries)) {
+    if (value !== undefined) data.append(key, value);
+  }
+  return data;
+}
+
+/** The field errors of a refused form, or null when it was accepted. */
+function fieldErrors(result: ReturnType<typeof parseForm>) {
+  if (result.ok) return null;
+  return result.failure.ok ? null : (result.failure.fieldErrors ?? null);
+}
+
+describe('changeRoleSchema', () => {
+  it.each(ROLES)('accepts the role %s, trimming both fields and dropping unknown ones', (role) => {
+    const result = parseForm(
+      changeRoleSchema,
+      form({ userId: ` ${USER_ID} `, role: ` ${role} `, tenantId: 'other', status: 'suspended' }),
+    );
+    expect(result).toEqual({ ok: true, data: { userId: USER_ID, role } });
+  });
+
+  it.each([
+    { role: 'owner', reason: 'an unknown role' },
+    { role: 'Admin', reason: 'another case' },
+    { role: '', reason: 'an empty role' },
+    { role: undefined, reason: 'a missing role' },
+  ])('refuses $reason with invalid_choice', ({ role }) => {
+    expect(fieldErrors(parseForm(changeRoleSchema, form({ userId: USER_ID, role })))).toEqual({
+      role: 'invalid_choice',
+    });
+  });
+
+  it.each([
+    [undefined, 'required'],
+    ['   ', 'required'],
+    ['x'.repeat(65), 'too_long'],
+  ])('refuses the user id %j with %s', (userId, code) => {
+    expect(fieldErrors(parseForm(changeRoleSchema, form({ userId, role: 'faculty' })))).toEqual({
+      userId: code,
+    });
+  });
+});
+
+describe('setStatusSchema', () => {
+  it.each(['active', 'suspended'])('accepts the status %s', (status) => {
+    expect(parseForm(setStatusSchema, form({ userId: USER_ID, status: ` ${status} ` }))).toEqual({
+      ok: true,
+      data: { userId: USER_ID, status },
+    });
+  });
+
+  it.each([['deleted'], ['ACTIVE'], [''], [undefined]])(
+    'refuses the status %j with invalid_choice',
+    (status) => {
+      expect(fieldErrors(parseForm(setStatusSchema, form({ userId: USER_ID, status })))).toEqual({
+        status: 'invalid_choice',
+      });
+    },
+  );
+
+  it('refuses a missing or too long user id', () => {
+    expect(fieldErrors(parseForm(setStatusSchema, form({ status: 'active' })))).toEqual({
+      userId: 'required',
+    });
+    expect(
+      fieldErrors(parseForm(setStatusSchema, form({ userId: 'x'.repeat(65), status: 'active' }))),
+    ).toEqual({ userId: 'too_long' });
   });
 });

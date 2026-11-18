@@ -1,7 +1,10 @@
 import { randomBytes } from 'node:crypto';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import { divisions, studentProfiles, users, withTenant, type Tx, type UsersFilter } from '../src';
+import { getAdminDbEnv } from '../src/env';
+import * as schema from '../src/schema';
 import {
   closeTestPools,
   makeTenant,
@@ -573,6 +576,92 @@ describe('users.listInTenant', () => {
     expect(await list(college, {}, otherCollege.id)).toEqual({ rows: [], total: 0 });
     expect(await list(college, {}, UNKNOWN_TENANT)).toEqual({ rows: [], total: 0 });
     expect(await list(college, {}, 'not-a-uuid')).toEqual({ rows: [], total: 0 });
+  });
+
+  it("keeps other colleges' profiles and divisions out by the join conditions alone (owner role, RLS bypassed)", async () => {
+    const college = await makeTenant();
+    const otherCollege = await makeTenant();
+    const divisionId = await makeDivision(college, 'CS');
+    const otherDivisionId = await makeDivision(otherCollege, 'CS');
+    const strayProfile = await makeUser(college.id);
+    const strayDivision = await makeUser(college.id);
+    await setCreatedAt(strayProfile.id, 5);
+
+    // One owner transaction, always rolled back. The owner is a superuser, so row-level security does not
+    // apply: only the conditions written in listInTenant's joins can keep the other college's rows out.
+    const client = new pg.Client({ connectionString: getAdminDbEnv().DATABASE_MIGRATION_URL });
+    client.on('error', () => undefined);
+    await client.connect();
+    try {
+      await client.query('BEGIN');
+      const owner = await client.query<{ superuser: boolean }>(
+        `SELECT rolsuper AS superuser FROM pg_roles WHERE rolname = current_user`,
+      );
+      expect(owner.rows[0]?.superuser).toBe(true);
+      // Foreign-key triggers off for this transaction only, so the second stray row can exist at all.
+      await client.query(`SET LOCAL session_replication_role = replica`);
+      await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [college.id]);
+      // A profile of the other college for an account of this college (the foreign keys allow it) …
+      await client.query(
+        `INSERT INTO student_profiles (user_id, tenant_id, student_code, level, division_id)
+         VALUES ($1, $2, 'XC-001', 2, $3)`,
+        [strayProfile.id, otherCollege.id, otherDivisionId],
+      );
+      // … and a profile of this college pointing at the other college's division.
+      await client.query(
+        `INSERT INTO student_profiles (user_id, tenant_id, student_code, level, division_id)
+         VALUES ($1, $2, 'CS-002', 3, $3)`,
+        [strayDivision.id, college.id, otherDivisionId],
+      );
+      // Row-level security really is out of the way: both colleges' rows are visible here.
+      const visible = await client.query<{ divisions: number; profiles: number }>(
+        `SELECT (SELECT count(*)::int FROM divisions WHERE id IN ($1, $2)) AS divisions,
+                (SELECT count(*)::int FROM student_profiles WHERE user_id = $3) AS profiles`,
+        [divisionId, otherDivisionId, strayProfile.id],
+      );
+      expect(visible.rows[0]).toEqual({ divisions: 2, profiles: 1 });
+
+      const tx = drizzle({ client, schema }) as unknown as Tx;
+      const page = await users.listInTenant(tx, college.id, { page: 1, pageSize: 20 });
+
+      expect(page.total).toBe(2);
+      expect(
+        page.rows.map(
+          ({ id, studentCode, level, divisionCode, divisionNameAr, divisionNameEn }) => ({
+            id,
+            studentCode,
+            level,
+            divisionCode,
+            divisionNameAr,
+            divisionNameEn,
+          }),
+        ),
+      ).toEqual([
+        {
+          id: strayDivision.id,
+          studentCode: 'CS-002',
+          level: 3,
+          divisionCode: null,
+          divisionNameAr: null,
+          divisionNameEn: null,
+        },
+        {
+          id: strayProfile.id,
+          studentCode: null,
+          level: null,
+          divisionCode: null,
+          divisionNameAr: null,
+          divisionNameEn: null,
+        },
+      ]);
+      // The other college's student code is not searchable either (rows and total).
+      expect(
+        await users.listInTenant(tx, college.id, { q: 'xc-001', page: 1, pageSize: 20 }),
+      ).toEqual({ rows: [], total: 0 });
+    } finally {
+      await client.query('ROLLBACK').catch(() => undefined);
+      await client.end();
+    }
   });
 
   it('refuses a page or page size that is not a positive integer', async () => {

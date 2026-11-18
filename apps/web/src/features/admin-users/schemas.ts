@@ -70,3 +70,39 @@ export function usersQueryString(filter: Omit<UsersFilterParams, 'page'>, page: 
 export function pageCount(total: number, pageSize = USERS_PAGE_SIZE): number {
   return Math.max(1, Math.ceil(total / pageSize));
 }
+
+// ---------------------------------------------------------------------------------------------------------
+// Row actions (contracts/server-actions.md §5.3; FR-030, FR-031). Every issue message is a FieldErrorCode;
+// `parseForm` (lib/form.ts) keeps the first one per field.
+
+/**
+ * The target account's id, from a hidden field. Only its presence and length are checked: an id the
+ * college does not have is an unknown account, which the action answers with `not_found`.
+ */
+const userIdField = z
+  .string({ error: 'required' })
+  .trim()
+  .min(1, { error: 'required' })
+  .max(64, { error: 'too_long' });
+
+/** The role dialog (`changeUserRoleAction`): the account and its new role, one of the four. */
+export const changeRoleSchema = z.object({
+  userId: userIdField,
+  role: z
+    .string({ error: 'invalid_choice' })
+    .trim()
+    .pipe(z.enum(ROLES, { error: 'invalid_choice' })),
+});
+
+export type ChangeRoleInput = z.infer<typeof changeRoleSchema>;
+
+/** The suspend and reactivate forms (`setUserStatusAction`): the account and its new status. */
+export const setStatusSchema = z.object({
+  userId: userIdField,
+  status: z
+    .string({ error: 'invalid_choice' })
+    .trim()
+    .pipe(z.enum(USER_STATUSES, { error: 'invalid_choice' })),
+});
+
+export type SetStatusInput = z.infer<typeof setStatusSchema>;

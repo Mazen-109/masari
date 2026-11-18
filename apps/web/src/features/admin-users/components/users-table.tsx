@@ -1,4 +1,4 @@
-import type { Role, UserStatus } from '@masari/db';
+import { ROLES, type Role, type UserStatus } from '@masari/db';
 import { useLocale, useTranslations } from 'next-intl';
 import { ScrollableTable } from '@/components/scrollable-table';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,8 @@ import {
 } from '@/components/ui/table';
 import { levelLabelKey } from '@/features/profile/level-label';
 import { formatDate } from '@/lib/format';
+import { RoleDialog, type RoleOption } from './role-dialog';
+import { StatusButton } from './status-button';
 
 /** What one row shows — nothing more reaches the page than the screen needs. */
 export type UserRow = Readonly<{
@@ -52,20 +54,25 @@ function None({ label }: Readonly<{ label: string }>) {
 /**
  * One page of the college's accounts, newest first (FR-029, contracts/routes.md §4): name, email
  * (`dir="ltr"`), role, status badge with its word, a student's code (`dir="ltr"`), level and division, and
- * the date the account was created, in Egyptian time with Western digits. A captioned table with column
+ * the date the account was created, in Egyptian time with Western digits, and the row actions — change
+ * role, suspend or reactivate (FR-030, FR-031) — on every row except the acting administrator's own
+ * (`actorId`), which says "your account" instead. A captioned table with column
  * headers inside a focusable region labelled by `labelledBy`; when it is wider than the screen it scrolls
  * sideways and a hint says so (ScrollableTable). The caller renders the empty state.
  */
 export function UsersTable({
   rows,
   labelledBy,
-}: Readonly<{ rows: readonly UserRow[]; labelledBy: string }>) {
+  actorId,
+}: Readonly<{ rows: readonly UserRow[]; labelledBy: string; actorId: string }>) {
   const t = useTranslations('admin.users.list');
   const tCommon = useTranslations('common');
   const tRoles = useTranslations('common.roles');
   const tStatuses = useTranslations('common.statuses');
   const locale = useLocale();
+  const tActions = useTranslations('admin.users.actions');
   const none = <None label={t('none')} />;
+  const roles: RoleOption[] = ROLES.map((role) => ({ value: role, label: tRoles(role) }));
 
   return (
     <ScrollableTable
@@ -85,6 +92,7 @@ export function UsersTable({
           <TableHead scope="col">{t('level')}</TableHead>
           <TableHead scope="col">{t('division')}</TableHead>
           <TableHead scope="col">{t('joinedAt')}</TableHead>
+          <TableHead scope="col">{tActions('column')}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -112,6 +120,18 @@ export function UsersTable({
             </TableCell>
             <TableCell data-field="joinedAt" className="tabular-nums">
               {formatDate(row.createdAt, locale)}
+            </TableCell>
+            <TableCell data-field="actions">
+              {row.id === actorId ? (
+                <span className="text-muted-foreground" data-slot="own-account">
+                  {tActions('self')}
+                </span>
+              ) : (
+                <div className="flex flex-wrap items-start gap-2">
+                  <RoleDialog userId={row.id} name={row.name} role={row.role} roles={roles} />
+                  <StatusButton userId={row.id} name={row.name} status={row.status} />
+                </div>
+              )}
             </TableCell>
           </TableRow>
         ))}

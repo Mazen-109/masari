@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
-import { countAuditEvents, listInvitations } from './support/db';
+import { countAuditEvents, countSessions, getUserByEmail, listInvitations } from './support/db';
 import { expect, test } from './support/fixtures';
 import {
   CATALOGS,
@@ -10,6 +10,14 @@ import {
   type TestLocale,
 } from './support/flows';
 import { submitAs } from './support/forge';
+import {
+  openDialog,
+  roleDialog,
+  roleTrigger,
+  suspendDialog,
+  suspendTrigger,
+  userRow,
+} from './support/people';
 import {
   APP_ROLES,
   ensureRoleCollege,
@@ -285,6 +293,40 @@ const FORBIDDEN_ACTIONS: readonly ForbiddenAction[] = [
       });
     },
     state: invitationState,
+  },
+  {
+    screen: '/admin/users',
+    form: 'role',
+    action: 'changeUserRoleAction',
+    prepare: async (page, college) => {
+      const row = userRow(page, college.emails.faculty);
+      const form = await openDialog(roleTrigger(row), roleDialog(page));
+      await form
+        .getByLabel(ar.admin.users.actions.role.label, { exact: true })
+        .selectOption('student_affairs');
+      const button = form.getByRole('button', { name: ar.admin.users.actions.role.submit });
+      return { form, submit: () => clickAndWait(page, '/ar/admin/users', button) };
+    },
+    state: async (college) => ({
+      role: (await getUserByEmail(college.emails.faculty))?.role,
+      changed: await countAuditEvents(college.slug, 'user.role_changed'),
+    }),
+  },
+  {
+    screen: '/admin/users',
+    form: 'suspend',
+    action: 'setUserStatusAction',
+    prepare: async (page, college) => {
+      const row = userRow(page, college.emails.faculty);
+      const form = await openDialog(suspendTrigger(row), suspendDialog(page));
+      const button = form.getByRole('button', { name: ar.admin.users.actions.suspend.submit });
+      return { form, submit: () => clickAndWait(page, '/ar/admin/users', button) };
+    },
+    state: async (college) => ({
+      status: (await getUserByEmail(college.emails.faculty))?.status,
+      sessions: await countSessions(college.emails.faculty),
+      suspended: await countAuditEvents(college.slug, 'user.suspended'),
+    }),
   },
 ];
 
