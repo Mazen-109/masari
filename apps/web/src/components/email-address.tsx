@@ -1,8 +1,9 @@
 import { Fragment, type ReactNode } from 'react';
 
 /**
- * Where an address may wrap: after the `@` and before each `.` (DESIGN.md "Tables"), never inside a word —
- * so a narrow column shows `shot.admin@` / `example` / `.edu`, not `example.ed` / `u`. Returns the text
+ * Where an address prefers to wrap: after the `@` and before each `.` (DESIGN.md "Tables") — so a narrow
+ * column shows `shot.admin@` / `example` / `.edu`, not `example.ed` / `u`. The cell's `wrap-break-word`
+ * may still break inside a piece as a last resort, when it alone is wider than the column. Returns the text
  * pieces in order; a `null` marks a break opportunity (`<wbr>`).
  */
 export function emailBreakPieces(email: string): (string | null)[] {
@@ -24,7 +25,7 @@ export function emailBreakPieces(email: string): (string | null)[] {
 }
 
 /**
- * An email address, isolated as LTR text (`<bdi dir="ltr">`) inside Arabic text, that wraps only
+ * An email address, isolated as LTR text (`<bdi dir="ltr">`) inside Arabic text, that prefers to wrap
  * after the `@` and before a `.`. The text content is the address itself (`<wbr>` adds no characters).
  */
 export function EmailAddress({ email }: Readonly<{ email: string }>) {

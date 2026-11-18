@@ -351,6 +351,17 @@
           "submit": "Reactivate",
           "target": "the account of <bdi>{name}</bdi>",
           "done": "Account reactivated."
+        },
+        "profile": {
+          "open": "Academic data",
+          "target": "of <bdi>{name}</bdi>",
+          "title": "Correct academic data",
+          "description": "Correct the student code, level, and division of <bdi>{name}</bdi>. The correction shows in the list and on the student’s home page at once.",
+          "studentCodeHint": "As on the student card: English letters, digits, and hyphens (-) only, 3 to 20 characters.",
+          "levelPlaceholder": "Choose a level",
+          "divisionPlaceholder": "Choose a division",
+          "submit": "Save academic data",
+          "done": "Academic data saved."
         }
       },
       "pagination": {

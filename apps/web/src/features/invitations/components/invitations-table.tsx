@@ -84,7 +84,7 @@ export function InvitationsTable({
       <TableBody>
         {rows.map((row) => (
           <TableRow key={row.id} data-invitation={row.id} data-status={row.displayStatus}>
-            {/* A long address wraps after the @ and before a dot, never inside a word (EmailAddress). */}
+            {/* A long address prefers to wrap after the @ and before a dot (EmailAddress). */}
             <TableCell data-field="email" className="min-w-48 wrap-break-word whitespace-normal">
               <EmailAddress email={row.email} />
             </TableCell>

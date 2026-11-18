@@ -1,4 +1,4 @@
-import { users, withTenant, type UserListPage } from '@masari/db';
+import { divisions, users, withTenant, type Division, type UserListPage } from '@masari/db';
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { connection } from 'next/server';
@@ -6,13 +6,19 @@ import { hasLocale } from 'next-intl';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { UsersFilters } from '@/features/admin-users/components/users-filters';
 import { UsersPagination } from '@/features/admin-users/components/users-pagination';
-import { UsersTable, type UserRow } from '@/features/admin-users/components/users-table';
+import {
+  UsersTable,
+  type AcademicChoices,
+  type UserRow,
+} from '@/features/admin-users/components/users-table';
 import {
   pageCount,
   parseUsersFilter,
   USERS_PAGE_SIZE,
   usersQueryString,
 } from '@/features/admin-users/schemas';
+import { levelLabelKey } from '@/features/profile/level-label';
+import { levelOptions } from '@/features/profile/rules';
 import { routing } from '@/i18n/routing';
 import { formatNumber } from '@/lib/format';
 import { requirePermission } from '@/server/auth/session';
@@ -59,9 +65,21 @@ export default async function UsersPage({ params, searchParams }: Props) {
   const t = await getTranslations('admin.users');
 
   let list: UserListPage;
+  let allDivisions: Division[];
   try {
-    list = await withTenant({ tenantId: ctx.tenant.id, userId: ctx.user.id }, (tx) =>
-      users.listInTenant(tx, ctx.tenant.id, { ...filter, page, pageSize: USERS_PAGE_SIZE }),
+    // One transaction, one query at a time.
+    [list, allDivisions] = await withTenant(
+      { tenantId: ctx.tenant.id, userId: ctx.user.id },
+      async (tx) => {
+        const listed = await users.listInTenant(tx, ctx.tenant.id, {
+          ...filter,
+          page,
+          pageSize: USERS_PAGE_SIZE,
+        });
+        // Inactive ones too: a student's dialog keeps offering the division they already have.
+        const offered = await divisions.list(tx, { includeInactive: true });
+        return [listed, offered] as const;
+      },
     );
   } catch (error) {
     // The error is not passed on: only the event and the SQLSTATE are logged (UsersQueryError keeps nothing
@@ -83,9 +101,28 @@ export default async function UsersPage({ params, searchParams }: Props) {
     status: row.status,
     studentCode: row.studentCode,
     level: row.level,
+    divisionId: row.divisionId,
     divisionName: locale === 'ar' ? row.divisionNameAr : row.divisionNameEn,
     createdAt: row.createdAt,
   }));
+
+  // The academic-data dialog's choices, labelled like the student's own profile form.
+  const tCommon = await getTranslations('common');
+  const tProfile = await getTranslations('profile.academic');
+  const academic: AcademicChoices = {
+    levels: levelOptions(ctx.tenant.levelsCount).map((level) => ({
+      value: String(level),
+      label: tCommon(levelLabelKey(level)),
+    })),
+    divisions: allDivisions.map((division) => {
+      const name = locale === 'ar' ? division.nameAr : division.nameEn;
+      return {
+        id: division.id,
+        isActive: division.isActive,
+        label: division.isActive ? name : tProfile('divisionInactive', { name }),
+      };
+    }),
+  };
 
   return (
     // One column for the heading, the filters, and the table, so their edges line up (DESIGN.md "Tables");
@@ -113,7 +150,12 @@ export default async function UsersPage({ params, searchParams }: Props) {
             {t('list.empty')}
           </p>
         ) : (
-          <UsersTable rows={rows} labelledBy="users-list-title" actorId={ctx.user.id} />
+          <UsersTable
+            rows={rows}
+            labelledBy="users-list-title"
+            actorId={ctx.user.id}
+            academic={academic}
+          />
         )}
         <UsersPagination filter={filter} page={page} pages={pages} />
       </section>

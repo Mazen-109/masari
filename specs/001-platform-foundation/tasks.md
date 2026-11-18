@@ -458,9 +458,9 @@ permissions. **No user-story batch may start before PR-14 is merged.**
 
 ### PR-34 — Correct a student's academic data · branch `001-pr34-admin-student-profile`
 
-- [ ] T131 [US6] Add `adminUpdateStudentProfileAction` to `apps/web/src/features/admin-users/actions.ts` with `adminStudentProfileSchema` (+ test) (contracts/server-actions.md §5.3; creates the profile when missing; audit) (FR-028, FR-044)
-- [ ] T132 [US6] Create `apps/web/src/features/admin-users/components/student-profile-dialog.tsx` (code, level, division — same field rules and labels as the student form) as a row action for students in `users-table.tsx`
-- [ ] T133 [US6] Extend `apps/web/e2e/admin-users.spec.ts` (part 3): correct a student's code and level → visible in the list and on the student's dashboard; code already used → `student_code_taken`; target that is not a student or belongs to another college → `not_found`; append the action to the forbidden-for-non-admin test in `rbac.spec.ts`
+- [x] T131 [US6] Add `adminUpdateStudentProfileAction` to `apps/web/src/features/admin-users/actions.ts` with `adminStudentProfileSchema` (+ test) (contracts/server-actions.md §5.3; creates the profile when missing; audit) (FR-028, FR-044)
+- [x] T132 [US6] Create `apps/web/src/features/admin-users/components/student-profile-dialog.tsx` (code, level, division — same field rules and labels as the student form) as a row action for students in `users-table.tsx`
+- [x] T133 [US6] Extend `apps/web/e2e/admin-users.spec.ts` (part 3): correct a student's code and level → visible in the list and on the student's dashboard; code already used → `student_code_taken`; target that is not a student or belongs to another college → `not_found`; append the action to the forbidden-for-non-admin test in `rbac.spec.ts`
 
 **Accept**: US6 acceptance scenario 5 passes · `profile.updated` audit row has the admin as actor and lists changed fields only
 

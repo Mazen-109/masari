@@ -5,7 +5,9 @@ import {
   countAuditEvents,
   countSessions,
   createStudentProfile,
+  getStudentProfile,
   getUserByEmail,
+  listAuditEvents,
   setUserStatus,
 } from './support/db';
 import { firstLink, waitForEmail } from './support/emails';
@@ -27,6 +29,8 @@ import { createCollege, uniqueCollegeSlug, type OnboardedCollege } from './suppo
 import {
   clickAndWait,
   openDialog,
+  profileDialog,
+  profileTrigger,
   reactivateButton,
   roleDialog,
   roleTrigger,
@@ -39,8 +43,10 @@ import {
 // the administrator's own college, search by part of a name, email, or student code, filters by role and
 // status (also without JavaScript), 20 per page with pagination that keeps the filters, and invalid
 // parameters ignored. Part 2 (US6 acceptance scenarios 2, 3, 4, 6; FR-030, FR-031): role change and
-// suspension from the row actions, refused on the own account and for another college's account. Each
-// test builds a college of its own, so its counts are exact.
+// suspension from the row actions, refused on the own account and for another college's account. Part 3
+// (US6 acceptance scenario 5; FR-028): correcting a student's academic data, refused for a code in use, an
+// account that is not a student, and another college's student. Each test builds a college of its own, so
+// its counts are exact.
 
 const { ar, en } = CATALOGS;
 
@@ -546,7 +552,7 @@ test('suspending ends the sessions and blocks sign-in; reactivating restores sig
   }
 });
 
-test('at 1280 px the whole table fits, row actions included, and emails wrap only at @ or a dot', async ({
+test('at 1280 px the whole table fits, row actions included, and emails offer breaks after @ and before each dot', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -579,7 +585,8 @@ test('at 1280 px the whole table fits, row actions included, and emails wrap onl
     const regionBox = await region.boundingBox();
     expect(regionBox).not.toBeNull();
     const buttons = rows(page).locator('[data-field="actions"]').getByRole('button');
-    await expect(buttons).toHaveCount(4);
+    // Two students: change role, suspend or reactivate, and academic data each.
+    await expect(buttons).toHaveCount(6);
     for (const button of await buttons.all()) {
       await expect(button).toBeVisible();
       const box = await button.boundingBox();
@@ -593,5 +600,116 @@ test('at 1280 px the whole table fits, row actions included, and emails wrap onl
     await expect(
       rows(page).filter({ hasText: active }).locator('[data-field="email"] wbr'),
     ).toHaveCount(active.split('.').length);
+  }
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// Part 3: a student's academic data (PR-34)
+
+test('corrects a student’s code and level, shown in the list and on their dashboard; a code in use and forged targets are refused', async ({
+  page,
+  browser,
+  baseURL,
+  extraHTTPHeaders,
+}) => {
+  const tProfile = tActions.profile;
+  const adminEmail = uniqueEmail('academic-admin');
+  const college = await createCollege(uniqueCollegeSlug('academic'), adminEmail);
+  const stranger = await strangerOfAnotherCollege(page);
+  const strangerCode = uniqueStudentCode();
+  await createStudentProfile(stranger, { studentCode: strangerCode });
+  // Another student of the college, whose code is already in use.
+  const takenCode = uniqueStudentCode();
+  const otherEmail = await registerIn(page, college, 'Other Student');
+  await createStudentProfile(otherEmail, { studentCode: takenCode });
+  await signInAdmin(page, college, adminEmail, 'Academic Administrator');
+
+  // The student, signed in in their own browser: level 1, the GEN division.
+  const student = await otherBrowser(browser, { baseURL, extraHTTPHeaders });
+  try {
+    const studentEmail = await registerConfirmedStudent(student, {
+      college: college.slug,
+      name: 'Corrected Student',
+    });
+    const oldCode = uniqueStudentCode();
+    await createStudentProfile(studentEmail, { studentCode: oldCode });
+    await signIn(student, { email: studentEmail });
+    await student.waitForURL('/ar/dashboard');
+    const summary = student.locator('main [data-slot="student-summary"]');
+    await expect(summary.locator('[data-field="studentCode"]')).toHaveText(oldCode);
+    const studentId = await userId(studentEmail);
+    const adminId = await userId(adminEmail);
+
+    // The dialog starts from the saved values, traps focus, and closes on Escape.
+    await page.goto(USERS_PATH);
+    const row = userRow(page, studentEmail);
+    const trigger = profileTrigger(row);
+    await openDialog(trigger, profileDialog(page));
+    await expectFocusTrapped(page, profileDialog(page));
+    await expectNoA11yViolations(page);
+    await page.keyboard.press('Escape');
+    await expect(profileDialog(page)).toBeHidden();
+    await expect(trigger).toBeFocused();
+
+    const form = await openDialog(trigger, profileDialog(page));
+    const code = form.getByLabel(ar.onboarding.studentCode, { exact: true });
+    const level = form.getByLabel(ar.onboarding.level, { exact: true });
+    const division = form.getByLabel(ar.onboarding.division, { exact: true });
+    await expect(code).toHaveValue(oldCode);
+    await expect(level).toHaveValue('1');
+    await expect(division.locator('option:checked')).toHaveText(GEN_DIVISION.ar);
+    const submit = form.getByRole('button', { name: tProfile.submit });
+
+    // A code another student of the college has → student_code_taken; the entered code stays; no change.
+    await code.fill(takenCode);
+    await clickAndWait(page, USERS_PATH, submit);
+    await expect(code).toHaveAttribute('aria-invalid', 'true');
+    await expect(form).toContainText(ar.errors.student_code_taken);
+    await expect(code).toHaveValue(takenCode);
+    expect((await getStudentProfile(studentEmail))?.studentCode).toBe(oldCode);
+    expect(await countAuditEvents(college.slug, 'profile.updated')).toBe(0);
+
+    // Correct the code and the level.
+    const newCode = uniqueStudentCode();
+    await code.fill(newCode);
+    await level.selectOption('2');
+    await clickAndWait(page, USERS_PATH, submit);
+    await expect(profileDialog(page)).toBeHidden();
+    await expect(row.locator('[data-field="studentCode"]')).toHaveText(newCode);
+    await expect(row.locator('[data-field="level"]')).toHaveText(ar.common.levels['2']);
+    await expect(row.locator('[data-slot="student-profile-status"]')).toHaveText(tProfile.done);
+    expect(await getStudentProfile(studentEmail)).toEqual({
+      studentCode: newCode,
+      level: 2,
+      divisionCode: 'GEN',
+    });
+    // One audit row: the administrator acted, and it lists the changed fields only.
+    expect(await listAuditEvents(college.slug, 'profile.updated')).toEqual([
+      { actorUserId: adminId, targetId: studentId, metadata: { fields: ['studentCode', 'level'] } },
+    ]);
+
+    // The student's dashboard shows the correction.
+    await student.reload();
+    await expect(summary.locator('[data-field="studentCode"]')).toHaveText(newCode);
+    await expect(summary.locator('[data-field="level"]')).toHaveText(ar.common.levels['2']);
+
+    // Forged: an account that is not a student (the administrator's own) and another college's student →
+    // not_found. Nothing changes.
+    for (const forgedId of [adminId, await userId(stranger)]) {
+      const forged = await openDialog(trigger, profileDialog(page));
+      await forged.getByLabel(ar.onboarding.studentCode, { exact: true }).fill(uniqueStudentCode());
+      await setFormField(forged, 'userId', forgedId);
+      await clickAndWait(page, USERS_PATH, forged.getByRole('button', { name: tProfile.submit }));
+      await expectFormError(forged, 'not_found');
+      await page.keyboard.press('Escape');
+      await expect(profileDialog(page)).toBeHidden();
+    }
+    expect(await getStudentProfile(adminEmail)).toBeNull();
+    expect((await getStudentProfile(stranger))?.studentCode).toBe(strangerCode);
+    expect((await getStudentProfile(studentEmail))?.studentCode).toBe(newCode);
+    expect(await countAuditEvents(college.slug, 'profile.updated')).toBe(1);
+    expect(await countAuditEvents(college.slug, 'profile.created')).toBe(0);
+  } finally {
+    await student.context().close();
   }
 });

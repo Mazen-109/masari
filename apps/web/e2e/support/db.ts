@@ -10,11 +10,13 @@ import {
   getAdminDbEnv,
   getStudentProfileByEmail as getStudentProfileByEmailIn,
   getUserByEmail as getUserByEmailIn,
+  listAuditEvents as listAuditEventsIn,
   listInvitations as listInvitationsIn,
   resetRateLimits as resetRateLimitsIn,
   setTenantStatus as setTenantStatusIn,
   setUserStatusByEmail as setUserStatusByEmailIn,
   withDatabaseName,
+  type AuditEventDetails,
   type DivisionFixture,
   type InvitationDetails,
   type StudentProfileDetails,
@@ -41,6 +43,15 @@ export function countAuditEvents(
   targetId?: string,
 ): Promise<number> {
   return countAuditEventsIn(ownerUrl(), tenantSlug, action, targetId);
+}
+
+/** Audit events with this action in the college, oldest first: who acted, about what, and the metadata. */
+export function listAuditEvents(
+  tenantSlug: string,
+  action: string,
+  targetId?: string,
+): Promise<AuditEventDetails[]> {
+  return listAuditEventsIn(ownerUrl(), tenantSlug, action, targetId);
 }
 
 /** Every invitation of the college (oldest first), for before/after comparisons of refused actions. */
