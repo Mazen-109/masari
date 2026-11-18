@@ -307,7 +307,7 @@ enumerations only, never emails, names, tokens, or passwords):
 | `invitation.accepted` | the new user | invitation | `{ role }` |
 | `user.role_changed` | admin | user | `{ from, to }` |
 | `user.suspended` / `user.reactivated` | admin | user | `{}` |
-| `profile.created` | student | student_profile | `{}` |
+| `profile.created` | student or admin | student_profile | `{}` |
 | `profile.updated` | student or admin | student_profile | `{ fields: string[] }` |
 | `tenant.settings_updated` | admin | tenant | `{ fields: string[] }` |
 | `tenant.modules_updated` | admin | tenant | `{ enabled: string[] }` |

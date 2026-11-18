@@ -85,6 +85,7 @@ export function hashInvitationToken(token: string): string;
 listActivePublic(): Promise<TenantPublic[]>            // { id, slug, nameAr, nameEn } of active colleges, ordered by nameAr
 findBySlug(slug: string): Promise<Tenant | null>
 findById(id: string): Promise<Tenant | null>
+findCurrentForUpdate(tx: Tx): Promise<Tenant | null>     // the tenant in context, locked FOR UPDATE until the tx ends; null without one (PR-35)
 updateSettings(tx: Tx, patch: Partial<Pick<Tenant, 'nameAr' | 'nameEn' | 'allowedEmailDomains' | 'levelsCount' | 'enabledModules'>>): Promise<Tenant>
   // updates the current tenant (RLS: only the tenant in context); sets updated_at
 ```
@@ -95,6 +96,7 @@ updateSettings(tx: Tx, patch: Partial<Pick<Tenant, 'nameAr' | 'nameEn' | 'allowe
 findByEmail(email: string): Promise<UserSummary | null>                       // any college; used by auth flows
 findById(id: string): Promise<UserSummary | null>
 findInTenant(tenantId: string, userId: string): Promise<UserSummary | null>
+lockRoleInTenant(tx: Tx, tenantId: string, userId: string): Promise<Role | null>  // role read in tx, row locked FOR SHARE; null = not in tenant (PR-35)
 listInTenant(tx: Tx, tenantId: string, filter: { q?: string; role?: Role; status?: UserStatus; page: number; pageSize: number }):
   Promise<{ rows: Array<UserSummary & { studentCode: string | null; level: number | null;
             divisionId: string | null; divisionCode: string | null; divisionNameAr: string | null; divisionNameEn: string | null }>; total: number }>
@@ -243,6 +245,9 @@ export function createStudentProfile(migrationUrl: string, email: string,
 /** The stored profile of the account with this email (division by code), or null. e2e before/after checks. */
 export function getStudentProfileByEmail(migrationUrl: string, email: string):
   Promise<{ studentCode: string; level: number; divisionCode: string } | null>;
+/** The stored settings of the college with this slug (nameAr, nameEn, allowedEmailDomains, levelsCount, enabledModules,
+ *  updatedAt), or null. e2e before/after checks (PR-35). */
+export function getTenantSettings(migrationUrl: string, tenantSlug: string): Promise<TenantSettingsDetails | null>;
 /** e2e fixture until the divisions screen exists: adds a division (sortOrder default 0, isActive default true);
  *  no audit row; refuses (before connecting) a database that is not masari_(test|e2e)…. */
 export function addDivision(migrationUrl: string, tenantId: string,

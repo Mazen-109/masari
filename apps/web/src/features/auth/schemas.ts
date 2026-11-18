@@ -8,7 +8,7 @@ import { localeLessNext } from '@/lib/safe-next';
 
 const TENANT_SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
-const CONTROL_CHARACTER = /\p{Cc}/u;
+export const CONTROL_CHARACTER = /\p{Cc}/u;
 
 /**
  * Bidirectional embedding/override (U+202A–U+202E) and isolate (U+2066–U+2069) controls: in a name they
@@ -17,7 +17,7 @@ const CONTROL_CHARACTER = /\p{Cc}/u;
  * directional marks LRM (U+200E), RLM (U+200F), and ALM (U+061C) are deliberately allowed too: they only
  * affect the neighbouring characters, never the text around the name, and fix mixed Arabic/Latin names.
  */
-const BIDI_CONTROL = /[\u202A-\u202E\u2066-\u2069]/u;
+export const BIDI_CONTROL = /[\u202A-\u202E\u2066-\u2069]/u;
 
 /** Trimmed, 2–100 characters, no control characters (line breaks, tabs, NUL, …) or bidi controls. */
 export const nameField = z

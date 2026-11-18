@@ -12,6 +12,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   findInTenant: vi.fn(),
+  lockRoleInTenant: vi.fn(),
   setRole: vi.fn(),
   setStatus: vi.fn(),
   revokeAllForUser: vi.fn(),
@@ -31,6 +32,7 @@ vi.mock('@masari/db', () => ({
   USER_STATUSES: ['active', 'suspended'],
   users: {
     findInTenant: mocks.findInTenant,
+    lockRoleInTenant: mocks.lockRoleInTenant,
     setRole: mocks.setRole,
     setStatus: mocks.setStatus,
   },
@@ -199,11 +201,19 @@ describe('changeUserRoleAction', () => {
     expect(mocks.recordAudit).not.toHaveBeenCalled();
   });
 
-  it('answers internal when the audit row fails after the change, logging the event name only', async () => {
-    mocks.recordAudit.mockRejectedValue(new Error(`audit for ${TARGET_EMAIL}`));
+  it('answers internal when the audit row fails after the change, logging its class and SQLSTATE only', async () => {
+    // A driver error wrapped as `cause`, as the audit repository may throw it.
+    mocks.recordAudit.mockRejectedValue(
+      Object.assign(new TypeError(`audit for ${TARGET_EMAIL}`), {
+        cause: { code: '23514', detail: TARGET_EMAIL },
+      }),
+    );
     expect(await changeUserRoleAction(null, form(valid))).toEqual(fail('internal'));
     expect(mocks.setRole).toHaveBeenCalledOnce();
-    expect(mocks.log.error).toHaveBeenCalledExactlyOnceWith('admin.user_audit_failed');
+    expect(mocks.log.error).toHaveBeenCalledExactlyOnceWith('admin.user_audit_failed', {
+      errorName: 'TypeError',
+      sqlState: '23514',
+    });
     expect(loggedText()).not.toContain(TARGET_EMAIL);
     // The role did change: the list is refreshed so it shows it.
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/ar/admin/users');
@@ -313,12 +323,15 @@ describe('setUserStatusAction', () => {
     expectNothingChanged();
   });
 
-  it('still ends the sessions when the audit row fails, logging the event name only', async () => {
+  it('still ends the sessions when the audit row fails, logging its class and SQLSTATE only', async () => {
     mocks.recordAudit.mockRejectedValue(new Error(`audit for ${TARGET_EMAIL}`));
     expect(await setUserStatusAction(null, form(suspend))).toEqual(fail('internal'));
     expect(mocks.setStatus).toHaveBeenCalledOnce();
     expect(mocks.revokeAllForUser).toHaveBeenCalledExactlyOnceWith(TARGET_ID);
-    expect(mocks.log.error).toHaveBeenCalledExactlyOnceWith('admin.user_audit_failed');
+    expect(mocks.log.error).toHaveBeenCalledExactlyOnceWith('admin.user_audit_failed', {
+      errorName: 'Error',
+      sqlState: null,
+    });
     expect(loggedText()).not.toContain(TARGET_EMAIL);
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/ar/admin/users');
   });
@@ -345,7 +358,7 @@ describe('setUserStatusAction', () => {
     mocks.recordAudit.mockRejectedValue(new Error(`audit for ${TARGET_EMAIL}`));
     expect(await setUserStatusAction(null, form(suspend))).toEqual(fail('internal'));
     expect(mocks.log.error.mock.calls).toEqual([
-      ['admin.user_audit_failed'],
+      ['admin.user_audit_failed', { errorName: 'Error', sqlState: null }],
       ['admin.user_status_change_failed', { errorName: 'Error', sqlState: null }],
     ]);
     expect(loggedText()).not.toContain(TARGET_EMAIL);
@@ -361,6 +374,7 @@ describe('adminUpdateStudentProfileAction', () => {
 
   beforeEach(() => {
     mocks.findInTenant.mockResolvedValue(target({ role: 'student' }));
+    mocks.lockRoleInTenant.mockResolvedValue('student');
     mocks.findProfile.mockResolvedValue(current);
     mocks.findDivision.mockImplementation((_tx: unknown, id: string) =>
       Promise.resolve({ id, isActive: id === DIVISION_B }),
@@ -449,6 +463,20 @@ describe('adminUpdateStudentProfileAction', () => {
     const result = await adminUpdateStudentProfileAction(null, form(valid));
     expect(result.ok === false && result.code).toBe('not_found');
     expect(mocks.withTenant).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it('re-reads the role in the transaction: an account no longer a student is not_found, nothing written', async () => {
+    mocks.lockRoleInTenant.mockResolvedValue('faculty');
+    const result = await adminUpdateStudentProfileAction(null, form(valid));
+    expect(result.ok === false && result.code).toBe('not_found');
+    expect(mocks.lockRoleInTenant).toHaveBeenCalledExactlyOnceWith(TX, TENANT_ID, TARGET_ID);
+    expect(mocks.findProfile).not.toHaveBeenCalled();
+    expectNoProfileWrite();
+    mocks.lockRoleInTenant.mockResolvedValue(null);
+    const gone = await adminUpdateStudentProfileAction(null, form(valid));
+    expect(gone.ok === false && gone.code).toBe('not_found');
+    expectNoProfileWrite();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 

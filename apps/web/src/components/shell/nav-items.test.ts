@@ -47,7 +47,7 @@ describe('buildNavItems', () => {
     expect(buildNavItems(ctx('student_affairs', ['codejudge'])).main).toHaveLength(1);
   });
 
-  it('gives only the administration the People and Invitations entries', () => {
+  it('gives only the administration the People, Invitations, and Settings entries', () => {
     expect(buildNavItems(ctx('admin')).admin).toEqual([
       { id: 'admin-users', href: '/admin/users', icon: 'Users', label: 'nav.admin.users' },
       {
@@ -55,6 +55,12 @@ describe('buildNavItems', () => {
         href: '/admin/invitations',
         icon: 'MailPlus',
         label: 'nav.admin.invitations',
+      },
+      {
+        id: 'admin-settings',
+        href: '/admin/settings',
+        icon: 'Settings',
+        label: 'nav.admin.settings',
       },
     ]);
     for (const role of ['student', 'faculty', 'student_affairs'] as const) {

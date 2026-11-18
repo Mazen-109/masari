@@ -207,6 +207,32 @@ export async function createStudentProfile(
   });
 }
 
+/** The stored settings of a college, as e2e tests compare them before and after. */
+export interface TenantSettingsDetails {
+  nameAr: string;
+  nameEn: string;
+  allowedEmailDomains: string[];
+  levelsCount: number;
+  enabledModules: string[];
+  updatedAt: Date;
+}
+
+/** The settings of the college with this slug, or null for an unknown slug. */
+export function getTenantSettings(
+  migrationUrl: string,
+  tenantSlug: string,
+): Promise<TenantSettingsDetails | null> {
+  return withOwnerTransaction(migrationUrl, async (client) => {
+    const result = await client.query<TenantSettingsDetails>(
+      `SELECT name_ar AS "nameAr", name_en AS "nameEn", allowed_email_domains AS "allowedEmailDomains",
+              levels_count AS "levelsCount", enabled_modules AS "enabledModules", updated_at AS "updatedAt"
+         FROM tenants WHERE slug = $1`,
+      [tenantSlug],
+    );
+    return result.rows[0] ?? null;
+  });
+}
+
 /** The stored academic profile, with its division's code, as e2e tests compare it before and after. */
 export interface StudentProfileDetails {
   studentCode: string;

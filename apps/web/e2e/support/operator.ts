@@ -1,5 +1,11 @@
 import { randomBytes } from 'node:crypto';
-import { createTenantWithAdmin, getAdminDbEnv, withDatabaseName } from '@masari/db/admin';
+import {
+  createTenantWithAdmin,
+  getAdminDbEnv,
+  getTenantSettings,
+  withDatabaseName,
+  type TenantSettingsDetails,
+} from '@masari/db/admin';
 import { E2E_DATABASE } from './constants';
 
 export { setCollegeStatus } from './db';
@@ -20,6 +26,13 @@ export type OnboardedCollege = {
   /** Locale-less path of the administrator's invitation link: `/invite/<token>`. */
   invitePath: string;
 };
+
+/** The stored settings of the college with this slug (throws for an unknown slug). */
+export async function getCollegeSettings(slug: string): Promise<TenantSettingsDetails> {
+  const settings = await getTenantSettings(ownerUrl(), slug);
+  if (settings === null) throw new Error('getCollegeSettings: unknown college');
+  return settings;
+}
 
 /** A slug no other test uses. */
 export function uniqueCollegeSlug(prefix = 'onb'): string {

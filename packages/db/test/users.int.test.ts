@@ -370,6 +370,40 @@ describe('users.findInTenant', () => {
   });
 });
 
+describe('users.lockRoleInTenant', () => {
+  it("returns the role of an account of that college, null for another college's or an unknown account", async () => {
+    const tenant = await makeTenant();
+    const otherCollege = await makeTenant();
+    const own = await makeUser(tenant.id, { role: 'faculty' });
+    const stranger = await makeUser(otherCollege.id);
+
+    const roles = await withTenant({ tenantId: tenant.id, userId: null }, async (tx) => [
+      await users.lockRoleInTenant(tx, tenant.id, own.id),
+      await users.lockRoleInTenant(tx, tenant.id, stranger.id),
+      await users.lockRoleInTenant(tx, tenant.id, unknownUserId()),
+      await users.lockRoleInTenant(tx, tenant.id, ''),
+      await users.lockRoleInTenant(tx, 'not-a-uuid', own.id),
+    ]);
+    expect(roles).toEqual(['faculty', null, null, null, null]);
+  });
+
+  it('holds the account until the transaction ends: a concurrent role change waits', async () => {
+    const tenant = await makeTenant();
+    const user = await makeUser(tenant.id);
+    const order: string[] = [];
+    let concurrent: Promise<unknown> = Promise.resolve();
+    await withTenant({ tenantId: tenant.id, userId: null }, async (tx) => {
+      expect(await users.lockRoleInTenant(tx, tenant.id, user.id)).toBe('student');
+      concurrent = users.setRole(tenant.id, user.id, 'faculty').then(() => order.push('setRole'));
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      order.push('locked');
+    });
+    await concurrent;
+    expect(order).toEqual(['locked', 'setRole']);
+    expect((await users.findById(user.id))?.role).toBe('faculty');
+  });
+});
+
 describe('users.listInTenant', () => {
   it("lists only the college's accounts, newest first, with each student's profile and division", async () => {
     const college = await makeTenant();

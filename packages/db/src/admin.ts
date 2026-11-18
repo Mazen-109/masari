@@ -33,6 +33,7 @@ export {
   createStudentProfile,
   expireInvitation,
   getStudentProfileByEmail,
+  getTenantSettings,
   getUserByEmail,
   listAuditEvents,
   listInvitations,
@@ -45,5 +46,6 @@ export type {
   InvitationDetails,
   StudentProfileDetails,
   StudentProfileFixture,
+  TenantSettingsDetails,
   UserDetails,
 } from './admin/test-support';
