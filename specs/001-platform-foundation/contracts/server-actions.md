@@ -218,10 +218,20 @@ All database calls are the `db-api.md` §1 functions, in the context named for e
    one `withTenant({ tenantId: inv.tenantId, userId }, tx => …)` transaction,
    `invitations.setAcceptedUser(tx, inv.id, userId)` and the audit of step 7. No confirmation email is sent.
    On any failure in this step, compensate in this order and return `fail('internal')`:
-   (a) if the account was created (id from the library's result, else `users.findByEmail(inv.email)`),
-   `users.deleteJustCreated(inv.tenantId, userId)` — otherwise step 4 would make the invitation unusable
-   forever; (b) `withTenant({ tenantId: inv.tenantId, userId: null }, tx => invitations.release(tx, inv.id))`.
-   A failing compensation is logged as `invitation.accept_compensation_failed` (ids only).
+   (a) if the account was created, `users.deleteJustCreated(inv.tenantId, userId)` — otherwise step 4 would
+   make the invitation unusable forever. The id is the one confirmed by the read-back (the library's returned
+   id is trusted only once `users.findByEmail(inv.email)` returns that same id in `inv.tenantId`, research.md
+   §7). Without a confirmed id, `users.findByEmail(inv.email)` is always run: if the library answered, the
+   found account is deleted only when its id equals the returned id and its college is `inv.tenantId`
+   (a made-up answer for an existing address never deletes someone else's account); if the library did not
+   answer, the found account is passed to `deleteJustCreated` (which removes it only if it is of
+   `inv.tenantId` and less than 10 minutes old). (b) `withTenant({ tenantId: inv.tenantId, userId: null },
+   tx => invitations.release(tx, inv.id))` — only when (a) succeeded: if the lookup or the delete fails, the
+   invitation stays claimed (a pending invitation whose address has an account could never be used anyway).
+   A failing compensation step is logged as `invitation.accept_compensation_failed` (step and ids only).
+   The college-active check happens only in step 3 (sign-in refuses suspended colleges anyway). An address
+   taken by someone else between step 4 and `signUpEmail` ends as `fail('internal')`; only a holder of a
+   valid token can observe it, so it is not an account-existence leak (FR-005).
 7. Audit `invitation.accepted` `{ role }` — `recordAudit(…, tx)` in the transaction of step 6.
 8. `redirect('/{locale}/sign-in?invited=1')`.
 

@@ -538,25 +538,44 @@ class InvitedAccountMismatchError extends Error {
   override name = 'InvitedAccountMismatchError';
 }
 
-type InvitedAccount = { userId: string | null; libraryAnswered: boolean };
+/**
+ * What step 6 knows about the account: `confirmedId` once the read-back by email matched the library's
+ * answer in this college; `returnedId` as soon as the library answered (not trusted on its own).
+ */
+type InvitedAccount = { confirmedId: string | null; returnedId: string | null };
 
 /**
- * Step 6 compensation, best effort and in this order: (a) delete the account if it was created, so the
- * address is free again; (b) release the claim, so the invitation can be used again. A failing step is
- * logged with ids only and does not stop the next one.
+ * The account step 6 created, or null when it created none. A confirmed id is used as is. Otherwise the
+ * address is looked up: when the library answered, the found account counts only if it is the returned id
+ * in this college (a made-up answer for an existing address must never delete someone else's account);
+ * when it did not answer, an account may still have been created, so the found one is taken —
+ * deleteJustCreated then removes it only if it belongs to this college and is less than 10 minutes old.
+ */
+async function createdAccountId(
+  invitation: Invitation,
+  account: InvitedAccount,
+): Promise<string | null> {
+  if (account.confirmedId !== null) return account.confirmedId;
+  const found = await users.findByEmail(invitation.email);
+  if (found === null) return null;
+  if (account.returnedId === null) return found.id;
+  return found.id === account.returnedId && found.tenantId === invitation.tenantId
+    ? found.id
+    : null;
+}
+
+/**
+ * Step 6 compensation, in this order: (a) delete the account if it was created, so the address is free
+ * again; (b) release the claim, so the invitation can be used again. If (a) fails, the claim is NOT
+ * released: an invitation left claimed is more honest than a pending one whose address already has an
+ * account. Failures are logged with ids only.
  */
 async function compensateAcceptance(
   invitation: Invitation,
   account: InvitedAccount,
 ): Promise<void> {
   try {
-    // Without an answer from the library an account may still have been created: look it up by email.
-    // deleteJustCreated removes only an account of this college created in the last 10 minutes. When the
-    // library answered with an account that is not the new one, nothing of ours exists to delete.
-    let userId = account.userId;
-    if (userId === null && !account.libraryAnswered) {
-      userId = (await users.findByEmail(invitation.email))?.id ?? null;
-    }
+    const userId = await createdAccountId(invitation, account);
     if (userId !== null) await users.deleteJustCreated(invitation.tenantId, userId);
   } catch (error) {
     log.error('invitation.accept_compensation_failed', {
@@ -564,6 +583,7 @@ async function compensateAcceptance(
       invitationId: invitation.id,
       errorName: errorName(error),
     });
+    return;
   }
   try {
     await withTenant({ tenantId: invitation.tenantId, userId: null }, (tx) =>
@@ -590,8 +610,12 @@ async function createInvitedAccount(
   input: AcceptInvitationInput,
   locale: Locale,
 ): Promise<boolean> {
-  const account: InvitedAccount = { userId: null, libraryAnswered: false };
+  const account: InvitedAccount = { confirmedId: null, returnedId: null };
   try {
+    // The college's status was checked at the lookup (step 3) only; a suspension in between does no
+    // harm, because sign-in refuses suspended colleges anyway. An address taken by someone else between
+    // step 4 and this call ends as 'internal' (see the read-back below): only a holder of a valid token
+    // can observe that, so it reveals nothing beyond what the contract allows (FR-005).
     const created = await getAuth().api.signUpEmail({
       body: {
         name: input.name,
@@ -602,14 +626,14 @@ async function createInvitedAccount(
         privacyConsentAt: new Date(),
       },
     });
-    account.libraryAnswered = true;
+    account.returnedId = created.user.id;
     const stored = await users.findByEmail(invitation.email);
     if (stored?.id !== created.user.id || stored.tenantId !== invitation.tenantId) {
       // An account with this address appeared meanwhile and the library created nothing: never touch it.
       throw new InvitedAccountMismatchError();
     }
     const userId = stored.id;
-    account.userId = userId;
+    account.confirmedId = userId;
     await users.activateInvited(invitation.tenantId, userId, invitation.role);
     await withTenant({ tenantId: invitation.tenantId, userId }, async (tx) => {
       await invitations.setAcceptedUser(tx, invitation.id, userId);

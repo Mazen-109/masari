@@ -16,7 +16,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!hasLocale(routing.locales, locale)) return {};
   const t = await getTranslations({ locale, namespace: 'meta' });
   // The address holds the invitation token: never send it to another site as a referrer.
-  return { title: t('invite'), referrer: 'no-referrer' };
+  // Stated here as well as in the layout: a page whose address holds a token is never indexed.
+  return {
+    title: t('invite'),
+    referrer: 'no-referrer',
+    robots: { index: false, follow: false },
+  };
 }
 
 /**

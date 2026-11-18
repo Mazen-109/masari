@@ -270,7 +270,22 @@ describe('acceptInvitationAction', () => {
     expect(mocks.deleteJustCreated).not.toHaveBeenCalled();
   });
 
-  it('logs a failing compensation with ids only and still releases the claim', async () => {
+  it('deletes the account the library returned when the read-back throws, then releases', async () => {
+    mocks.findByEmail
+      .mockReset()
+      .mockResolvedValueOnce(null) // step 4: no account yet
+      .mockRejectedValueOnce(new Error('read-back failed')) // read-back after the library answered
+      .mockResolvedValue(ACCOUNT); // compensation lookup
+    expect(await submit()).toMatchObject({ code: 'internal' });
+    expect(mocks.activateInvited).not.toHaveBeenCalled();
+    expect(mocks.deleteJustCreated).toHaveBeenCalledExactlyOnceWith(TENANT_ID, USER_ID);
+    expect(mocks.release).toHaveBeenCalledTimes(1);
+    expect(mocks.deleteJustCreated.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.release.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
+  it('leaves the claim in place when deleting the account fails, logging ids only', async () => {
     mocks.activateInvited.mockRejectedValue(new Error('boom'));
     mocks.deleteJustCreated.mockRejectedValue(new TypeError(`cannot delete ${EMAIL}`));
     expect(await submit()).toMatchObject({ code: 'internal' });
@@ -279,8 +294,21 @@ describe('acceptInvitationAction', () => {
       invitationId: INVITATION_ID,
       errorName: 'TypeError',
     });
-    expect(mocks.release).toHaveBeenCalledTimes(1);
+    // Not released: a pending invitation whose address already has an account could never be used.
+    expect(mocks.release).not.toHaveBeenCalled();
     expect(JSON.stringify(mocks.log.error.mock.calls)).not.toContain(EMAIL);
+  });
+
+  it('leaves the claim in place when the compensation lookup fails', async () => {
+    mocks.signUpEmail.mockRejectedValue(new Error('connection lost'));
+    mocks.findByEmail.mockReset().mockResolvedValueOnce(null).mockRejectedValue(new Error('down'));
+    expect(await submit()).toMatchObject({ code: 'internal' });
+    expect(mocks.deleteJustCreated).not.toHaveBeenCalled();
+    expect(mocks.release).not.toHaveBeenCalled();
+    expect(mocks.log.error).toHaveBeenCalledWith(
+      'invitation.accept_compensation_failed',
+      expect.objectContaining({ step: 'delete_account' }),
+    );
   });
 
   it('logs a failing release and still answers internal', async () => {
