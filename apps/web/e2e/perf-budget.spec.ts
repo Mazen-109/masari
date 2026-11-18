@@ -14,6 +14,14 @@ const BUDGETS: readonly { path: string; limitKB: number; signedIn?: 'student' | 
   { path: '/ar/admin/users', limitKB: 300, signedIn: 'admin' },
 ];
 
+// Font budget (PR-39, research.md §17): the same load may fetch at most the four IBM Plex Sans Arabic
+// files of fonts.ts — Arabic and Latin, weights 400 and 700 — about 126 KB together; an Arabic screen
+// usually needs fewer. A new weight, subset, or font file fails here. Only the Arabic 400 file is preloaded.
+const FONT_BUDGET = { files: 4, limitKB: 130 } as const;
+const PLEX_FILE =
+  /\/_next\/static\/media\/ibm_plex_sans_arabic_(arabic|latin)_(400|700)_normal\.[^/]*woff2$/;
+const PRELOADED_FONT = /ibm_plex_sans_arabic_arabic_400_normal\.[^/]*woff2$/;
+
 /** A `layout-shift` performance entry (not in TypeScript's DOM library). */
 type LayoutShift = PerformanceEntry & { value: number; hadRecentInput: boolean };
 
@@ -36,7 +44,9 @@ function paintAndShifts(): Promise<{ lcp: number; cls: number }> {
 }
 
 for (const { path, limitKB, signedIn } of BUDGETS) {
-  test(`scripts on ${path} stay within ${limitKB} KB`, async ({ page: setupPage }, testInfo) => {
+  test(`scripts on ${path} stay within ${limitKB} KB and fonts within budget`, async ({
+    page: setupPage,
+  }, testInfo) => {
     let page = setupPage;
     if (signedIn === 'student') {
       const email = await registerStudentWithProfile(setupPage);
@@ -48,12 +58,16 @@ for (const { path, limitKB, signedIn } of BUDGETS) {
     if (signedIn !== undefined) page = await setupPage.context().newPage();
     const cdp = await page.context().newCDPSession(page);
     const scriptRequests = new Set<string>();
+    const fontUrls = new Map<string, string>();
     let bytes = 0;
+    let fontBytes = 0;
     cdp.on('Network.responseReceived', (event) => {
       if (event.type === 'Script') scriptRequests.add(event.requestId);
+      if (event.type === 'Font') fontUrls.set(event.requestId, event.response.url);
     });
     cdp.on('Network.loadingFinished', (event) => {
       if (scriptRequests.has(event.requestId)) bytes += event.encodedDataLength;
+      if (fontUrls.has(event.requestId)) fontBytes += event.encodedDataLength;
     });
     await cdp.send('Network.enable');
     await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
@@ -73,7 +87,21 @@ for (const { path, limitKB, signedIn } of BUDGETS) {
     console.log(`[web vitals] ${timings}`);
     testInfo.annotations.push({ type: 'web-vitals', description: timings });
 
+    const fontKB = Math.round((fontBytes / 1024) * 10) / 10;
+    const fonts = `${path}: ${fontKB} KB of fonts in ${fontUrls.size} files (limit ${FONT_BUDGET.limitKB} KB, ${FONT_BUDGET.files} files)`;
+    console.log(`[font budget] ${fonts}`);
+    testInfo.annotations.push({ type: 'font-budget', description: fonts });
+    const preloads = await page
+      .locator('link[rel="preload"][as="font"]')
+      .evaluateAll((links) => links.map((link) => (link as HTMLLinkElement).href));
+
     expect(scriptRequests.size).toBeGreaterThan(0);
     expect(measuredKB).toBeLessThanOrEqual(limitKB);
+    for (const url of fontUrls.values()) expect(url).toMatch(PLEX_FILE);
+    expect(fontUrls.size).toBeGreaterThan(0);
+    expect(fontUrls.size).toBeLessThanOrEqual(FONT_BUDGET.files);
+    expect(fontKB).toBeLessThanOrEqual(FONT_BUDGET.limitKB);
+    expect(preloads).toHaveLength(1);
+    expect(preloads[0]).toMatch(PRELOADED_FONT);
   });
 }

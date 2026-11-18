@@ -26,7 +26,7 @@ colors:
   ring: '#0E5A5C'
 typography:
   display:
-    fontFamily: "'IBM Plex Sans Arabic', system-ui, -apple-system, 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Geeza Pro', sans-serif"
+    fontFamily: "'IBM Plex Sans Arabic', 'IBM Plex Sans Arabic Fallback', system-ui, -apple-system, 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Geeza Pro', sans-serif"
     fontSize: '2.25rem'
     fontWeight: 700
     lineHeight: 1.4
@@ -38,7 +38,7 @@ typography:
   title:
     fontFamily: "'IBM Plex Sans Arabic', system-ui, sans-serif"
     fontSize: '1.25rem'
-    fontWeight: 600
+    fontWeight: 700
     lineHeight: 1.6
   body:
     fontFamily: "'IBM Plex Sans Arabic', system-ui, sans-serif"
@@ -49,7 +49,7 @@ typography:
   label:
     fontFamily: "'IBM Plex Sans Arabic', system-ui, sans-serif"
     fontSize: '0.875rem'
-    fontWeight: 500
+    fontWeight: 400
     lineHeight: 1.7
 rounded:
   sm: '4px'
@@ -201,22 +201,34 @@ marked `disabled` for assistive technology.
 
 ## Typography
 
-**IBM Plex Sans Arabic** (OFL-1.1) covers Arabic and Latin in one family; weights 400, 500, 600, 700 are
-self-hosted from `@fontsource/ibm-plex-sans-arabic` (no font CDN; `unicode-range` subsets mean English
-pages do not download Arabic glyphs). Fallback: `system-ui, -apple-system, 'Segoe UI', Tahoma,
-'Noto Sans Arabic', 'Geeza Pro', sans-serif`.
+**IBM Plex Sans Arabic** (OFL-1.1) covers Arabic and Latin in one family. Only **two weights, 400 and
+700**, are loaded — each costs an Arabic and a Latin file, and fewer files make the first paint on a
+phone faster (FR-043, research.md §17). The woff2 files of `@fontsource/ibm-plex-sans-arabic` are
+self-hosted through `next/font/local` in `apps/web/src/app/fonts.ts` (no font CDN; `font-display: swap`;
+`unicode-range` subsets, so a screen downloads only the scripts it shows; the Arabic files also cover the
+space, so Arabic text needs no Latin file for it). Only the Arabic 400 file is preloaded.
+
+While the files load, text is drawn in **IBM Plex Sans Arabic Fallback**: a local system font
+(DejaVu Sans where installed) scaled with `size-adjust` and the ascent/descent overrides measured
+against Plex, so the swap does not move the layout. Then: `system-ui, -apple-system, 'Segoe UI',
+Tahoma, 'Noto Sans Arabic', 'Geeza Pro', sans-serif`.
+
+**Weight utilities.** `font-normal` and `font-medium` render 400; `font-semibold` and `font-bold` render
+700 (tokens in `globals.css`). The role names stay so existing components keep their meaning; new code
+uses `font-normal` / `font-bold`. `font-thin`, `font-light`, `font-extrabold`, and `font-black` are
+removed: those weights are not loaded.
 
 ### Hierarchy
 
-| Role                      | Utility     | Size  | Weight    | Line height ar / en |
-| ------------------------- | ----------- | ----- | --------- | ------------------- |
-| Display (page hero, rare) | `text-4xl`  | 36 px | 700       | 1.4 / 1.2           |
-| Headline (page `<h1>`)    | `text-3xl`  | 30 px | 700       | 1.45 / 1.25         |
-| Section (`<h2>`)          | `text-2xl`  | 24 px | 600       | 1.5 / 1.35          |
-| Title (card, dialog)      | `text-xl`   | 20 px | 600       | 1.6 / 1.4           |
-| Lead                      | `text-lg`   | 18 px | 400       | 1.7 / 1.6           |
-| Body                      | `text-base` | 16 px | 400       | 1.7 / 1.6           |
-| Label, hint, table        | `text-sm`   | 14 px | 500 / 400 | 1.7 / 1.5           |
+| Role                      | Utility     | Size  | Weight | Line height ar / en |
+| ------------------------- | ----------- | ----- | ------ | ------------------- |
+| Display (page hero, rare) | `text-4xl`  | 36 px | 700    | 1.4 / 1.2           |
+| Headline (page `<h1>`)    | `text-3xl`  | 30 px | 700    | 1.45 / 1.25         |
+| Section (`<h2>`)          | `text-2xl`  | 24 px | 700    | 1.5 / 1.35          |
+| Title (card, dialog)      | `text-xl`   | 20 px | 700    | 1.6 / 1.4           |
+| Lead                      | `text-lg`   | 18 px | 400    | 1.7 / 1.6           |
+| Body                      | `text-base` | 16 px | 400    | 1.7 / 1.6           |
+| Label, hint, table        | `text-sm`   | 14 px | 400    | 1.7 / 1.5           |
 
 Nothing smaller than 14 px: `text-xs` is removed from the theme. Form inputs are at least 16 px (smaller text makes mobile browsers zoom).
 Headings use `text-balance`; body text is limited to about 60–75 characters per line.
@@ -225,7 +237,7 @@ Headings use `text-balance`; body text is limited to about 60–75 characters pe
 
 - **The Joined-Letters Rule.** No letter-spacing and no italics on Arabic text — they break letter
   joining. `globals.css` forces `letter-spacing: 0` on `:lang(ar)` and turns `em`/`i` upright; emphasis
-  comes from weight (600/700).
+  comes from weight (700).
 - **The Tall-Line Rule.** Arabic body text uses line height 1.7 (set per size on `html:lang(ar)`), so
   diacritics and descenders never collide.
 - **The Isolation Rule.** Emails, URLs, student codes, and slugs inside Arabic text are wrapped in
@@ -279,7 +291,7 @@ roving-tabindex menu, tab, and radio items, keep the ring.
 `apps/web/src/components/ui/button.tsx` (shadcn/ui, adapted). Variants: `primary` (one per form or
 region), `secondary` (teal wash), `outline` (`input` border on `surface`), `ghost`, `destructive`,
 `link`. Sizes: `default` (min 44 px high, 20 px inline padding), `lg` (48 px), `icon` (44 × 44 px).
-Medium weight (500), 16 px text, colour-only transitions (150 ms), disabled at 50 % opacity; `aria-disabled` (a submit button while its form is sent) at 70 % with a
+Regular weight (400, `font-medium`), 16 px text, colour-only transitions (150 ms), disabled at 50 % opacity; `aria-disabled` (a submit button while its form is sent) at 70 % with a
 not-allowed cursor, still focusable. `asChild`
 renders a link with button styling. A `<button>` defaults to `type="button"`; submit buttons say
 `type="submit"`.
@@ -336,7 +348,7 @@ revert those lines: the tokens above are the only source of colour.
 ### Inputs / Fields
 
 `components/ui/{input,select,checkbox,label}.tsx` and `components/forms/field.tsx`: visible label above
-the control (14 px, medium), `input` border, `surface` fill, 44 px minimum height, 16 px text; an invalid
+the control (14 px, `font-medium` = 400), `input` border, `surface` fill, 44 px minimum height, 16 px text; an invalid
 control gets a `danger` border and `aria-invalid`, and the error text in `danger` below the field is
 linked by `aria-describedby` (error first, then the hint in `muted-foreground`). Checkboxes and selects
 are the native elements styled with tokens (no Radix), so every form works without JavaScript; a checkbox

@@ -226,8 +226,9 @@ Every unknown in the plan's Technical Context is resolved here. Format per item:
 - **Decision**: `<html lang dir>` from the locale; Tailwind logical utilities only, enforced by
   `scripts/check-rtl.mjs`; shadcn/ui components are converted to logical utilities when added (use the CLI's
   RTL option if the pinned version has one; otherwise convert by hand — the check is the gate). Font: **IBM
-  Plex Sans Arabic** (Arabic + Latin glyphs; weights 400/500/600/700) self-hosted through the
-  `@fontsource/ibm-plex-sans-arabic` package's per-subset CSS (OFL-1.1), with a system fallback stack. Body
+  Plex Sans Arabic** (Arabic + Latin glyphs; weights 400/700 since PR-39, see §17) self-hosted from the
+  woff2 files of the `@fontsource/ibm-plex-sans-arabic` package (OFL-1.1) through `next/font/local`, with a
+  metric-matched fallback and a system fallback stack. Body
   line-height 1.7 for Arabic, no letter-spacing or italics on Arabic text, inputs ≥ 16 px, LTR fragments
   (`type=email|password|url|tel`, student codes, slugs) rendered with `dir="ltr"`.
 - **Rationale**: FR-036, constitution IV; a single family covering both scripts keeps mixed text
@@ -298,6 +299,26 @@ Every unknown in the plan's Technical Context is resolved here. Format per item:
   (Lighthouse mobile preset) and recorded in the PR.
 - **Alternatives**: Lighthouse CI as a required gate — timing variance on shared runners causes flaky
   failures; revisit in feature 009.
+- **Font budget (PR-39, owner-approved 2026-11-18)**: the PR-38 Lighthouse run (mobile preset) measured LCP
+  3.0 s on `/ar/sign-in` and 3.9 s on `/ar/dashboard` against SC-006's 2.5 s; the LCP element was text,
+  and the page fetched eight font files (four weights × Arabic and Latin, about 230 KB) at the highest
+  priority. So only weights 400 and 700 are loaded (`font-medium` → 400, `font-semibold` → 700 in the
+  tokens, DESIGN.md "Typography"); the files go through `next/font/local` so the Arabic 400 file is
+  preloaded and cached immutably; the Arabic faces also claim the space (their files contain it), so
+  Arabic text no longer pulls a Latin file; and a `size-adjust`ed local fallback keeps the swap from
+  shifting layout. `perf-budget.spec.ts` asserts at most the four Plex files (≤ 130 KB) and one font
+  preload on every budgeted screen — deterministic like the JS budget. Rejected: `experimental.inlineCss`
+  (removes the stylesheet request, but the pinned Next.js embeds the CSS four times in each HTML page and
+  again in every client-navigation payload).
+  **Measured after PR-39** (Lighthouse 12.8.2, mobile preset, production build, 2026-11-18; the Accept
+  line of T147 uses the preset's default *simulated* throttling): `/ar/sign-in` LCP 2.6 s / 3.1 s (two runs;
+  FCP 2.3 → 1.4 s), `/ar/dashboard` LCP 2.7 s / 2.7 s (was 3.9 s; FCP 2.6 → 1.5 s), CLS 0 on both. With
+  `--throttling-method=devtools` (real slow-4G + 4× CPU throttling) both screens show LCP 1.5 s. Fonts per
+  screen fell from 8 files (~230 KB) to 3–4 (106–126 KB). The remaining simulated gap is script, not fonts:
+  the 14–17 JS chunks (180–215 KB, within the FR-043 budgets) finish before the observed LCP on the
+  unthrottled trace, so Lighthouse's simulation puts all of them in front of the LCP while FCP's estimate
+  leaves them out. Font tweaks (preloading the 700 weight, `font-display: optional`) cannot remove that
+  and were not pursued; closing the gap means less first-load JavaScript (open follow-up for the owner).
 
 ## 18. Browser protections
 

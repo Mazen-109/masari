@@ -115,6 +115,9 @@ Thresholds are switched on in the batch that adds the first real code to each pa
   responses (Chromium DevTools protocol) until network idle, and asserts ≤ 200 KB for public screens
   (`/ar/sign-in`, `/ar/register`; `/ar` until those exist) and ≤ 300 KB for signed-in screens (`/ar/dashboard`, `/ar/admin/users` once
   it exists).
+- The same test holds the font budget (PR-39): every `Font` response is one of the IBM Plex Sans Arabic
+  files of `apps/web/src/app/fonts.ts` (Arabic or Latin, weight 400 or 700), at most 4 files and ≤ 130 KB
+  encoded in total, and the page has exactly one font preload (the Arabic 400 file).
 
 ## 6. Repository files that belong to CI
 

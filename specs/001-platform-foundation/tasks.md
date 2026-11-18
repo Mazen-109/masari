@@ -89,6 +89,7 @@ previous batch is merged.
 | PR-36 | US7 | Divisions management | 380 |
 | PR-37 | Polish | Browser protections | 200 |
 | PR-38 | Polish | Final sweep and documentation | 250 |
+| PR-39 | Polish | Faster first paint on mobile (owner-approved 2026-11-18) | 150 |
 
 ---
 
@@ -511,13 +512,23 @@ permissions. **No user-story batch may start before PR-14 is merged.**
 
 **Accept**: axe: zero serious/critical on every listed screen in `ar` and `en` · script budgets pass with the measured values printed · quickstart completed in < 15 minutes (SC-008) · every FR in spec.md is ticked against a merged batch in the PR description's traceability table
 
+### PR-39 — Faster first paint on mobile · branch `001-pr39-first-paint`
+
+Added with the owner's approval on 2026-11-18 after T146 measured LCP above SC-006 (research.md §17 "Font budget").
+
+- [ ] T147 Cut the web-font cost of first paint (FR-043, SC-006, constitution VI): load IBM Plex Sans Arabic weights 400 and 700 only, through `next/font/local` in `apps/web/src/app/fonts.ts` (woff2 files of `@fontsource/ibm-plex-sans-arabic`; `font-display: swap`; preload only the Arabic 400 file; Arabic faces declared after the Latin ones and covering U+0020/U+00A0), imported next to `globals.css` in `[locale]/layout.tsx`, `not-found.tsx`, and `global-error.tsx`; remap the weight tokens in `apps/web/src/app/globals.css` (`font-medium` → 400, `font-semibold` → 700; unused weight utilities removed) and add a metric-matched local fallback face per weight (`size-adjust`, ascent/descent/line-gap overrides) second in `--font-sans`; unit test `apps/web/src/app/fonts.test.ts`; extend `apps/web/e2e/perf-budget.spec.ts` with the font budget of contracts/ci.md §5; update DESIGN.md "Typography" and research.md §13/§17
+
+Status 2026-11-18: implemented and all gates green, but **not ticked** — the Accept line's LCP is not met with the preset's default simulated throttling (sign-in 2.6 s / 3.1 s, dashboard 2.7 s; 1.5 s on both with devtools throttling). The remaining gap is first-load JavaScript (research.md §17); the owner decides on a follow-up.
+
+**Accept**: Lighthouse 12.8.2 mobile preset (default simulated throttling) on the production build: LCP < 2.5 s on `/ar/sign-in` and `/ar/dashboard`, CLS ≤ 0.1 (values in the PR description) · the font budget passes on every budgeted screen and prints the measured KB and file count · script budgets and axe scans still pass · no CSP change
+
 ---
 
 ## Dependencies & Execution Order
 
 ### Batch order
 
-Strictly sequential: `PR-1 → PR-2 → … → PR-38`. This is the only supported order for the single
+Strictly sequential: `PR-1 → PR-2 → … → PR-38 → PR-39`. This is the only supported order for the single
 implementer/reviewer workflow; the notes below explain why and what could move if the owner re-prioritises.
 
 ### Phase dependencies
@@ -603,7 +614,7 @@ After each checkpoint the system is releasable for the stories completed so far.
 | FR-039, FR-040 | PR-18, PR-19, PR-22, PR-28 |
 | FR-041 | PR-7 |
 | FR-042 | PR-10, PR-15, every screen batch, PR-38 |
-| FR-043 | PR-10, PR-18, PR-32, PR-38 |
+| FR-043 | PR-10, PR-18, PR-32, PR-38, PR-39 |
 | FR-044 | PR-5, PR-14, and every batch whose action lists an audit |
 | FR-045 | PR-9 |
 | FR-046 | PR-2, PR-7, PR-8, PR-10 |
@@ -611,7 +622,7 @@ After each checkpoint the system is releasable for the stories completed so far.
 | FR-048, FR-049 | PR-7 (noindex metadata), PR-37 |
 | SC-003 | PR-3…PR-5, PR-21, PR-25 (isolation tests), PR-27 (e2e) |
 | SC-004 | PR-13 (matrix), PR-30 (e2e matrix) |
-| SC-005, SC-006 | PR-10, PR-38 |
+| SC-005, SC-006 | PR-10, PR-38 (SC-006 LCP: PR-39) |
 | SC-007 | PR-26, PR-27 |
 | SC-008, SC-009 | PR-2, PR-38 |
 
