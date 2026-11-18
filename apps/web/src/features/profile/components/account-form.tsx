@@ -35,9 +35,9 @@ export function AccountForm({ name, email }: AccountFormProps) {
       <Field id="account-name" label={t('name')} error={fieldErrors?.name}>
         {(control) => (
           <Input
-            {...control}
             // Remounts with the saved (or echoed) name, so the field never keeps a stale value.
             key={value}
+            {...control}
             name="name"
             autoComplete="name"
             required

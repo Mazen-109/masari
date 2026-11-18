@@ -95,8 +95,8 @@ export function AcceptInvitationForm({ token }: AcceptInvitationFormProps) {
       >
         {(control) => (
           <Checkbox
-            {...control}
             key={`consent-${String(consent)}`}
+            {...control}
             name="consent"
             required
             defaultChecked={consent}

@@ -22,6 +22,12 @@ const BASE_RESTRICTED_SYNTAX = [
     selector: 'CallExpression > MemberExpression.callee[property.name="only"]',
     message: 'Focused tests (.only) must not be committed.',
   },
+  {
+    // A `key` after a spread makes the JSX transform fall back to createElement, where React 19 reports
+    // a false "unique key" warning for mixed static + mapped children (e.g. a placeholder <option>).
+    selector: 'JSXSpreadAttribute ~ JSXAttribute[name.name="key"]',
+    message: 'Put the `key` prop before any {...spread} attribute.',
+  },
 ];
 
 // User-facing attributes that `react/jsx-no-literals` (ignoreProps) does not cover. `alt=""` for

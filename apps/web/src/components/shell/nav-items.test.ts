@@ -47,9 +47,24 @@ describe('buildNavItems', () => {
     expect(buildNavItems(ctx('student_affairs', ['codejudge'])).main).toHaveLength(1);
   });
 
-  it('has no administration entries yet for any role (later batches add them)', () => {
-    expect(ADMIN_NAV_ENTRIES).toEqual([]);
-    for (const role of ROLES) expect(buildNavItems(ctx(role)).admin).toEqual([]);
+  it('gives only the administration the Invitations entry', () => {
+    expect(buildNavItems(ctx('admin')).admin).toEqual([
+      {
+        id: 'admin-invitations',
+        href: '/admin/invitations',
+        icon: 'MailPlus',
+        label: 'nav.admin.invitations',
+      },
+    ]);
+    for (const role of ['student', 'faculty', 'student_affairs'] as const) {
+      expect(buildNavItems(ctx(role)).admin).toEqual([]);
+    }
+  });
+
+  it('lists the administration entries in display order', () => {
+    const order = ['users', 'invitations', 'divisions', 'settings'];
+    const keys = ADMIN_NAV_ENTRIES.map((entry) => entry.key);
+    expect(keys).toEqual([...keys].sort((a, b) => order.indexOf(a) - order.indexOf(b)));
   });
 
   it('filters administration entries by permission, keeping their order', () => {

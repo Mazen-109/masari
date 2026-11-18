@@ -57,8 +57,8 @@ export function RegisterForm({ college, colleges }: RegisterFormProps) {
         <Field id="register-college" label={t('college')} error={fieldErrors?.tenantSlug}>
           {(control) => (
             <Select
-              {...control}
               key={`college-${pickerValue}`}
+              {...control}
               name="tenantSlug"
               required
               defaultValue={pickerValue}
@@ -162,8 +162,8 @@ export function RegisterForm({ college, colleges }: RegisterFormProps) {
       >
         {(control) => (
           <Checkbox
-            {...control}
             key={`consent-${String(consent)}`}
+            {...control}
             name="consent"
             required
             defaultChecked={consent}

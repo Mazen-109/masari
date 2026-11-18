@@ -18,7 +18,8 @@ export const DEMO_SLUG = 'demo';
 /** The demo administrator's invitation address (data-model.md §5); `.test` never receives mail. */
 export const DEMO_ADMIN_EMAIL = 'admin@demo.masari.test';
 
-const DEMO_COLLEGE = {
+/** The demo college's slug and names (data-model.md §5). */
+export const DEMO_COLLEGE = {
   slug: DEMO_SLUG,
   nameAr: 'كلية الحاسبات والذكاء الاصطناعي (تجريبي)',
   nameEn: 'Faculty of Computers and AI (Demo)',
