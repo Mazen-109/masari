@@ -8,12 +8,13 @@ profile, and an Arabic-first, right-to-left interface with English.
 
 ## Status
 
-Feature 001 — **Platform Foundation** — is complete: student registration with email confirmation,
+Feature 001 — **Platform Foundation** — is implemented: student registration with email confirmation,
 sign-in and password recovery, the academic profile, colleges created by an operator, staff invitations,
 role-based access for the four roles, people management, college settings and divisions, the bilingual
 signed-in shell with placeholders for the six modules, and browser protections. Every requirement is
 traced to the pull request that delivered it in
-[traceability.md](specs/001-platform-foundation/traceability.md). The next features are listed in the
+[traceability.md](specs/001-platform-foundation/traceability.md). One gap remains open: under the Lighthouse mobile
+preset, `/ar/sign-in` and `/ar/dashboard` show their main content in 3.0 s and 3.9 s, above the 2.5 s target of FR-043. The next features are listed in the
 [roadmap](docs/roadmap.md).
 
 ## Documents

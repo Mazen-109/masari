@@ -51,12 +51,12 @@ prove it. `e2e/…` is `apps/web/e2e/…`; `web/…` is `apps/web/src/…`; `db/
 | FR-040 | Home greets by name; student summary; admin shortcuts | PR-18, PR-19, PR-22, PR-28 (PR-32, PR-35, PR-36 added shortcuts) | `e2e/shell.spec.ts`, `e2e/invitations.spec.ts` | ✅ |
 | FR-041 | Western digits; Gregorian dates in Cairo time | PR-7 | `web/lib/format.test.ts`; `scripts/check-i18n.test.mjs` | ✅ |
 | FR-042 | WCAG 2.1 AA in both languages; keyboard; 200% zoom | PR-10, PR-15, PR-38 (all screens, 320 px and zoom checks) | `e2e/a11y.spec.ts`, `e2e/responsive.spec.ts`, `e2e/shell.spec.ts` | ✅ |
-| FR-043 | Performance budgets; script ≤ 200 KB public / 300 KB signed in | PR-10, PR-38 (`/ar/register` budget, recorded timings) | `e2e/perf-budget.spec.ts` | ✅ |
+| FR-043 | Performance budgets; script ≤ 200 KB public / 300 KB signed in | PR-10, PR-38 (`/ar/register` budget, recorded timings) | `e2e/perf-budget.spec.ts` | ⚠️ partial: script budgets met (sign-in 179.8 KB, register 179.9 KB, dashboard 212 KB, admin/users 217 KB). Main content within 2.5 s is **not** met under the Lighthouse mobile preset (simulated slow 4G, 4× CPU): LCP 3.0 s on `/ar/sign-in`, 3.9 s on `/ar/dashboard`. Open follow-up; needs the owner's decision (constitution VI) |
 | FR-044 | Per-college append-only audit record of security events | PR-5, PR-12, PR-18, PR-22, PR-23, PR-24, PR-27, PR-28, PR-29, PR-33, PR-34, PR-35, PR-36 | `db/test/audit.int.test.ts`; `web/server/audit.test.ts`; audit assertions in the feature e2e specs | ✅ |
 | FR-045 | Status check without exposing data | PR-9 | `e2e/health.spec.ts`; `web/app/api/health/route.test.ts` | ✅ |
 | FR-046 | Every change checked automatically; not mergeable on failure | PR-2 (PR-10 added `e2e`) | `.github/workflows/ci.yml`; `docs/repo-settings.md` | ✅ |
-| FR-047 | Local start with a demo college from a written quickstart | PR-3, PR-6, PR-38 (quickstart run) | `quickstart.md`; `db/test/admin.int.test.ts` (seed) | ✅ |
+| FR-047 | Local start with a demo college from a written quickstart | PR-3, PR-6, PR-38 (quickstart Option B on a clean clone, 2026-11-18) | `quickstart.md`; `db/test/admin.int.test.ts` (seed) | ✅ (setup commands took under 1 minute with a warm package cache; V1, V2, the V4 invitation and the V8 health/sign-up checks were walked through with a script; the remaining scenarios rely on their e2e specs) |
 | FR-048 | Browser protections on every response | PR-37 | `web/lib/security-headers.test.ts`; `e2e/security-headers.spec.ts` | ✅ |
 | FR-049 | Search engines asked not to index | PR-7, PR-37 | `web/lib/security-headers.test.ts`; `e2e/security-headers.spec.ts` | ✅ |
 
-All 49 functional requirements are implemented and covered by tests; none is left open for a later batch.
+48 of the 49 functional requirements are implemented and covered by tests. FR-043 is partial: the script budgets are met, but the 2.5 s main-content target is missed under the Lighthouse mobile preset (see the row above).
