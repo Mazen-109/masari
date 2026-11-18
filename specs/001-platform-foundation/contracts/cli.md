@@ -55,7 +55,9 @@ Idempotent. Exit 1 with a one-line reason on failure (never prints a connection 
 
 Runs `seedDemo` (data in `data-model.md` §5). Idempotent: running twice changes nothing. Prints the demo
 college slug and, when an administrator invitation was created (from PR-26), the line
-`Admin invitation link: <APP_URL>/ar/invite/<token>`. Fails closed: runs only when `APP_ENV` is explicitly
+`Admin invitation link: <APP_URL>/ar/invite/<token>`; when no invitation was created because a usable one
+is already pending (its link cannot be shown again — only its hash is stored), it prints instead
+`Admin invitation already pending: no new link was created (revoke it to get a new link).` (PR-27). Fails closed: runs only when `APP_ENV` is explicitly
 `development` or `test` (read through `getAdminDbEnv()`); when it is `production` or not set, it prints
 `Refusing to seed demo data: APP_ENV is <value|not set>; it must be development or test. Nothing was changed.`
 and exits 1 without connecting to the database. `APP_URL` is required (the invitation link is built from it

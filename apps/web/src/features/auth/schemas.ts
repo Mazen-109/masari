@@ -119,3 +119,24 @@ export const resetPasswordSchema = z.object({
 });
 
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+/** An invitation link token: 32 random bytes in base64url without padding (packages/db tokens.ts). */
+const INVITATION_TOKEN = /^[A-Za-z0-9_-]{43}$/;
+
+/**
+ * Accepting an invitation (contracts/server-actions.md §4.7). The email and the role come from the
+ * invitation, never from the form. The action reports a missing or malformed `token` (a hidden field) as
+ * `token_invalid`, never as a field error.
+ */
+export const acceptInvitationSchema = z.object({
+  token: z
+    .string({ error: 'required' })
+    .trim()
+    .min(1, { error: 'required' })
+    .regex(INVITATION_TOKEN, { error: 'invalid_format' }),
+  name: nameField,
+  password: newPasswordField,
+  consent: consentField,
+});
+
+export type AcceptInvitationInput = z.infer<typeof acceptInvitationSchema>;

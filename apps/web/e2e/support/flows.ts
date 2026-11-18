@@ -63,6 +63,31 @@ export async function fillRegistration(page: Page, input: RegistrationInput): Pr
   await page.getByRole('checkbox').setChecked(input.consent ?? true);
 }
 
+export type AcceptInvitationInput = {
+  /** Locale-less path of the invitation link (`/invite/<token>`). */
+  invitePath: string;
+  locale?: TestLocale;
+  name?: string;
+  password?: string;
+  consent?: boolean;
+  /** Open the invitation screen first (default true); false submits the form already on screen. */
+  open?: boolean;
+};
+
+/**
+ * Opens the invitation link, fills the form, and submits it. Does not wait for the result: callers assert
+ * the URL (`/{locale}/sign-in?invited=1` on success) or the errors.
+ */
+export async function acceptInvitation(page: Page, input: AcceptInvitationInput): Promise<void> {
+  const locale = input.locale ?? 'ar';
+  const t = CATALOGS[locale].auth.invite;
+  if (input.open ?? true) await page.goto(`/${locale}${input.invitePath}`);
+  await page.getByLabel(t.name, { exact: true }).fill(input.name ?? 'Test Administrator');
+  await page.getByLabel(t.password, { exact: true }).fill(input.password ?? TEST_PASSWORD);
+  await page.getByRole('checkbox').setChecked(input.consent ?? true);
+  await page.getByRole('button', { name: t.submit }).click();
+}
+
 /** Subject (English part) of the confirmation email (contracts/emails.md §3). */
 export const VERIFY_SUBJECT = 'Confirm your email for Masari';
 

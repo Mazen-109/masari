@@ -267,7 +267,7 @@ describe('createTenant under a non-superuser owner (forced RLS applies)', () => 
     const first = await seedDemo(scratchUrl);
     expect(await divisionCodes(first.tenantId)).toEqual(['GEN', 'CS', 'IS', 'IT', 'AI']);
     const second = await seedDemo(scratchUrl);
-    expect(second).toEqual({ tenantId: first.tenantId, adminInvitationToken: null });
+    expect(second).toMatchObject({ tenantId: first.tenantId, adminInvitationToken: null });
     expect(await divisionCodes(second.tenantId)).toEqual(['GEN', 'CS', 'IS', 'IT', 'AI']);
     expect(await countTenants(DEMO_SLUG)).toBe(1);
   });
@@ -307,7 +307,12 @@ describe('createAdminInvitation', () => {
 
   it("revokes an expired pending invitation only in its own college, never in another one's", async () => {
     // Runs under the default owner connection — a superuser locally and in CI, which bypasses RLS — so only
-    // the explicit tenant_id filter keeps college B's invitation out of reach.
+    // the explicit tenant_id filter keeps college B's invitation out of reach. The precondition is
+    // asserted, so that the test cannot pass vacuously under an owner that RLS would already restrict.
+    const role = await ownerQuery<{ rolsuper: boolean }>(
+      'SELECT rolsuper FROM pg_roles WHERE rolname = current_user',
+    );
+    expect(role.rows).toEqual([{ rolsuper: true }]);
     const collegeA = await makeTenant();
     const collegeB = await makeTenant();
     const email = adminEmail();
@@ -493,7 +498,12 @@ describe('seedDemo', () => {
     await revokeDemoInvitations();
     const first = await seedDemo(migrationUrl());
     const second = await seedDemo(migrationUrl());
-    expect(second).toEqual({ tenantId: first.tenantId, adminInvitationToken: null });
+    // The first run's invitation is still usable: nothing new, and the caller can say so.
+    expect(second).toEqual({
+      tenantId: first.tenantId,
+      adminInvitationToken: null,
+      adminInvitationPending: true,
+    });
     expect(await countTenants(DEMO_SLUG)).toBe(1);
 
     const token = first.adminInvitationToken;
@@ -544,6 +554,7 @@ describe('seedDemo when the demo college has an administrator', () => {
       await expect(seedDemo(migrationUrl())).resolves.toEqual({
         tenantId,
         adminInvitationToken: null,
+        adminInvitationPending: false,
       });
       const pending = await ownerTenantQuery(
         tenantId,
@@ -568,7 +579,7 @@ describe('seed script (pnpm db:seed)', () => {
   }
 
   it(
-    'run twice leaves one demo college with five divisions and prints the link once',
+    'run twice leaves one demo college with five divisions, prints the link once, then a hint',
     { timeout: 60_000 },
     async () => {
       const tenantId = await revokeDemoInvitations();
@@ -587,7 +598,10 @@ describe('seed script (pnpm db:seed)', () => {
       });
 
       const second = await seedScript({ APP_ENV: 'test', APP_URL });
-      expect(second.stdout.trim()).toBe(`Demo college ready: ${DEMO_SLUG}`);
+      expect(second.stdout.trim().split('\n')).toEqual([
+        `Demo college ready: ${DEMO_SLUG}`,
+        'Admin invitation already pending: no new link was created (revoke it to get a new link).',
+      ]);
       expect(await countTenants(DEMO_SLUG)).toBe(1);
       expect(await divisionCodes(tenantId)).toEqual(['GEN', 'CS', 'IS', 'IT', 'AI']);
     },

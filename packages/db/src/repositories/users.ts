@@ -1,6 +1,7 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '../client';
-import type { Locale, UserSummary } from '../constants';
+import type { Locale, Role, UserSummary } from '../constants';
+import { isUuid } from '../context';
 import { users } from '../schema';
 
 /**
@@ -62,4 +63,48 @@ export async function setLocale(userId: string, locale: Locale): Promise<void> {
     .update(users)
     .set({ locale, updatedAt: sql`now()` })
     .where(eq(users.id, userId));
+}
+
+/**
+ * Completes an account created from an invitation (contracts/server-actions.md §4.7 step 6): sets the
+ * invited role and marks the address as confirmed — the invitation link proved it. Scoped to tenantId.
+ * Throws (with no data in the message) when the college has no account with this id, so the caller never
+ * goes on with a half-made account (it compensates instead).
+ */
+export async function activateInvited(tenantId: string, userId: string, role: Role): Promise<void> {
+  const rows =
+    userId === '' || !isUuid(tenantId)
+      ? []
+      : await getDb()
+          .update(users)
+          .set({ role, emailVerified: true, updatedAt: sql`now()` })
+          .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)))
+          .returning({ id: users.id });
+  if (rows.length === 0) throw new Error('users.activateInvited: account not found in the college');
+}
+
+/** How recent an account must be for deleteJustCreated to remove it. */
+const JUST_CREATED = sql`interval '10 minutes'`;
+
+/**
+ * Compensation only (contracts/server-actions.md §4.7 step 6): deletes the account created moments ago for
+ * an invitation whose acceptance then failed — otherwise the address would stay taken and the invitation
+ * unusable forever. The database cascades to its credential accounts and sessions and clears references to
+ * it (invitations.accepted_user_id, audit_events.actor_user_id). Deletes only an account of tenantId created
+ * within the last 10 minutes; false when nothing matched (another college's account, an older one, or an
+ * unknown id).
+ */
+export async function deleteJustCreated(tenantId: string, userId: string): Promise<boolean> {
+  if (userId === '' || !isUuid(tenantId)) return false;
+  const rows = await getDb()
+    .delete(users)
+    .where(
+      and(
+        eq(users.id, userId),
+        eq(users.tenantId, tenantId),
+        sql`${users.createdAt} > now() - ${JUST_CREATED}`,
+      ),
+    )
+    .returning({ id: users.id });
+  return rows.length > 0;
 }

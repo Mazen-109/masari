@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseForm } from '@/lib/form';
 import {
+  acceptInvitationSchema,
   forgotPasswordSchema,
   registerSchema,
   resendSchema,
@@ -300,5 +301,63 @@ describe('resetPasswordSchema', () => {
     ['x'.repeat(257), 'invalid_format'],
   ])('token %j → %s', (token, code) => {
     expect(resetErrors({ token, password: PASSWORD })).toStrictEqual({ token: code });
+  });
+});
+
+describe('acceptInvitationSchema', () => {
+  // 43 base64url characters, like a real invitation token (built from a pattern, not a literal).
+  const TOKEN = `${'Iv4_'.repeat(10)}a-Z`;
+  const ACCEPT = { token: TOKEN, name: 'Mona Ali', password: PASSWORD, consent: 'on' };
+
+  function acceptErrors(entries: Record<string, string | undefined>) {
+    const result = parseForm(acceptInvitationSchema, form(entries));
+    if (result.ok) return null;
+    return result.failure.ok ? null : (result.failure.fieldErrors ?? null);
+  }
+
+  it('trims token and name, keeps the password as typed, and ignores email, role, and tenant', () => {
+    expect(TOKEN).toHaveLength(43);
+    expect(
+      parseForm(
+        acceptInvitationSchema,
+        form({
+          ...ACCEPT,
+          token: ` ${TOKEN} `,
+          name: '  منى علي ',
+          password: ` ${PASSWORD} `,
+          email: 'other@example.edu',
+          role: 'admin',
+          tenantId: '00000000-0000-4000-8000-000000000000',
+        }),
+      ),
+    ).toStrictEqual({
+      ok: true,
+      data: { token: TOKEN, name: 'منى علي', password: ` ${PASSWORD} `, consent: 'on' },
+    });
+  });
+
+  it.each([
+    [undefined, 'required'],
+    ['  ', 'required'],
+    [TOKEN.slice(1), 'invalid_format'],
+    [`${TOKEN}x`, 'invalid_format'],
+    [`${TOKEN.slice(1)}/`, 'invalid_format'],
+    [`${TOKEN.slice(1)}=`, 'invalid_format'],
+  ])('token %j → %s', (token, code) => {
+    expect(acceptErrors({ ...ACCEPT, token })).toStrictEqual({ token: code });
+  });
+
+  it.each([
+    ['name', undefined, 'required'],
+    ['name', 'M', 'too_short'],
+    ['name', 'm'.repeat(101), 'too_long'],
+    ['name', 'Mona\u202EAli', 'invalid_format'],
+    ['password', undefined, 'required'],
+    ['password', 'x'.repeat(9), 'password_too_short'],
+    ['password', 'x'.repeat(129), 'password_too_long'],
+    ['consent', undefined, 'consent_required'],
+    ['consent', 'yes', 'consent_required'],
+  ] as const)('%s %j → %s', (field, value, code) => {
+    expect(acceptErrors({ ...ACCEPT, [field]: value })).toStrictEqual({ [field]: code });
   });
 });

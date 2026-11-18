@@ -109,7 +109,11 @@ function normaliseEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-/** True when an account with this (normalised) email exists in any college; `users` is global. */
+/**
+ * True when an account with this (normalised) email exists in ANY college. Deliberately global, not limited
+ * to tenantId: `users` has no row-level security and an email is unique across all colleges (data-model.md
+ * §3.2), so an invitation for an address that already has an account anywhere could never be accepted.
+ */
 async function emailHasAccount(client: pg.Client, normalisedEmail: string): Promise<boolean> {
   const account = await client.query('SELECT 1 FROM users WHERE email = $1 LIMIT 1', [
     normalisedEmail,

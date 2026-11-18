@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test';
 import { expectNoA11yViolations } from './support/axe';
 import { expect, test } from './support/fixtures';
 import {
+  acceptInvitation,
   CATALOGS,
   completeProfile,
   registerConfirmedStudent,
@@ -9,6 +10,7 @@ import {
   signIn,
   uniqueEmail,
 } from './support/flows';
+import { createCollege, uniqueCollegeSlug } from './support/operator';
 import { registerStudentWithProfile } from './support/students';
 
 // Accessibility scan of every screen in both languages (contracts/ci.md §5, FR-042). Every batch that adds
@@ -27,6 +29,8 @@ export const PUBLIC_SCREENS: readonly string[] = [
   '/reset-password',
   '/reset-password?error=INVALID_TOKEN',
   `/reset-password?token=${'Tk9'.repeat(8)}`,
+  // An unknown invitation token: the "no longer valid" screen. The form is scanned below.
+  `/invite/${'Iv4_'.repeat(10)}a-Z`,
 ];
 
 export const SIGNED_IN_SCREENS: readonly { path: string; roles: readonly string[] }[] = [
@@ -130,6 +134,28 @@ for (const locale of LOCALES) {
     await expect(page.locator('main [data-slot="form-error"]')).toHaveAttribute(
       'data-code',
       'token_invalid',
+    );
+    await expectNoA11yViolations(page);
+  });
+
+  test(`no serious or critical violations on /${locale}/invite/<valid token> and its errors`, async ({
+    page,
+  }) => {
+    const college = await createCollege(uniqueCollegeSlug('a11y'), uniqueEmail('dean'));
+    await page.goto(localized(locale, college.invitePath));
+    await expect(page.locator('main form')).toHaveCount(1);
+    await expectNoA11yViolations(page);
+
+    await acceptInvitation(page, {
+      invitePath: college.invitePath,
+      locale,
+      password: 'short',
+      consent: false,
+      open: false,
+    });
+    await expect(page.locator('main [data-slot="form-error"]')).toHaveAttribute(
+      'data-code',
+      'validation',
     );
     await expectNoA11yViolations(page);
   });

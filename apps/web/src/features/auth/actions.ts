@@ -1,6 +1,6 @@
 'use server';
 
-import { sessions, tenants, users } from '@masari/db';
+import { invitations, sessions, tenants, users, withTenant, type Invitation } from '@masari/db';
 import { isAPIError } from 'better-auth/api';
 import { headers } from 'next/headers';
 import { redirect, unstable_rethrow } from 'next/navigation';
@@ -11,6 +11,7 @@ import { DEFAULT_LOCALE, isLocale, type Locale } from '@/lib/locale';
 import { fail, ok, type ActionResult } from '@/lib/result';
 import { recordAudit } from '@/server/audit';
 import { getAuth } from '@/server/auth/auth';
+import { findUsableInvitation } from '@/server/auth/invitation-lookup';
 import { getSessionContext } from '@/server/auth/session';
 import { sendEmail } from '@/server/email/send';
 import { accountExists } from '@/server/email/templates/account-exists';
@@ -20,11 +21,13 @@ import { enforceRateLimit, rateLimitRules } from '@/server/rate-limit';
 import { getClientIp } from '@/server/request';
 import { isEmailDomainAllowed } from './rules';
 import {
+  acceptInvitationSchema,
   forgotPasswordSchema,
   registerSchema,
   resendSchema,
   resetPasswordSchema,
   signInSchema,
+  type AcceptInvitationInput,
   type RegisterInput,
 } from './schemas';
 
@@ -100,6 +103,7 @@ const REGISTER_ENTERED_FIELDS = ['tenantSlug', 'name', 'email', 'consent'] as co
 const RESEND_ENTERED_FIELDS = ['email'] as const;
 const SIGN_IN_ENTERED_FIELDS = ['email'] as const;
 const FORGOT_PASSWORD_ENTERED_FIELDS = ['email'] as const;
+const ACCEPT_INVITATION_ENTERED_FIELDS = ['name', 'consent'] as const;
 const MAX_ENTERED_LENGTH = 254;
 
 /**
@@ -513,4 +517,180 @@ export async function resetPasswordAction(
   }
   if (result.ok) redirect(`/${locale}/sign-in?reset=1`);
   return result;
+}
+
+const SQLSTATE = /^[0-9A-Z]{5}$/;
+
+/** The SQLSTATE of a database error (also when wrapped as `cause`), for the log; null when there is none. */
+function sqlStateOf(error: unknown): string | null {
+  let current = error;
+  for (let depth = 0; depth < 3 && typeof current === 'object' && current !== null; depth += 1) {
+    if ('code' in current && typeof current.code === 'string' && SQLSTATE.test(current.code)) {
+      return current.code;
+    }
+    current = 'cause' in current ? current.cause : undefined;
+  }
+  return null;
+}
+
+/** The library answered with an account that is not one it just created for this invitation. */
+class InvitedAccountMismatchError extends Error {
+  override name = 'InvitedAccountMismatchError';
+}
+
+type InvitedAccount = { userId: string | null; libraryAnswered: boolean };
+
+/**
+ * Step 6 compensation, best effort and in this order: (a) delete the account if it was created, so the
+ * address is free again; (b) release the claim, so the invitation can be used again. A failing step is
+ * logged with ids only and does not stop the next one.
+ */
+async function compensateAcceptance(
+  invitation: Invitation,
+  account: InvitedAccount,
+): Promise<void> {
+  try {
+    // Without an answer from the library an account may still have been created: look it up by email.
+    // deleteJustCreated removes only an account of this college created in the last 10 minutes. When the
+    // library answered with an account that is not the new one, nothing of ours exists to delete.
+    let userId = account.userId;
+    if (userId === null && !account.libraryAnswered) {
+      userId = (await users.findByEmail(invitation.email))?.id ?? null;
+    }
+    if (userId !== null) await users.deleteJustCreated(invitation.tenantId, userId);
+  } catch (error) {
+    log.error('invitation.accept_compensation_failed', {
+      step: 'delete_account',
+      invitationId: invitation.id,
+      errorName: errorName(error),
+    });
+  }
+  try {
+    await withTenant({ tenantId: invitation.tenantId, userId: null }, (tx) =>
+      invitations.release(tx, invitation.id),
+    );
+  } catch (error) {
+    log.error('invitation.accept_compensation_failed', {
+      step: 'release',
+      invitationId: invitation.id,
+      errorName: errorName(error),
+    });
+  }
+}
+
+/**
+ * Steps 6–7 for a claimed invitation: the library creates the account with the invitation's email and
+ * college (never values from the form), then it gets the invited role and a confirmed address; the link to
+ * the invitation and the audit row commit together. No confirmation email is sent. The library's returned
+ * id is not trusted on its own (research.md §7): the account is read back by email and must be that id, in
+ * this college. On any failure it compensates and returns false.
+ */
+async function createInvitedAccount(
+  invitation: Invitation,
+  input: AcceptInvitationInput,
+  locale: Locale,
+): Promise<boolean> {
+  const account: InvitedAccount = { userId: null, libraryAnswered: false };
+  try {
+    const created = await getAuth().api.signUpEmail({
+      body: {
+        name: input.name,
+        email: invitation.email,
+        password: input.password,
+        tenantId: invitation.tenantId,
+        locale,
+        privacyConsentAt: new Date(),
+      },
+    });
+    account.libraryAnswered = true;
+    const stored = await users.findByEmail(invitation.email);
+    if (stored?.id !== created.user.id || stored.tenantId !== invitation.tenantId) {
+      // An account with this address appeared meanwhile and the library created nothing: never touch it.
+      throw new InvitedAccountMismatchError();
+    }
+    const userId = stored.id;
+    account.userId = userId;
+    await users.activateInvited(invitation.tenantId, userId, invitation.role);
+    await withTenant({ tenantId: invitation.tenantId, userId }, async (tx) => {
+      await invitations.setAcceptedUser(tx, invitation.id, userId);
+      await recordAudit(
+        { tenantId: invitation.tenantId, userId },
+        {
+          action: 'invitation.accepted',
+          targetId: invitation.id,
+          metadata: { role: invitation.role },
+        },
+        tx,
+      );
+    });
+    return true;
+  } catch (error) {
+    log.error('invitation.accept_failed', {
+      invitationId: invitation.id,
+      errorName: errorName(error),
+      sqlState: sqlStateOf(error),
+    });
+    await compensateAcceptance(invitation, account);
+    return false;
+  }
+}
+
+/**
+ * Steps 1–7 of contracts/server-actions.md §4.7; `ok` means "go to sign-in" (step 8). Every reason an
+ * invitation cannot be used — unknown, expired, revoked, used, suspended college, an address that already
+ * has an account, or a claim lost to a concurrent submission — gives the same `token_invalid`.
+ */
+async function acceptInvitation(formData: FormData, locale: Locale): Promise<ActionResult> {
+  const parsed = parseForm(acceptInvitationSchema, formData);
+  if (!parsed.ok) {
+    const failure = parsed.failure;
+    // The token is a hidden field: a missing or malformed one is an invalid link, not a field error.
+    return !failure.ok && failure.fieldErrors?.token !== undefined
+      ? fail('token_invalid')
+      : failure;
+  }
+  const input = parsed.data;
+
+  const limited = await enforceRateLimit(
+    rateLimitRules('invite-accept', { ip: await getClientIp() }),
+  );
+  if (limited) return limited;
+
+  const found = await findUsableInvitation(input.token);
+  if (found === null) return fail('token_invalid');
+  const { invitation } = found;
+  if ((await users.findByEmail(invitation.email)) !== null) return fail('token_invalid');
+
+  const claimed = await withTenant({ tenantId: invitation.tenantId, userId: null }, (tx) =>
+    invitations.claim(tx, invitation.id),
+  );
+  if (claimed === null) return fail('token_invalid');
+
+  return (await createInvitedAccount(claimed, input, locale)) ? ok(undefined) : fail('internal');
+}
+
+/**
+ * Accepting an invitation (contracts/server-actions.md §4.7; FR-009, FR-011, FR-020, FR-021). Creates the
+ * account with the invited role in the invitation's college, its address already confirmed, then sends
+ * the user to sign in. The invitation is claimed atomically first, so of two submissions only one creates
+ * an account.
+ */
+export async function acceptInvitationAction(
+  _previous: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const locale = await currentLocale();
+  let result: ActionResult;
+  try {
+    result = await acceptInvitation(formData, locale);
+  } catch (error) {
+    unstable_rethrow(error);
+    log.error('invitation.accept_failed', {
+      errorName: errorName(error),
+      sqlState: sqlStateOf(error),
+    });
+    result = fail('internal');
+  }
+  if (result.ok) redirect(`/${locale}/sign-in?invited=1`);
+  return withEnteredValues(result, formData, ACCEPT_INVITATION_ENTERED_FIELDS);
 }

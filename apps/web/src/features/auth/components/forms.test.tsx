@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fail, ok, type ActionResult } from '@/lib/result';
 import en from '../../../../messages/en.json';
+import { AcceptInvitationForm } from './accept-invitation-form';
 import { ForgotPasswordForm } from './forgot-password-form';
 import { RegisterForm } from './register-form';
 import { ResendVerificationForm } from './resend-verification-form';
@@ -29,6 +30,7 @@ vi.mock('../actions', () => ({
   signInAction: () => undefined,
   requestPasswordResetAction: () => undefined,
   resetPasswordAction: () => undefined,
+  acceptInvitationAction: () => undefined,
 }));
 vi.mock('@/i18n/navigation', () => ({
   Link: ({ href, children }: { href: string; children: ReactNode }) => (
@@ -263,5 +265,41 @@ describe('ResetPasswordForm', () => {
     );
     expect(html).toContain(en.errors.password_too_short);
     expect(html).not.toContain('href="/forgot-password"');
+  });
+});
+
+describe('AcceptInvitationForm', () => {
+  const TOKEN = `${'Iv4_'.repeat(10)}a-Z`;
+
+  it('sends the token back as a hidden field and asks for name, password, and consent only', () => {
+    const html = render(<AcceptInvitationForm token={TOKEN} />, null);
+    expect(html).toContain(`<input type="hidden" name="token" value="${TOKEN}"/>`);
+    expect(html).toMatch(/<input[^>]*id="invite-name"[^>]*autoComplete="name"[^>]*name="name"/);
+    expect(html).toMatch(
+      /<input[^>]*id="invite-password"[^>]*dir="ltr"[^>]*autoComplete="new-password"/,
+    );
+    expect(html).toContain('name="consent"');
+    expect(html).toContain('href="/privacy"');
+    expect(html).not.toContain('name="email"');
+    expect(html).not.toContain('name="role"');
+  });
+
+  it('shows field errors and keeps the name and consent, never the password', () => {
+    const html = render(
+      <AcceptInvitationForm token={TOKEN} />,
+      fail('validation', {
+        fieldErrors: { password: 'password_too_short' },
+        meta: { name: 'Mona Ali', consent: 'on' },
+      }),
+    );
+    expect(html).toContain(en.errors.password_too_short);
+    expect(html).toContain('value="Mona Ali"');
+    expect(html).toMatch(/<[^>]*name="consent"[^>]*checked/);
+    expect(html).not.toMatch(/name="password"[^>]*value=/);
+  });
+
+  it('explains a link that is no longer valid', () => {
+    const html = render(<AcceptInvitationForm token={TOKEN} />, fail('token_invalid'));
+    expect(html).toContain(en.errors.token_invalid);
   });
 });

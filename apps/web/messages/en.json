@@ -152,6 +152,20 @@
       "invalidBody": "The link may have expired (it is valid for one hour only), may have been used already, or part of it may have changed.",
       "requestNew": "Request a new link"
     },
+    "invite": {
+      "title": "Join {college}",
+      "lead": "You have been invited to Masari. Enter your name and choose a password to create your account.",
+      "college": "College",
+      "role": "Your role",
+      "name": "Full name",
+      "password": "Password",
+      "passwordHint": "10 to 128 characters.",
+      "consent": "I have read and accept the <link>privacy notice</link>.",
+      "submit": "Create my account",
+      "invalidTitle": "This invitation is no longer valid",
+      "invalidBody": "The invitation may have expired, been withdrawn, or been used already, or the link may be incomplete. Ask your college administration for a new invitation.",
+      "signIn": "Go to sign in"
+    },
     "signOut": {
       "submit": "Sign out"
     }
@@ -287,6 +301,7 @@
     "signIn": "Sign in",
     "forgotPassword": "Reset your password",
     "resetPassword": "Choose a new password",
+    "invite": "Accept invitation",
     "dashboard": "Home",
     "onboarding": "Complete your profile",
     "profile": "Your profile"

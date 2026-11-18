@@ -211,8 +211,10 @@ All database calls are the `db-api.md` §1 functions, in the context named for e
 5. Claim: `withTenant({ tenantId: inv.tenantId, userId: null }, tx => invitations.claim(tx, inv.id))`;
    `null` → `fail('token_invalid')`.
 6. Create the account: `auth.api.signUpEmail` (the library's own connection, outside any transaction) with
-   the invitation's email and `tenantId`, `locale`, `privacyConsentAt = now`; then
-   `users.activateInvited(inv.tenantId, userId, inv.role)` (sets role and `email_verified = true`); then, in
+   the invitation's email and `tenantId`, `locale`, `privacyConsentAt = now`. The new account's id is used
+   only when `users.findByEmail(inv.email)` returns that same id in `inv.tenantId` (the library can return a
+   synthetic user when the email already exists — research.md §7), so another person's account is never
+   changed or deleted; then `users.activateInvited(inv.tenantId, userId, inv.role)` (sets role and `email_verified = true`); then, in
    one `withTenant({ tenantId: inv.tenantId, userId }, tx => …)` transaction,
    `invitations.setAcceptedUser(tx, inv.id, userId)` and the audit of step 7. No confirmation email is sent.
    On any failure in this step, compensate in this order and return `fail('internal')`:
