@@ -58,8 +58,11 @@ async function auditAfterChange<A extends AuditAction>(
   try {
     await recordAudit(ctx, event);
     return null;
-  } catch {
-    log.error('admin.user_audit_failed');
+  } catch (error) {
+    log.error('admin.user_audit_failed', {
+      errorName: errorName(error),
+      sqlState: sqlStateOf(error),
+    });
     return fail('internal');
   }
 }
@@ -247,7 +250,8 @@ function revalidateStudentScreens(): void {
 
 /**
  * Validate → target (a student of the caller's college) → the student form's college rules → create or
- * change the profile, with its audit row, in one withTenant transaction (the administrator is the actor).
+ * change the profile, with its audit row, in one withTenant transaction (the administrator is the actor),
+ * which first re-reads and locks the target's role (still a student of the college, else `not_found`).
  * A missing profile is created (`profile.created`); otherwise only the fields that differ are written and
  * listed in `profile.updated {fields}`; nothing differs → `ok`, no write, no audit row.
  */
@@ -268,6 +272,11 @@ async function updateStudentProfile(
   if (target?.role !== 'student') return fail('not_found');
 
   return withTenant({ tenantId: ctx.tenant.id, userId: ctx.user.id }, async (tx) => {
+    // Again in the transaction, holding the account until it ends: a role change made since the first
+    // read is seen here, and one made from now on waits for this write.
+    if ((await users.lockRoleInTenant(tx, ctx.tenant.id, userId)) !== 'student') {
+      return fail('not_found');
+    }
     const current = await studentProfiles.findByUserId(tx, userId);
     if (!isLevelAllowed(input.level, ctx.tenant.levelsCount))
       return invalid('level', 'out_of_range');

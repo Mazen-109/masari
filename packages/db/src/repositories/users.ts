@@ -60,6 +60,25 @@ export async function findInTenant(tenantId: string, userId: string): Promise<Us
   return rows[0] ?? null;
 }
 
+/**
+ * The role of the account with this id when it belongs to tenantId, read in the caller's transaction and
+ * locked (FOR SHARE) until it ends, so a concurrent role change (setRole locks the row FOR UPDATE) waits
+ * for the caller's writes; null otherwise (another college, unknown id).
+ */
+export async function lockRoleInTenant(
+  tx: Tx,
+  tenantId: string,
+  userId: string,
+): Promise<Role | null> {
+  if (userId === '' || !isUuid(tenantId)) return null;
+  const rows = await tx
+    .select({ role: users.role })
+    .from(users)
+    .where(inTenant(tenantId, userId))
+    .for('share');
+  return rows[0]?.role ?? null;
+}
+
 export interface UsersFilter {
   /** Part of the name, email, or student code; matched literally (no wildcards), case-insensitively. */
   q?: string;

@@ -36,6 +36,20 @@ export async function findById(id: string): Promise<Tenant | null> {
 }
 
 /**
+ * The college in context, read in the caller's transaction and locked (FOR UPDATE) until it ends, so two
+ * concurrent settings saves are applied one after the other and each compares against the values it
+ * replaces. null when the context names no college (RLS `tenants_update` limits the lock to that row).
+ */
+export async function findCurrentForUpdate(tx: Tx): Promise<Tenant | null> {
+  const rows = await tx
+    .select()
+    .from(tenants)
+    .where(sql`${tenants.id} = app_tenant_id()`)
+    .for('update');
+  return rows[0] ?? null;
+}
+
+/**
  * Updates the settings of the college in context and sets updated_at. Only the five settings columns are
  * copied from the patch, so a caller cannot smuggle `slug` or `status` in at run time.
  */

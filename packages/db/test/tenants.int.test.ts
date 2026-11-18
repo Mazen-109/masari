@@ -139,6 +139,45 @@ describe('tenants.updateSettings', () => {
   });
 });
 
+describe('tenants.findCurrentForUpdate', () => {
+  it('returns the college in context, as findById does', async () => {
+    const college = await makeTenant({ nameEn: 'Locked College' });
+    await makeTenant();
+    const found = await withTenant({ tenantId: college.id, userId: null }, (tx) =>
+      tenants.findCurrentForUpdate(tx),
+    );
+    expect(found).toEqual(await tenants.findById(college.id));
+    expect(found).toMatchObject({ id: college.id, nameEn: 'Locked College' });
+  });
+
+  it('returns null when the context names no college', async () => {
+    await expect(
+      withTenant({ tenantId: '00000000-0000-4000-8000-000000000000', userId: null }, (tx) =>
+        tenants.findCurrentForUpdate(tx),
+      ),
+    ).resolves.toBeNull();
+  });
+
+  it('holds the row until the transaction ends: a concurrent update of it waits', async () => {
+    const college = await makeTenant();
+    const order: string[] = [];
+    let concurrent: Promise<unknown> = Promise.resolve();
+    await withTenant({ tenantId: college.id, userId: null }, async (tx) => {
+      await tenants.findCurrentForUpdate(tx);
+      // Another connection (another transaction) tries to change the same college meanwhile.
+      concurrent = withTenant({ tenantId: college.id, userId: null }, (other) =>
+        tenants.updateSettings(other, { nameEn: 'Second' }),
+      ).then(() => order.push('concurrent'));
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      await tenants.updateSettings(tx, { nameEn: 'First' });
+      order.push('locked');
+    });
+    await concurrent;
+    expect(order).toEqual(['locked', 'concurrent']);
+    expect((await storedRow(college.id))?.name_en).toBe('Second');
+  });
+});
+
 describe('runtime role limits on tenants', () => {
   it('cannot insert a college', async () => {
     const code = await pgErrorCode(

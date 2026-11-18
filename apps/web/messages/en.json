@@ -398,6 +398,32 @@
         "revoke": "Revoke",
         "revokeTarget": "the invitation for <bdi>{email}</bdi>"
       }
+    },
+    "settings": {
+      "title": "College settings",
+      "lead": "Your college’s name, who may register as a student, the number of levels, and the modules your college uses. Changes apply to everyone in the college as soon as you save.",
+      "saved": "Settings saved.",
+      "submit": "Save settings",
+      "names": {
+        "legend": "College name",
+        "nameAr": "Name in Arabic",
+        "nameEn": "Name in English",
+        "hint": "Shown at the top of every screen to everyone in the college."
+      },
+      "students": {
+        "legend": "Students",
+        "domains": "Allowed email domains",
+        "domainsHint": "One domain per line, such as <ltr>example.edu</ltr> (up to 20). Students can register only with an address at one of them. Leave empty to accept any email address.",
+        "domainsInvalid": "Write each domain on its own line, such as <ltr>example.edu</ltr>, without @ or spaces.",
+        "domainsTooMany": "Enter at most 20 domains.",
+        "levelsCount": "Number of levels",
+        "levelsCountHint": "Students choose their level from 1 up to this number.",
+        "levelsInUse": "Students are registered up to level {min}, so the number of levels can’t be less than {min}."
+      },
+      "modules": {
+        "legend": "Enabled modules",
+        "hint": "A module you turn off disappears from the navigation and home screen of every role in the college. Nothing is deleted: turn it on again to bring it back."
+      }
     }
   },
   "meta": {
@@ -416,6 +442,7 @@
     "onboarding": "Complete your profile",
     "profile": "Your profile",
     "adminUsers": "People",
-    "adminInvitations": "Invitations"
+    "adminInvitations": "Invitations",
+    "adminSettings": "College settings"
   }
 }

@@ -8,6 +8,7 @@ import {
   createStudentProfile,
   expireInvitation,
   getStudentProfileByEmail,
+  getTenantSettings,
   getUserByEmail,
   listAuditEvents,
   listInvitations,
@@ -354,6 +355,30 @@ describe('getStudentProfileByEmail', () => {
     await expect(
       getStudentProfileByEmail(migrationUrl(), `${randomSlug('none')}@example.test`),
     ).resolves.toBeNull();
+  });
+});
+
+describe('getTenantSettings', () => {
+  it('returns the stored settings of that college', async () => {
+    const tenant = await makeTenant({ nameAr: 'كلية الإعدادات', nameEn: 'Settings College' });
+    await ownerQuery(
+      `UPDATE tenants SET allowed_email_domains = '{uni.example.edu}', levels_count = 5,
+              enabled_modules = '{mueed,kitabi}' WHERE id = $1`,
+      [tenant.id],
+    );
+
+    await expect(getTenantSettings(migrationUrl(), tenant.slug)).resolves.toEqual({
+      nameAr: 'كلية الإعدادات',
+      nameEn: 'Settings College',
+      allowedEmailDomains: ['uni.example.edu'],
+      levelsCount: 5,
+      enabledModules: ['mueed', 'kitabi'],
+      updatedAt: expect.any(Date) as unknown,
+    });
+  });
+
+  it('returns null for an unknown college', async () => {
+    await expect(getTenantSettings(migrationUrl(), randomSlug('none'))).resolves.toBeNull();
   });
 });
 

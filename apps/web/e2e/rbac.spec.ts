@@ -28,6 +28,7 @@ import {
   suspendTrigger,
   userRow,
 } from './support/people';
+import { getCollegeSettings } from './support/operator';
 import {
   APP_ROLES,
   ensureRoleCollege,
@@ -60,10 +61,10 @@ const ACCESS: Record<AppRole, { modules: readonly ModuleKey[]; admin: readonly A
 };
 
 /**
- * Admin screens that exist so far. Settings (PR-35) and Divisions (PR-36) add their key here; until then
- * their entries are not expected on screen and their paths are only checked as refused.
+ * Admin screens that exist so far. Divisions (PR-36) adds its key here; until then its entry is not
+ * expected on screen and its path is only checked as refused.
  */
-const BUILT_ADMIN_SCREENS: readonly AdminScreen[] = ['users', 'invitations'];
+const BUILT_ADMIN_SCREENS: readonly AdminScreen[] = ['users', 'invitations', 'settings'];
 
 type Catalog = (typeof CATALOGS)[TestLocale];
 
@@ -91,6 +92,8 @@ function adminScreenTexts(t: Catalog, screen: AdminScreen): readonly [string, ..
         t.admin.invitations.form.title,
         t.admin.invitations.list.title,
       ];
+    case 'settings':
+      return [t.admin.settings.title, t.admin.settings.lead, t.admin.settings.modules.legend];
     default:
       return [t.nav.admin[screen]];
   }
@@ -343,6 +346,26 @@ const FORBIDDEN_ACTIONS: readonly ForbiddenAction[] = [
       profile: await getStudentProfile(college.emails.student),
       created: await countAuditEvents(college.slug, 'profile.created'),
       updated: await countAuditEvents(college.slug, 'profile.updated'),
+    }),
+  },
+  {
+    screen: '/admin/settings',
+    form: 'settings',
+    action: 'updateTenantSettingsAction',
+    prepare: async (page) => {
+      const form = page.locator('main form');
+      // A new name and one module fewer: the submission would change both if it were allowed.
+      await form
+        .getByLabel(ar.admin.settings.names.nameEn, { exact: true })
+        .fill(`Forbidden ${uniqueStudentCode()}`);
+      await form.getByRole('checkbox', { name: ar.modules.mizan.name, exact: true }).uncheck();
+      const button = form.getByRole('button', { name: ar.admin.settings.submit });
+      return { form, submit: () => clickAndWait(page, '/ar/admin/settings', button) };
+    },
+    state: async (college) => ({
+      settings: await getCollegeSettings(college.slug),
+      settingsUpdated: await countAuditEvents(college.slug, 'tenant.settings_updated'),
+      modulesUpdated: await countAuditEvents(college.slug, 'tenant.modules_updated'),
     }),
   },
 ];

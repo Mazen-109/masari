@@ -41,6 +41,7 @@ export const SIGNED_IN_SCREENS: readonly { path: string; roles: readonly string[
   { path: '/profile', roles: ['student'] },
   { path: '/admin/users', roles: ['admin'] },
   { path: '/admin/invitations', roles: ['admin'] },
+  { path: '/admin/settings', roles: ['admin'] },
 ];
 
 /**
