@@ -1,4 +1,4 @@
-import type { InvitationStatus, Role, UserSummary } from '../constants';
+import type { InvitationStatus, Role, UserStatus, UserSummary } from '../constants';
 import { isThrowAwayDatabase } from './identifiers';
 import { setTenantContext, withOwnerTransaction } from './owner';
 
@@ -99,6 +99,28 @@ export function countSessionsByEmail(migrationUrl: string, email: string): Promi
 /** True for a throw-away test database (masari_test…, masari_e2e…) named in migrationUrl. */
 function isThrowAwayUrl(migrationUrl: string): boolean {
   return isThrowAwayDatabase(decodeURIComponent(new URL(migrationUrl).pathname.slice(1)));
+}
+
+/**
+ * e2e fixture until the suspend action exists (PR-33): sets the status of the account with this email
+ * (input trimmed and lower-cased); sessions are not touched and no audit row is written. Throws for an
+ * unknown email; only on a throw-away test database (refused before a connection is opened).
+ */
+export async function setUserStatusByEmail(
+  migrationUrl: string,
+  email: string,
+  status: UserStatus,
+): Promise<void> {
+  if (!isThrowAwayUrl(migrationUrl)) {
+    throw new Error('Refusing to change an account status outside a test database');
+  }
+  await withOwnerTransaction(migrationUrl, async (client) => {
+    const result = await client.query(
+      'UPDATE users SET status = $2, updated_at = now() WHERE email = $1',
+      [email.trim().toLowerCase(), status],
+    );
+    if (result.rowCount === 0) throw new Error('setUserStatusByEmail: unknown account');
+  });
 }
 
 export interface StudentProfileFixture {

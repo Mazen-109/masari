@@ -36,6 +36,7 @@ export {
   getUserByEmail,
   listInvitations,
   resetRateLimits,
+  setUserStatusByEmail,
 } from './admin/test-support';
 export type {
   DivisionFixture,

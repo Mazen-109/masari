@@ -13,6 +13,7 @@ import {
   listInvitations as listInvitationsIn,
   resetRateLimits as resetRateLimitsIn,
   setTenantStatus as setTenantStatusIn,
+  setUserStatusByEmail as setUserStatusByEmailIn,
   withDatabaseName,
   type DivisionFixture,
   type InvitationDetails,
@@ -68,6 +69,14 @@ export function getStudentProfile(email: string): Promise<StudentProfileDetails 
 /** Adds a division to the college (no audit row), until the divisions screen exists (PR-36). */
 export function addDivision(tenantId: string, input: DivisionFixture): Promise<void> {
   return addDivisionIn(ownerUrl(), tenantId, input);
+}
+
+/**
+ * Suspends or reactivates the account with this email directly (no sessions revoked, no audit row), until
+ * the People screen's suspend action exists (PR-33).
+ */
+export function setUserStatus(email: string, status: 'active' | 'suspended'): Promise<void> {
+  return setUserStatusByEmailIn(ownerUrl(), email, status);
 }
 
 /** Suspends or reactivates a college (as `pnpm tenant:set-status` will); sessions are not touched. */

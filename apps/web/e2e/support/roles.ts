@@ -63,6 +63,12 @@ const stateFile = (role: AppRole) => path.join(ROLES_DIR, `${role}.json`);
 
 /** How long a worker waits for another worker to finish building the college. */
 const BUILD_WAIT_MS = 150_000;
+/**
+ * Age (by modification time) after which a lock counts as left behind by a killed run: twice the wait, so a
+ * builder that is still working — slower than the wait, which only makes the waiting workers give up — never
+ * has its lock taken away and a second college built beside it.
+ */
+const STALE_LOCK_MS = 2 * BUILD_WAIT_MS;
 const POLL_MS = 250;
 
 /**
@@ -181,13 +187,13 @@ async function buildRoleCollege(page: Page): Promise<RoleCollege> {
 }
 
 /**
- * Removes a lock file older than BUILD_WAIT_MS (by modification time): its builder was killed without
+ * Removes a lock file older than STALE_LOCK_MS (by modification time): its builder was killed without
  * removing it (e.g. an interrupted run that reused the directory), and it would block every later attempt.
  * The lock is first moved aside under a unique name (rename is atomic, so one worker claims it) and checked
  * again there: when another worker replaced it with a fresh lock in between, that lock is put back.
  */
 async function removeStaleLock(): Promise<void> {
-  const isStale = async (file: string) => Date.now() - (await stat(file)).mtimeMs > BUILD_WAIT_MS;
+  const isStale = async (file: string) => Date.now() - (await stat(file)).mtimeMs > STALE_LOCK_MS;
   try {
     if (!(await isStale(LOCK_FILE))) return;
     const claimed = `${LOCK_FILE}.${process.pid}.${randomUUID()}.stale`;
@@ -206,7 +212,7 @@ async function removeStaleLock(): Promise<void> {
 /**
  * The role college, built on first use. A worker that finds the lock taken waits for `accounts.json`; when
  * the builder fails it removes the lock, and the next worker to look builds a new college. A lock left by a
- * killed run is removed once it is older than the wait.
+ * killed run is removed once it is older than twice the wait.
  */
 export async function ensureRoleCollege(page: Page): Promise<RoleCollege> {
   const deadline = Date.now() + BUILD_WAIT_MS;

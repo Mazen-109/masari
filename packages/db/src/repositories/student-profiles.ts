@@ -2,6 +2,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { StudentProfile } from '../constants';
 import { isUuid, type Tx } from '../context';
 import { studentProfiles, users } from '../schema';
+import { sqlState } from './sql-state';
 
 /**
  * Student profiles of the college in context (contracts/db-api.md §1.6, data-model.md §3.6). Tenant-scoped:
@@ -29,19 +30,6 @@ export class StudentProfileQueryError extends Error {
     this.name = 'StudentProfileQueryError';
     this.code = code;
   }
-}
-
-const SQLSTATE = /^[0-9A-Z]{5}$/;
-
-/** The SQLSTATE anywhere in the error's cause chain, or undefined. */
-function sqlState(error: unknown): string | undefined {
-  for (let current = error; typeof current === 'object' && current !== null;) {
-    if ('code' in current && typeof current.code === 'string' && SQLSTATE.test(current.code)) {
-      return current.code;
-    }
-    current = 'cause' in current ? current.cause : undefined;
-  }
-  return undefined;
 }
 
 export type StudentProfileCreateResult =
