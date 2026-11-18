@@ -295,6 +295,38 @@ export async function addDivision(
   });
 }
 
+/** A stored division, as e2e tests compare the divisions of a college before and after. */
+export interface DivisionDetails {
+  id: string;
+  code: string;
+  nameAr: string;
+  nameEn: string;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+/** Every division of the college with this slug (inactive too), by sort order then code; [] if unknown. */
+export function listDivisions(
+  migrationUrl: string,
+  tenantSlug: string,
+): Promise<DivisionDetails[]> {
+  return withOwnerTransaction(migrationUrl, async (client) => {
+    const tenant = await client.query<{ id: string }>('SELECT id FROM tenants WHERE slug = $1', [
+      tenantSlug,
+    ]);
+    const tenantId = tenant.rows[0]?.id;
+    if (tenantId === undefined) return [];
+    await setTenantContext(client, tenantId);
+    const result = await client.query<DivisionDetails>(
+      `SELECT id, code, name_ar AS "nameAr", name_en AS "nameEn", sort_order AS "sortOrder",
+              is_active AS "isActive"
+         FROM divisions WHERE tenant_id = $1 ORDER BY sort_order, code`,
+      [tenantId],
+    );
+    return result.rows;
+  });
+}
+
 /**
  * Deletes the rate-limit counters whose key starts with `keyPrefix` (all of them by default) and returns
  * how many were removed. Only on a throw-away test database (masari_test…, masari_e2e…): any other

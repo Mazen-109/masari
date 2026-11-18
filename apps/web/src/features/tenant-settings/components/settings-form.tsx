@@ -84,6 +84,8 @@ export function SettingsForm({ current, levels, modules }: SettingsFormProps) {
         ? t('students.domainsTooMany')
         : undefined;
 
+  const modulesError = fieldErrors?.enabledModules;
+
   const legend = 'mb-4 text-lg font-semibold';
 
   return (
@@ -192,14 +194,19 @@ export function SettingsForm({ current, levels, modules }: SettingsFormProps) {
       </fieldset>
 
       <hr className="border-border" />
-      <fieldset aria-describedby="settings-modules-hint" data-slot="settings-modules">
+      <fieldset
+        aria-describedby={
+          modulesError ? 'settings-modules-error settings-modules-hint' : 'settings-modules-hint'
+        }
+        data-slot="settings-modules"
+      >
         <legend className={legend}>{t('modules.legend')}</legend>
         <p id="settings-modules-hint" className="text-sm text-muted-foreground">
           {t('modules.hint')}
         </p>
-        {fieldErrors?.enabledModules ? (
-          <p className="mt-2 text-sm font-medium text-danger">
-            {tErrors(fieldErrors.enabledModules)}
+        {modulesError ? (
+          <p id="settings-modules-error" className="mt-2 text-sm font-medium text-danger">
+            {tErrors(modulesError)}
           </p>
         ) : null}
         <ul className="mt-4 grid gap-x-8 gap-y-3 sm:grid-cols-2">
@@ -215,6 +222,7 @@ export function SettingsForm({ current, levels, modules }: SettingsFormProps) {
                   <Checkbox
                     key={`${option.value}-${String(enabled.has(option.value))}`}
                     {...control}
+                    aria-invalid={modulesError ? true : undefined}
                     name="enabledModules"
                     value={option.value}
                     defaultChecked={enabled.has(option.value)}

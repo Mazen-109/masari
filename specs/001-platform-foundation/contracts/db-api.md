@@ -259,6 +259,8 @@ export function setUserStatusByEmail(migrationUrl: string, email: string, status
 export interface InvitationDetails { id: string; email: string; role: Role; status: InvitationStatus;  // stored status;
   expiresAt: Date; acceptedAt: Date | null }                                                            // 'expired' is derived, never stored
 export function listInvitations(migrationUrl: string, tenantSlug: string): Promise<InvitationDetails[]>;  // oldest first; [] for an unknown slug (PR-30)
+export interface DivisionDetails { id: string; code: string; nameAr: string; nameEn: string; sortOrder: number; isActive: boolean }
+export function listDivisions(migrationUrl: string, tenantSlug: string): Promise<DivisionDetails[]>;  // inactive too; by sort order then code; [] for an unknown slug (PR-36)
 ```
 
 All `admin` functions that write tenant-scoped rows set the tenant context exactly like `withTenant` does.

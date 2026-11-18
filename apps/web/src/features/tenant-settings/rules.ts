@@ -8,13 +8,17 @@ export const MAX_DOMAINS = 20;
 /** A lower-case domain of at least two labels, each 1–63 letters, digits, or inner hyphens. */
 export const DOMAIN = /^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/;
 
+/** The longest domain name (characters, without a trailing dot; RFC 1035 limits). */
+export const MAX_DOMAIN_LENGTH = 253;
+
 export type ParsedDomains =
   { ok: true; domains: string[] } | { ok: false; error: 'invalid_format' | 'too_many' };
 
 /**
  * The allowed email domains typed in the settings form: one per line (spaces, commas, and semicolons also
  * separate them), each trimmed and lower-cased, duplicates dropped keeping the first. Empty text → no
- * restriction (an empty list). Any item that is not a domain → `invalid_format`; more than 20 different
+ * restriction (an empty list). Any item that is not a domain (also one longer than 253 characters) →
+ * `invalid_format`; more than 20 different
  * domains → `too_many`.
  */
 export function parseDomains(text: string): ParsedDomains {
@@ -22,7 +26,8 @@ export function parseDomains(text: string): ParsedDomains {
   for (const raw of text.split(/[\s,;]+/u)) {
     const item = raw.trim().toLowerCase();
     if (item === '') continue;
-    if (!DOMAIN.test(item)) return { ok: false, error: 'invalid_format' };
+    if (item.length > MAX_DOMAIN_LENGTH || !DOMAIN.test(item))
+      return { ok: false, error: 'invalid_format' };
     if (!domains.includes(item)) domains.push(item);
   }
   return domains.length > MAX_DOMAINS ? { ok: false, error: 'too_many' } : { ok: true, domains };

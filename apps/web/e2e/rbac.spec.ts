@@ -4,8 +4,16 @@ import {
   countSessions,
   getStudentProfile,
   getUserByEmail,
+  listDivisions,
   listInvitations,
 } from './support/db';
+import {
+  addDivisionForm,
+  divisionRow,
+  divisionStatusForm,
+  editDivisionDialog,
+  editDivisionTrigger,
+} from './support/divisions';
 import { expect, test } from './support/fixtures';
 import {
   CATALOGS,
@@ -60,11 +68,13 @@ const ACCESS: Record<AppRole, { modules: readonly ModuleKey[]; admin: readonly A
   },
 };
 
-/**
- * Admin screens that exist so far. Divisions (PR-36) adds its key here; until then its entry is not
- * expected on screen and its path is only checked as refused.
- */
-const BUILT_ADMIN_SCREENS: readonly AdminScreen[] = ['users', 'invitations', 'settings'];
+/** Admin screens that exist: all four since Divisions (PR-36). */
+const BUILT_ADMIN_SCREENS: readonly AdminScreen[] = [
+  'users',
+  'invitations',
+  'divisions',
+  'settings',
+];
 
 type Catalog = (typeof CATALOGS)[TestLocale];
 
@@ -92,6 +102,8 @@ function adminScreenTexts(t: Catalog, screen: AdminScreen): readonly [string, ..
         t.admin.invitations.form.title,
         t.admin.invitations.list.title,
       ];
+    case 'divisions':
+      return [t.admin.divisions.title, t.admin.divisions.lead, t.admin.divisions.form.title];
     case 'settings':
       return [t.admin.settings.title, t.admin.settings.lead, t.admin.settings.modules.legend];
     default:
@@ -261,6 +273,15 @@ async function invitationState(college: RoleCollege) {
 
 const { ar } = CATALOGS;
 
+async function divisionState(college: RoleCollege) {
+  return {
+    divisions: await listDivisions(college.slug),
+    created: await countAuditEvents(college.slug, 'division.created'),
+    updated: await countAuditEvents(college.slug, 'division.updated'),
+    deactivated: await countAuditEvents(college.slug, 'division.deactivated'),
+  };
+}
+
 const FORBIDDEN_ACTIONS: readonly ForbiddenAction[] = [
   {
     screen: '/admin/invitations',
@@ -367,6 +388,55 @@ const FORBIDDEN_ACTIONS: readonly ForbiddenAction[] = [
       settingsUpdated: await countAuditEvents(college.slug, 'tenant.settings_updated'),
       modulesUpdated: await countAuditEvents(college.slug, 'tenant.modules_updated'),
     }),
+  },
+  {
+    screen: '/admin/divisions',
+    form: 'add-division',
+    action: 'createDivisionAction',
+    prepare: async (page) => {
+      const form = addDivisionForm(page);
+      const tForm = ar.admin.divisions.form;
+      // A new code: the submission would add a division if it were allowed.
+      await form.getByLabel(tForm.code, { exact: true }).fill(`F${Date.now() % 1_000_000}`);
+      await form.getByLabel(tForm.nameAr, { exact: true }).fill('شعبة مرفوضة');
+      await form.getByLabel(tForm.nameEn, { exact: true }).fill('Refused division');
+      const button = form.getByRole('button', { name: tForm.submit });
+      return { form, submit: () => clickAndWait(page, '/ar/admin/divisions', button) };
+    },
+    state: divisionState,
+  },
+  {
+    screen: '/admin/divisions',
+    form: 'edit-division',
+    action: 'updateDivisionAction',
+    prepare: async (page) => {
+      const form = await openDialog(
+        editDivisionTrigger(divisionRow(page, 'GEN')),
+        editDivisionDialog(page),
+      );
+      await form
+        .getByLabel(ar.admin.divisions.form.nameEn, { exact: true })
+        .fill(`Forbidden ${uniqueStudentCode()}`);
+      const button = form.getByRole('button', { name: ar.admin.divisions.form.save });
+      return { form, submit: () => clickAndWait(page, '/ar/admin/divisions', button) };
+    },
+    state: divisionState,
+  },
+  {
+    screen: '/admin/divisions',
+    form: 'division-status',
+    action: 'setDivisionActiveAction',
+    prepare: (page) => {
+      const form = divisionStatusForm(divisionRow(page, 'GEN'));
+      const button = form.getByRole('button', {
+        name: ar.admin.divisions.actions.deactivate.submit,
+      });
+      return Promise.resolve({
+        form,
+        submit: () => clickAndWait(page, '/ar/admin/divisions', button),
+      });
+    },
+    state: divisionState,
   },
 ];
 

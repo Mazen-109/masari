@@ -11,12 +11,14 @@ import {
   getStudentProfileByEmail as getStudentProfileByEmailIn,
   getUserByEmail as getUserByEmailIn,
   listAuditEvents as listAuditEventsIn,
+  listDivisions as listDivisionsIn,
   listInvitations as listInvitationsIn,
   resetRateLimits as resetRateLimitsIn,
   setTenantStatus as setTenantStatusIn,
   setUserStatusByEmail as setUserStatusByEmailIn,
   withDatabaseName,
   type AuditEventDetails,
+  type DivisionDetails,
   type DivisionFixture,
   type InvitationDetails,
   type StudentProfileDetails,
@@ -77,7 +79,12 @@ export function getStudentProfile(email: string): Promise<StudentProfileDetails 
   return getStudentProfileByEmailIn(ownerUrl(), email);
 }
 
-/** Adds a division to the college (no audit row), until the divisions screen exists (PR-36). */
+/** Every division of the college (inactive too, display order), for before/after comparisons. */
+export function listDivisions(tenantSlug: string): Promise<DivisionDetails[]> {
+  return listDivisionsIn(ownerUrl(), tenantSlug);
+}
+
+/** Adds a division to the college directly (no screens, no audit row): a fixture for other specs. */
 export function addDivision(tenantId: string, input: DivisionFixture): Promise<void> {
   return addDivisionIn(ownerUrl(), tenantId, input);
 }
