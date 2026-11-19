@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { authOptions, DRIZZLE_ADAPTER_OPTIONS, recordPasswordReset } from './auth';
+import { hashPassword } from './password-hash';
 
 const mocks = vi.hoisted(() => ({
   recordAudit: vi.fn(),
@@ -47,6 +48,10 @@ describe('authOptions', () => {
       autoSignInAfterVerification: false,
       expiresIn: 86_400,
     });
+  });
+
+  it('hashes every password with the function registration also runs (FR-005)', () => {
+    expect(options.emailAndPassword.password).toEqual({ hash: hashPassword });
   });
 
   it('makes reset links expire after one hour and audits a reset from the library hook', () => {
@@ -117,6 +122,18 @@ describe('recordPasswordReset (onPasswordReset hook)', () => {
     await expect(recordPasswordReset(USER)).resolves.toBeUndefined();
     expect(mocks.log.error).toHaveBeenCalledExactlyOnceWith('auth.password_reset_audit_failed', {
       errorName: 'TypeError',
+      sqlState: null,
+    });
+  });
+
+  it('logs the SQLSTATE of a failing database write', async () => {
+    mocks.recordAudit.mockRejectedValue(
+      Object.assign(new Error('insert failed for mona@example.edu'), { code: '40001' }),
+    );
+    await expect(recordPasswordReset(USER)).resolves.toBeUndefined();
+    expect(mocks.log.error).toHaveBeenCalledExactlyOnceWith('auth.password_reset_audit_failed', {
+      errorName: 'Error',
+      sqlState: '40001',
     });
   });
 

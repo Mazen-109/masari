@@ -126,6 +126,9 @@ Fields: `tenantSlug`, `name`, `email`, `password`, `consent`. Locale from `getLo
 8. Audit `user.registered`.
 9. `redirect('/{locale}/verify-email')` — identical for steps 5, 6, and 7.
 
+Steps 5 and 6 hash the submitted password with the function the auth library uses
+(`server/auth/password-hash.ts`) and discard the hash, so every branch costs one password hash (step 7's
+is made inside `signUpEmail`) and the answer's timing does not distinguish them (FR-005, research.md §8).
 Never returns information that distinguishes steps 5/6/7. If sending an email in steps 5–7 fails, log
 `email.failed` (template name only) and still continue to step 9 — the user can request the confirmation
 email again from the "check your email" screen.
@@ -247,8 +250,8 @@ All database calls are the `db-api.md` §1 functions, in the context named for e
 |---|---|---|---|---|---|
 | `setLocaleAction(locale)` (direct call, not a form) | session | `locale` | — | — | `ok`; the caller then navigates |
 | `updateAccountAction` (form) — FR-027 | session | `name` | — | — | `ok`; revalidate `/profile`, `/dashboard` |
-| `completeStudentProfileAction` (form) — FR-024…026 | `profile.academic.manage_own` | `studentCode`, `level`, `divisionId` | checked first, in the transaction: a profile that already exists (also `already_exists` from a concurrent submit) is success — redirect, no change, no audit (double submit / back-button resubmit); `level ≤ levelsCount` (`out_of_range`); division active in college (`invalid_choice`); unique code (`student_code_taken`; the onboarding form adds "contact the college administration"); repository `user_not_in_tenant` → `forbidden` | `profile.created` | `redirect('/{locale}/dashboard')` |
-| `updateStudentProfileAction` (form) — FR-026, FR-027 | `profile.academic.manage_own` | `level`, `divisionId` | profile must exist (`not_found`); same level/division rules; current division allowed even if inactive | `profile.updated {fields}` | `ok`; revalidate `/profile`, `/dashboard` |
+| `completeStudentProfileAction` (form) — FR-024…026 | `profile.academic.manage_own` | `studentCode`, `level`, `divisionId` | checked first, in the transaction: a profile that already exists (also `already_exists` from a concurrent submit) is success — redirect, no change, no audit (double submit / back-button resubmit); `level ≤ levelsCount` (`out_of_range`), with `levelsCount` read in the transaction from the college row locked FOR SHARE (`tenants.findCurrentForShare`, FR-032 — never the session's copy); division active in college (`invalid_choice`); unique code (`student_code_taken`; the onboarding form adds "contact the college administration"); repository `user_not_in_tenant` → `forbidden` | `profile.created` | `redirect('/{locale}/dashboard')` |
+| `updateStudentProfileAction` (form) — FR-026, FR-027 | `profile.academic.manage_own` | `level`, `divisionId` | profile must exist (`not_found`); same level/division rules (level against the college row locked FOR SHARE); current division allowed even if inactive | `profile.updated {fields}` | `ok`; revalidate `/profile`, `/dashboard` |
 
 ### 5.2 `features/invitations/actions.ts` — permission `admin.invitations.manage`
 
@@ -264,9 +267,9 @@ returns `fail('internal')`; the administrator revokes and re-invites.
 
 | Action | Fields | Rules | Audit | Result |
 |---|---|---|---|---|
-| `changeUserRoleAction` (form) — FR-030 | `userId`, `role` | target in caller's college else `not_found`; target ≠ caller else `forbidden`; no-op if unchanged | `user.role_changed {from,to}` | `ok`; revalidate `/admin/users` |
-| `setUserStatusAction` (form) — FR-031 | `userId`, `status` (`active` \| `suspended`) | same college else `not_found`; target ≠ caller else `forbidden`; on `suspended` revoke all the target's sessions (always, even if already suspended, so a retry completes a failed revocation); unchanged status → no-op, no audit | `user.suspended` / `user.reactivated` | `ok`; revalidate |
-| `adminUpdateStudentProfileAction` (form) — FR-028 | `userId`, `studentCode`, `level`, `divisionId` | target in caller's college with role `student` else `not_found`; same field rules as the student's own form; creates the profile if missing | `profile.updated {fields}` (or `profile.created`) | `ok`; revalidate |
+| `changeUserRoleAction` (form) — FR-030 | `userId`, `role` | target in caller's college else `not_found`; target ≠ caller else `forbidden`; a change that would leave the college without an active administrator (`users.setRole` → `last_admin`: the caller lost the role at the same moment) → `forbidden`, no change; no-op if unchanged | `user.role_changed {from,to}` | `ok`; revalidate `/admin/users` |
+| `setUserStatusAction` (form) — FR-031 | `userId`, `status` (`active` \| `suspended`) | same college else `not_found`; target ≠ caller else `forbidden`; suspending the last active administrator (`users.setStatus` → `last_admin`) → `forbidden`, no change, no session ended; on `suspended` revoke all the target's sessions (always, even if already suspended, so a retry completes a failed revocation); unchanged status → no-op, no audit | `user.suspended` / `user.reactivated` | `ok`; revalidate |
+| `adminUpdateStudentProfileAction` (form) — FR-028 | `userId`, `studentCode`, `level`, `divisionId` | target in caller's college with role `student` else `not_found`; same field rules as the student's own form (level against the college row locked FOR SHARE, FR-032); creates the profile if missing | `profile.updated {fields}` (or `profile.created`) | `ok`; revalidate |
 
 ### 5.4 `features/tenant-settings/actions.ts` — permission `admin.settings.manage`
 
@@ -279,7 +282,7 @@ returns `fail('internal')`; the administrator revokes and re-invites.
 | Action | Fields | Rules | Audit | Result |
 |---|---|---|---|---|
 | `createDivisionAction` (form) — FR-033 | `divisionCode`, `nameAr`, `nameEn`, `sortOrder` | duplicate code in college → `fieldErrors.divisionCode = 'code_taken'` | `division.created` | `ok`; revalidate `/admin/divisions` |
-| `updateDivisionAction` (form) | `divisionId`, `nameAr`, `nameEn`, `sortOrder` | must exist in college else `not_found`; code not editable | `division.updated {fields}` | `ok`; revalidate |
+| `updateDivisionAction` (form) | `divisionId`, `nameAr`, `nameEn`, `sortOrder` | must exist in college else `not_found`; code not editable; the division is read FOR UPDATE in the transaction (`divisions.findByIdForUpdate`) and the changed fields are computed against it; nothing changed → `ok`, no write, no audit | `division.updated {fields}` | `ok`; revalidate |
 | `setDivisionActiveAction` (form) | `divisionId`, `isActive` (`"true"` \| `"false"`) | must exist in college else `not_found` | `division.activated` / `division.deactivated` | `ok`; revalidate |
 
 ## 6. Test obligations

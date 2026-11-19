@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   createProfile: vi.fn(),
   updateProfile: vi.fn(),
   findDivision: vi.fn(),
+  findCurrentTenantForShare: vi.fn(),
   getActionContext: vi.fn(),
   revalidatePath: vi.fn(),
   log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -44,6 +45,7 @@ vi.mock('@masari/db', () => ({
     update: mocks.updateProfile,
   },
   divisions: { findById: mocks.findDivision },
+  tenants: { findCurrentForShare: mocks.findCurrentTenantForShare },
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('@/server/audit', () => ({ recordAudit: mocks.recordAudit }));
@@ -170,6 +172,15 @@ describe('changeUserRoleAction', () => {
   it('answers not_found when the account disappears between the lookup and the change', async () => {
     mocks.setRole.mockResolvedValue(null);
     expect(await changeUserRoleAction(null, form(valid))).toEqual(fail('not_found'));
+    expect(mocks.recordAudit).not.toHaveBeenCalled();
+  });
+
+  it('answers forbidden, without an audit row, when the target is the last active administrator', async () => {
+    mocks.findInTenant.mockResolvedValue(target({ role: 'admin' }));
+    mocks.setRole.mockResolvedValue('last_admin');
+    expect(await changeUserRoleAction(null, form({ ...valid, role: 'faculty' }))).toEqual(
+      fail('forbidden'),
+    );
     expect(mocks.recordAudit).not.toHaveBeenCalled();
   });
 
@@ -313,6 +324,14 @@ describe('setUserStatusAction', () => {
     expect(mocks.revokeAllForUser).not.toHaveBeenCalled();
   });
 
+  it('answers forbidden for the last active administrator, ending no session and auditing nothing', async () => {
+    mocks.findInTenant.mockResolvedValue(target({ role: 'admin' }));
+    mocks.setStatus.mockResolvedValue('last_admin');
+    expect(await setUserStatusAction(null, form(suspend))).toEqual(fail('forbidden'));
+    expect(mocks.recordAudit).not.toHaveBeenCalled();
+    expect(mocks.revokeAllForUser).not.toHaveBeenCalled();
+  });
+
   it('answers not_found for a missing hidden id and validation for an unknown status', async () => {
     expect(await setUserStatusAction(null, form({ status: 'suspended' }))).toEqual(
       fail('not_found'),
@@ -381,6 +400,7 @@ describe('adminUpdateStudentProfileAction', () => {
     );
     mocks.createProfile.mockResolvedValue({ ok: true, value: {} });
     mocks.updateProfile.mockResolvedValue({ ok: true, value: {} });
+    mocks.findCurrentTenantForShare.mockResolvedValue({ id: TENANT_ID, levelsCount: 4 });
   });
 
   function expectNoProfileWrite(): void {
@@ -517,6 +537,18 @@ describe('adminUpdateStudentProfileAction', () => {
     expect(await adminUpdateStudentProfileAction(null, form(valid))).toMatchObject({
       fieldErrors: { divisionId: 'invalid_choice' },
     });
+    expectNoProfileWrite();
+  });
+
+  it('checks the level against the college row locked in the transaction, not the session copy', async () => {
+    // The session still says 4 levels; a settings save has just lowered it to 2.
+    mocks.findCurrentTenantForShare.mockResolvedValue({ id: TENANT_ID, levelsCount: 2 });
+    expect(await adminUpdateStudentProfileAction(null, form(valid))).toMatchObject({
+      ok: false,
+      code: 'validation',
+      fieldErrors: { level: 'out_of_range' },
+    });
+    expect(mocks.findCurrentTenantForShare).toHaveBeenCalledExactlyOnceWith(TX);
     expectNoProfileWrite();
   });
 

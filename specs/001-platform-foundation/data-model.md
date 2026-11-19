@@ -107,6 +107,9 @@ Validation (application, `features/tenant-settings/schemas.ts`):
 - `allowed_email_domains`: each item lower-cased, trimmed, matches
   `^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$`, de-duplicated, max 20.
 - `levels_count`: integer 1–7 and ≥ the highest `student_profiles.level` in the college (FR-032).
+  Concurrency (PR-41): the settings save locks the college row FOR UPDATE before counting the highest
+  level; every profile write locks it FOR SHARE and checks the level against that row's `levels_count`
+  in the same transaction, so a save that lowers it and a profile save never both go through.
 - `enabled_modules`: subset of `MODULE_KEYS`, de-duplicated, stored in registry order.
 
 State: `active ⇄ suspended` (operator only). Suspending changes `status` only and does **not** delete
@@ -136,6 +139,12 @@ State: `status active ⇄ suspended` (administrator, never self). Role changes: 
 never self). A user is never deleted in this feature, with one technical exception: the compensation step
 of invitation acceptance removes the account it created seconds earlier when a later step fails
 (`users.deleteJustCreated`, `contracts/server-actions.md` §4.7).
+
+Last administrator (spec.md edge cases; PR-41): a college always keeps at least one active administrator.
+Demoting an administrator or suspending one first locks the college's active administrators (`role =
+'admin' AND status = 'active'`) FOR UPDATE, in id order, and is refused (`last_admin`) when the target is
+the only one, so two administrators who demote or suspend each other at the same moment cannot both
+succeed.
 
 ### 3.3 `sessions`, `accounts`, `verifications` — auth library tables
 
@@ -192,7 +201,8 @@ ignored), so the table stays bounded without a scheduler (`contracts/db-api.md` 
 
 Constraints: `UNIQUE (tenant_id, code)`; `UNIQUE (tenant_id, id)` (target of the composite FK below).
 Ordering everywhere: `sort_order ASC, code ASC`. `code` is immutable after creation. No delete.
-State: `is_active true ⇄ false`.
+State: `is_active true ⇄ false`. An edit reads the row FOR UPDATE in its transaction and writes (and
+audits) only the fields that differ from it (PR-41).
 
 ### 3.6 `student_profiles` — academic profile (tenant-scoped; first part of the shared student profile)
 

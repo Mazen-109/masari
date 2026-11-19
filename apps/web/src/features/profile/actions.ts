@@ -1,6 +1,6 @@
 'use server';
 
-import { divisions, studentProfiles, users, withTenant } from '@masari/db';
+import { divisions, studentProfiles, tenants, users, withTenant, type Tx } from '@masari/db';
 import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import { getLocale } from 'next-intl/server';
@@ -87,6 +87,16 @@ function revalidateProfileScreens(): void {
 }
 
 /**
+ * The level rule (FR-024, FR-032) against the college's number of levels read in the caller's transaction
+ * and locked FOR SHARE until it ends, never the request's cached copy: a settings save that lowers the
+ * number waits for this profile write and then counts its level, and one that came first is seen here.
+ */
+async function isLevelAllowedNow(tx: Tx, level: number): Promise<boolean> {
+  const college = await tenants.findCurrentForShare(tx);
+  return college !== null && isLevelAllowed(level, college.levelsCount);
+}
+
+/**
  * Profile exists? → validate → college rules → create, with its audit row, in one withTenant transaction.
  * `ok` means "go to the dashboard". A profile that already exists — checked first, and again by the
  * repository's `already_exists` for a concurrent submit — is also `ok`: a double submit or a resubmit
@@ -101,9 +111,7 @@ async function completeProfile(ctx: SessionContext, formData: FormData): Promise
     if (!parsed.ok) return parsed.failure;
     const input = parsed.data;
 
-    if (!isLevelAllowed(input.level, ctx.tenant.levelsCount)) {
-      return invalid('level', 'out_of_range');
-    }
+    if (!(await isLevelAllowedNow(tx, input.level))) return invalid('level', 'out_of_range');
     const division = await divisions.findById(tx, input.divisionId);
     if (division === null || !isDivisionSelectable(division, null)) {
       return invalid('divisionId', 'invalid_choice');
@@ -205,9 +213,7 @@ async function updateProfile(ctx: SessionContext, formData: FormData): Promise<A
     const current = await studentProfiles.findByUserId(tx, ctx.user.id);
     if (current === null) return fail('not_found');
 
-    if (!isLevelAllowed(input.level, ctx.tenant.levelsCount)) {
-      return invalid('level', 'out_of_range');
-    }
+    if (!(await isLevelAllowedNow(tx, input.level))) return invalid('level', 'out_of_range');
     const division = await divisions.findById(tx, input.divisionId);
     if (division === null || !isDivisionSelectable(division, current.divisionId)) {
       return invalid('divisionId', 'invalid_choice');

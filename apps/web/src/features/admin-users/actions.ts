@@ -4,6 +4,7 @@ import {
   divisions,
   sessions,
   studentProfiles,
+  tenants,
   users,
   withTenant,
   type UserSummary,
@@ -84,6 +85,9 @@ async function changeRole(ctx: SessionContext, formData: FormData): Promise<Acti
 
   const changed = await users.setRole(ctx.tenant.id, userId, role);
   if (changed === null) return fail('not_found');
+  // The college's last active administrator: only possible when the caller lost the role (or was
+  // suspended) at the same moment, so the caller no longer may act (spec.md "Last administrator").
+  if (changed === 'last_admin') return fail('forbidden');
   if (changed.from !== changed.to) {
     const failed = await auditAfterChange(ctx, {
       action: 'user.role_changed',
@@ -98,7 +102,8 @@ async function changeRole(ctx: SessionContext, formData: FormData): Promise<Acti
 /**
  * Changes the role of another account of the caller's college (contracts/server-actions.md §5.3; FR-030).
  * The new role applies from that user's next request: every request reads the role afresh. The own account
- * → `forbidden`; another college's account or an unknown id → `not_found`, and nothing changes. Audit
+ * → `forbidden`; another college's account or an unknown id → `not_found`, and nothing changes. Taking
+ * the role from the college's last active administrator → `forbidden`, nothing changes. Audit
  * `user.role_changed {from,to}`.
  */
 export async function changeUserRoleAction(
@@ -143,8 +148,11 @@ async function setStatus(ctx: SessionContext, formData: FormData): Promise<Actio
   if (!target.ok) return target.result;
 
   const changes = target.user.status !== status;
-  if (changes && !(await users.setStatus(ctx.tenant.id, userId, status))) {
-    return fail('not_found');
+  if (changes) {
+    const updated = await users.setStatus(ctx.tenant.id, userId, status);
+    // The college's last active administrator (see changeRole): nothing changed, no session is ended.
+    if (updated === 'last_admin') return fail('forbidden');
+    if (!updated) return fail('not_found');
   }
   // After the status change: a sign-in racing with it either ends before (its session is deleted here) or
   // after (it reads the suspended status and is refused). Every request also re-reads the status.
@@ -173,7 +181,8 @@ async function setStatus(ctx: SessionContext, formData: FormData): Promise<Actio
  * Suspends or reactivates another account of the caller's college (contracts/server-actions.md §5.3;
  * FR-031): suspending ends all of its sessions at once and sign-in is refused with `account_suspended`;
  * reactivating restores sign-in. The own account → `forbidden`; another college's account or an unknown id
- * → `not_found`, and nothing changes. Audit `user.suspended` / `user.reactivated`.
+ * → `not_found`, and nothing changes. Suspending the college's last active administrator → `forbidden`,
+ * nothing changes. Audit `user.suspended` / `user.reactivated`.
  */
 export async function setUserStatusAction(
   _previous: ActionResult | null,
@@ -234,8 +243,8 @@ function revalidateStudentScreens(): void {
 /**
  * Validate → target (a student of the caller's college) → the student form's college rules → create or
  * change the profile, with its audit row, in one withTenant transaction (the administrator is the actor),
- * which first re-reads and locks the target's role (still a student of the college, else `not_found`).
- * A missing profile is created (`profile.created`); otherwise only the fields that differ are written and
+ * which first re-reads and locks the target's role (still a student of the college, else `not_found`)
+ * and checks the level against the college row locked FOR SHARE (tenants.findCurrentForShare). A missing profile is created (`profile.created`); otherwise only the fields that differ are written and
  * listed in `profile.updated {fields}`; nothing differs → `ok`, no write, no audit row.
  */
 async function updateStudentProfile(
@@ -261,8 +270,11 @@ async function updateStudentProfile(
       return fail('not_found');
     }
     const current = await studentProfiles.findByUserId(tx, userId);
-    if (!isLevelAllowed(input.level, ctx.tenant.levelsCount))
-      return invalid('level', 'out_of_range');
+    // The number of levels read in this transaction and held until it ends (FR-032): a settings save
+    // that lowers it waits for this write and then counts the level written here.
+    const college = await tenants.findCurrentForShare(tx);
+    if (college === null) return fail('not_found');
+    if (!isLevelAllowed(input.level, college.levelsCount)) return invalid('level', 'out_of_range');
     const division = await divisions.findById(tx, input.divisionId);
     if (division === null || !isDivisionSelectable(division, current?.divisionId ?? null)) {
       return invalid('divisionId', 'invalid_choice');

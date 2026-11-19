@@ -163,6 +163,35 @@ describe('divisions.findById', () => {
   });
 });
 
+describe('divisions.findByIdForUpdate', () => {
+  it("finds a division of the college in context; null for another college's, unknown, or non-uuid ids", async () => {
+    const created = await createOk(collegeA, { code: 'CS' });
+    const ofB = await createOk(collegeB, { code: 'CS' });
+    const found = await inCollege(collegeA, async (tx) => [
+      await divisions.findByIdForUpdate(tx, created.id),
+      await divisions.findByIdForUpdate(tx, ofB.id),
+      await divisions.findByIdForUpdate(tx, UNKNOWN_ID),
+      await divisions.findByIdForUpdate(tx, 'not-a-uuid'),
+    ]);
+    expect(found).toEqual([created, null, null, null]);
+  });
+
+  it('holds the row until the transaction ends: a concurrent locked read waits and sees the change', async () => {
+    const created = await createOk(collegeA, { code: 'CS', nameEn: 'Before' });
+    let concurrent: Promise<string | undefined> = Promise.resolve(undefined);
+    await inCollege(collegeA, async (tx) => {
+      await divisions.findByIdForUpdate(tx, created.id);
+      concurrent = inCollege(collegeA, async (other) => {
+        const current = await divisions.findByIdForUpdate(other, created.id);
+        return current?.nameEn;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      await divisions.update(tx, created.id, { nameEn: 'After' });
+    });
+    expect(await concurrent).toBe('After');
+  });
+});
+
 describe('divisions.update', () => {
   it('changes names and order, keeps the code, and sets updated_at', async () => {
     const created = await createOk(collegeA, { code: 'CS', sortOrder: 10 });

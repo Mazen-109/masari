@@ -828,3 +828,80 @@ describe('users.setStatus', () => {
     expect(before[0]).toMatchObject({ status: 'active' });
   });
 });
+
+describe('the last active administrator (spec.md "Last administrator")', () => {
+  async function activeAdmins(tenantId: string): Promise<string[]> {
+    const result = await ownerQuery<{ id: string }>(
+      `SELECT id FROM users WHERE tenant_id = $1 AND role = 'admin' AND status = 'active' ORDER BY id`,
+      [tenantId],
+    );
+    return result.rows.map((row) => row.id);
+  }
+
+  it('refuses to demote or suspend the only active administrator, and changes nothing', async () => {
+    const tenant = await makeTenant();
+    const admin = await makeUser(tenant.id, { role: 'admin' });
+    // A suspended administrator does not count.
+    await makeUser(tenant.id, { role: 'admin', status: 'suspended' });
+    const before = await users.findById(admin.id);
+
+    expect(await users.setRole(tenant.id, admin.id, 'faculty')).toBe(users.LAST_ADMIN);
+    expect(await users.setStatus(tenant.id, admin.id, 'suspended')).toBe(users.LAST_ADMIN);
+    expect(await users.findById(admin.id)).toEqual(before);
+
+    // Changes that keep the administrator are allowed.
+    expect(await users.setRole(tenant.id, admin.id, 'admin')).toEqual({
+      from: 'admin',
+      to: 'admin',
+    });
+    expect(await users.setStatus(tenant.id, admin.id, 'active')).toBe(true);
+  });
+
+  it('demotes or suspends an administrator while another active one remains', async () => {
+    const tenant = await makeTenant();
+    const first = await makeUser(tenant.id, { role: 'admin' });
+    const second = await makeUser(tenant.id, { role: 'admin' });
+    const third = await makeUser(tenant.id, { role: 'admin' });
+
+    expect(await users.setRole(tenant.id, first.id, 'faculty')).toEqual({
+      from: 'admin',
+      to: 'faculty',
+    });
+    expect(await users.setStatus(tenant.id, second.id, 'suspended')).toBe(true);
+    expect(await activeAdmins(tenant.id)).toEqual([third.id]);
+    // An administrator of another college never counts for this one.
+    const otherCollege = await makeTenant();
+    await makeUser(otherCollege.id, { role: 'admin' });
+    expect(await users.setRole(tenant.id, third.id, 'student')).toBe(users.LAST_ADMIN);
+  });
+
+  it.each([
+    ['demote each other', 'role', 'role'],
+    ['suspend each other', 'status', 'status'],
+    ['demote and suspend each other', 'role', 'status'],
+  ] as const)(
+    'two administrators who %s at the same moment: exactly one change succeeds',
+    async (_label, firstChange, secondChange) => {
+      const tenant = await makeTenant();
+      const first = await makeUser(tenant.id, { role: 'admin' });
+      const second = await makeUser(tenant.id, { role: 'admin' });
+      const change = (kind: 'role' | 'status', userId: string) =>
+        kind === 'role'
+          ? users.setRole(tenant.id, userId, 'faculty')
+          : users.setStatus(tenant.id, userId, 'suspended');
+
+      let both: Promise<unknown[]> = Promise.resolve([]);
+      // Holding the first administrator's row makes both changes start before either can finish: without
+      // a per-college lock the change of `second` would go through at once, and the other right after.
+      await withTenant({ tenantId: tenant.id, userId: null }, async (tx) => {
+        expect(await users.lockRoleInTenant(tx, tenant.id, first.id)).toBe('admin');
+        both = Promise.all([change(firstChange, second.id), change(secondChange, first.id)]);
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      });
+      const results = await both;
+
+      expect(results.filter((result) => result === users.LAST_ADMIN)).toHaveLength(1);
+      expect(await activeAdmins(tenant.id)).toHaveLength(1);
+    },
+  );
+});

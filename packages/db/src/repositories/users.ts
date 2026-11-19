@@ -219,17 +219,49 @@ export async function listInTenant(
 }
 
 /**
+ * The answer of setRole and setStatus when the change would leave the college without an active
+ * administrator (spec.md "Last administrator"); nothing is changed.
+ */
+export const LAST_ADMIN = 'last_admin';
+export type LastAdmin = typeof LAST_ADMIN;
+
+/**
+ * Locks the active administrators of tenantId (FOR UPDATE, in id order, so two callers never deadlock)
+ * and returns their ids. Every change that can take an active administrator away — setRole to another
+ * role, setStatus to `suspended` — takes this lock first, so in one college such changes run one after
+ * the other and each sees the result of the one before: two administrators who demote or suspend each
+ * other at the same moment cannot both succeed.
+ */
+async function lockActiveAdmins(tx: Tx, tenantId: string): Promise<string[]> {
+  const rows = await tx
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.tenantId, tenantId), eq(users.role, 'admin'), eq(users.status, 'active')))
+    .orderBy(asc(users.id))
+    .for('update');
+  return rows.map((row) => row.id);
+}
+
+/** True when userId is the only one of the locked active administrators. */
+function isLastActiveAdmin(activeAdmins: readonly string[], userId: string): boolean {
+  return activeAdmins.length === 1 && activeAdmins[0] === userId;
+}
+
+/**
  * Changes the role of an account of tenantId (FR-030) and reports the old and the new role for the audit
  * row; null when the college has no such account (nothing changes). The row is locked while it is read and
  * updated, so a concurrent change cannot slip between the two and `from` is always the role replaced.
+ * Taking the administrator role from the college's last active administrator answers `last_admin` and
+ * changes nothing (checked under the lock of lockActiveAdmins).
  */
 export async function setRole(
   tenantId: string,
   userId: string,
   role: Role,
-): Promise<{ from: Role; to: Role } | null> {
+): Promise<{ from: Role; to: Role } | LastAdmin | null> {
   if (userId === '' || !isUuid(tenantId)) return null;
   return getDb().transaction(async (tx) => {
+    const activeAdmins = role === 'admin' ? [] : await lockActiveAdmins(tx, tenantId);
     const current = await tx
       .select({ role: users.role })
       .from(users)
@@ -237,6 +269,7 @@ export async function setRole(
       .for('update');
     const before = current[0];
     if (!before) return null;
+    if (isLastActiveAdmin(activeAdmins, userId)) return LAST_ADMIN;
     await tx
       .update(users)
       .set({ role, updatedAt: sql`now()` })
@@ -247,20 +280,27 @@ export async function setRole(
 
 /**
  * Suspends or reactivates an account of tenantId (FR-031); false when the college has no such account
- * (nothing changes). Revoking the sessions of a suspended account is the caller's step (sessions repository).
+ * (nothing changes). Suspending the college's last active administrator answers `last_admin` and changes
+ * nothing (checked under the lock of lockActiveAdmins). Revoking the sessions of a suspended account is
+ * the caller's step (sessions repository).
  */
 export async function setStatus(
   tenantId: string,
   userId: string,
   status: UserStatus,
-): Promise<boolean> {
+): Promise<boolean | LastAdmin> {
   if (userId === '' || !isUuid(tenantId)) return false;
-  const rows = await getDb()
-    .update(users)
-    .set({ status, updatedAt: sql`now()` })
-    .where(inTenant(tenantId, userId))
-    .returning({ id: users.id });
-  return rows.length > 0;
+  return getDb().transaction(async (tx) => {
+    if (status === 'suspended' && isLastActiveAdmin(await lockActiveAdmins(tx, tenantId), userId)) {
+      return LAST_ADMIN;
+    }
+    const rows = await tx
+      .update(users)
+      .set({ status, updatedAt: sql`now()` })
+      .where(inTenant(tenantId, userId))
+      .returning({ id: users.id });
+    return rows.length > 0;
+  });
 }
 
 /**

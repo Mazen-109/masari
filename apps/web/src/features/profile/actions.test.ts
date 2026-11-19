@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   createProfile: vi.fn(),
   findProfile: vi.fn(),
   withTenant: vi.fn(),
+  findCurrentTenantForShare: vi.fn(),
   recordAudit: vi.fn(),
   getActionContext: vi.fn(),
   log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -38,6 +39,7 @@ vi.mock('@masari/db', () => ({
     findByUserId: mocks.findProfile,
     update: mocks.updateProfile,
   },
+  tenants: { findCurrentForShare: mocks.findCurrentTenantForShare },
   withTenant: mocks.withTenant,
 }));
 vi.mock('next/navigation', () => ({
@@ -72,6 +74,8 @@ function signedIn(locale: 'ar' | 'en') {
 beforeEach(() => {
   mocks.getActionContext.mockResolvedValue(signedIn('ar'));
   mocks.setLocale.mockResolvedValue(undefined);
+  // The college row the profile writers lock FOR SHARE (FR-032): the same number of levels as the session.
+  mocks.findCurrentTenantForShare.mockResolvedValue({ id: TENANT_ID, levelsCount: 4 });
 });
 
 afterEach(() => {
@@ -222,6 +226,17 @@ describe('completeStudentProfileAction', () => {
     );
     expect(mocks.findDivision).not.toHaveBeenCalled();
     expect(mocks.createProfile).not.toHaveBeenCalled();
+  });
+
+  it('checks the level against the college row locked in the transaction, not the session copy', async () => {
+    // The session still says 4 levels; a settings save has just lowered it to 2.
+    mocks.findCurrentTenantForShare.mockResolvedValue({ id: TENANT_ID, levelsCount: 2 });
+    expect(await submit(form({ level: '3' }))).toEqual(
+      fail('validation', { fieldErrors: { level: 'out_of_range' }, meta: entered() }),
+    );
+    expect(mocks.findCurrentTenantForShare).toHaveBeenCalledExactlyOnceWith(TX);
+    expect(mocks.createProfile).not.toHaveBeenCalled();
+    expect(mocks.recordAudit).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -459,6 +474,16 @@ describe('updateStudentProfileAction', () => {
       fail('validation', { fieldErrors: { level: 'out_of_range' }, meta: entered({ level: '5' }) }),
     );
     expect(mocks.updateProfile).not.toHaveBeenCalled();
+  });
+
+  it('checks the level against the college row locked in the transaction, not the session copy', async () => {
+    mocks.findCurrentTenantForShare.mockResolvedValue({ id: TENANT_ID, levelsCount: 2 });
+    expect(await updateStudentProfileAction(null, form({ level: '3' }))).toEqual(
+      fail('validation', { fieldErrors: { level: 'out_of_range' }, meta: entered() }),
+    );
+    expect(mocks.findCurrentTenantForShare).toHaveBeenCalledExactlyOnceWith(TX);
+    expect(mocks.updateProfile).not.toHaveBeenCalled();
+    expect(mocks.recordAudit).not.toHaveBeenCalled();
   });
 
   it('returns the schema errors with the entered level and division, never a forged code', async () => {

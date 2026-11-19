@@ -20,6 +20,7 @@ import {
 import { Select } from '@/components/ui/select';
 import type { ActionResult } from '@/lib/result';
 import { changeUserRoleAction } from '../actions';
+import { useAnnounce } from './users-announcer';
 
 /** One role of the picker, already in the current language. */
 export type RoleOption = Readonly<{ value: Role; label: string }>;
@@ -76,7 +77,8 @@ function RoleForm({
  * "Change role" of one row of the People screen (FR-030): a dialog with the four roles, the current one
  * selected. The trigger's accessible name ends with the person's name (visually hidden) so every row's
  * button is distinct. Focus is trapped in the dialog, Escape closes it, and focus returns to the trigger;
- * a success is announced politely. Needs JavaScript (the dialog); refusals show inside the dialog.
+ * a success is announced in the table's live region (UsersAnnouncer). Needs JavaScript (the dialog);
+ * refusals show inside the dialog.
  */
 export function RoleDialog({
   userId,
@@ -87,39 +89,29 @@ export function RoleDialog({
   const t = useTranslations('admin.users.actions.role');
   const tCommon = useTranslations('common.actions');
   const [open, setOpen] = useState(false);
-  const [announcement, setAnnouncement] = useState('');
+  const announce = useAnnounce();
   const bdi = (chunks: ReactNode) => <bdi>{chunks}</bdi>;
-
-  function handleOpenChange(next: boolean): void {
-    if (next) setAnnouncement('');
-    setOpen(next);
-  }
 
   function handleDone(): void {
     setOpen(false);
-    setAnnouncement(t('done'));
+    announce(t('done'));
   }
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogTrigger asChild>
-          <Button variant="outline" size="compact" data-slot="role-trigger">
-            {t('open')}
-            <span className="sr-only"> {t.rich('target', { name, bdi })}</span>
-          </Button>
-        </DialogTrigger>
-        <DialogContent closeLabel={tCommon('close')} data-slot="role-dialog">
-          <DialogHeader>
-            <DialogTitle>{t('title')}</DialogTitle>
-            <DialogDescription>{t.rich('description', { name, bdi })}</DialogDescription>
-          </DialogHeader>
-          <RoleForm target={{ userId, name, role }} roles={roles} onDone={handleDone} />
-        </DialogContent>
-      </Dialog>
-      <p role="status" className="sr-only" data-slot="role-status">
-        {announcement}
-      </p>
-    </>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="compact" data-slot="role-trigger">
+          {t('open')}
+          <span className="sr-only"> {t.rich('target', { name, bdi })}</span>
+        </Button>
+      </DialogTrigger>
+      <DialogContent closeLabel={tCommon('close')} data-slot="role-dialog">
+        <DialogHeader>
+          <DialogTitle>{t('title')}</DialogTitle>
+          <DialogDescription>{t.rich('description', { name, bdi })}</DialogDescription>
+        </DialogHeader>
+        <RoleForm target={{ userId, name, role }} roles={roles} onDone={handleDone} />
+      </DialogContent>
+    </Dialog>
   );
 }
