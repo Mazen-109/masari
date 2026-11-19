@@ -35,6 +35,18 @@ export async function findById(tx: Tx, id: string): Promise<Division | null> {
 }
 
 /**
+ * As findById, but the row is locked (FOR NO KEY UPDATE) until the caller's transaction ends, so a change
+ * computed from it (the changed fields of `division.updated`) cannot be overtaken by a concurrent change of
+ * the same division: the second caller waits, then reads the first one's result. Not FOR UPDATE: a profile
+ * write that references the division (its foreign-key check takes FOR KEY SHARE) does not wait for it.
+ */
+export async function findByIdForUpdate(tx: Tx, id: string): Promise<Division | null> {
+  if (!isUuid(id)) return null;
+  const rows = await tx.select().from(divisions).where(eq(divisions.id, id)).for('no key update');
+  return rows[0] ?? null;
+}
+
+/**
  * Creates a division in the college in context (tenant_id comes from the column default app_tenant_id()).
  * A duplicate code is detected with ON CONFLICT DO NOTHING rather than a caught unique violation, so the
  * caller's transaction stays usable (e.g. for an audit entry) after `code_taken`.

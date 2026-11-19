@@ -4,11 +4,13 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
 import { recordAudit } from '@/server/audit';
 import { logAuthLibrary } from '@/server/auth/library-logger';
+import { hashPassword } from '@/server/auth/password-hash';
 import { sendEmail, type EmailTemplateName } from '@/server/email/send';
 import type { RenderedEmail } from '@/server/email/templates/layout';
 import { resetPassword } from '@/server/email/templates/reset-password';
 import { verifyEmail } from '@/server/email/templates/verify-email';
 import { getEnv, type Env } from '@/server/env';
+import { errorName, sqlStateOf } from '@/server/errors';
 import { log } from '@/server/log';
 
 /**
@@ -70,7 +72,8 @@ export async function recordPasswordReset(user: { id: string }): Promise<void> {
     );
   } catch (error) {
     log.error('auth.password_reset_audit_failed', {
-      errorName: error instanceof Error ? error.name : 'unknown',
+      errorName: errorName(error),
+      sqlState: sqlStateOf(error),
     });
   }
 }
@@ -96,6 +99,9 @@ export function authOptions(
       maxPasswordLength: 128,
       resetPasswordTokenExpiresIn: HOUR,
       revokeSessionsOnPasswordReset: true,
+      // The library's own scrypt hash, through the function registration also runs on the paths that
+      // create no account (FR-005, research.md §8); verification stays the library's default.
+      password: { hash: hashPassword },
       sendResetPassword: async ({ user, url }) => {
         await deliver('reset-password', user.email, resetPassword({ name: user.name, url }));
       },

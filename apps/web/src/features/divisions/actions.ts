@@ -93,7 +93,9 @@ async function updateDivision(ctx: SessionContext, formData: FormData): Promise<
   const { divisionId, ...input } = parsed.data;
 
   return withTenant({ tenantId: ctx.tenant.id, userId: ctx.user.id }, async (tx) => {
-    const current = await divisions.findById(tx, divisionId);
+    // Locked until the transaction ends: the changed fields are computed against the values this update
+    // replaces, also when another administrator edits the same division at the same moment.
+    const current = await divisions.findByIdForUpdate(tx, divisionId);
     if (current === null) return fail('not_found');
     const patch = changedDivisionFields(current, input);
     const fields = Object.keys(patch);

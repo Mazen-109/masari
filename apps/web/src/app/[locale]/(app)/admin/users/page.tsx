@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { connection } from 'next/server';
 import { hasLocale } from 'next-intl';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
+import { UsersAnnouncer } from '@/features/admin-users/components/users-announcer';
 import { UsersFilters } from '@/features/admin-users/components/users-filters';
 import { UsersPagination } from '@/features/admin-users/components/users-pagination';
 import {
@@ -146,29 +147,32 @@ export default async function UsersPage({ params, searchParams }: Props) {
             {t('list.count', { count: formatNumber(list.total, locale) })}
           </p>
         </div>
-        {rows.length === 0 ? (
-          <p className="text-muted-foreground" data-slot="users-empty">
-            {t('list.empty')}
-          </p>
-        ) : (
-          <ClientMessages
-            forms
-            namespaces={[
-              'common.actions',
-              'admin.users.actions',
-              'onboarding.studentCode',
-              'onboarding.level',
-              'onboarding.division',
-            ]}
-          >
-            <UsersTable
-              rows={rows}
-              labelledBy="users-list-title"
-              actorId={ctx.user.id}
-              academic={academic}
-            />
-          </ClientMessages>
-        )}
+        {/* Around both branches: a change that empties the list is still announced. */}
+        <UsersAnnouncer>
+          {rows.length === 0 ? (
+            <p className="text-muted-foreground" data-slot="users-empty">
+              {t('list.empty')}
+            </p>
+          ) : (
+            <ClientMessages
+              forms
+              namespaces={[
+                'common.actions',
+                'admin.users.actions',
+                'onboarding.studentCode',
+                'onboarding.level',
+                'onboarding.division',
+              ]}
+            >
+              <UsersTable
+                rows={rows}
+                labelledBy="users-list-title"
+                actorId={ctx.user.id}
+                academic={academic}
+              />
+            </ClientMessages>
+          )}
+        </UsersAnnouncer>
         <UsersPagination filter={filter} page={page} pages={pages} />
       </section>
     </div>

@@ -160,6 +160,13 @@ Every unknown in the plan's Technical Context is resolved here. Format per item:
   Two library behaviours shape these flows (§7 "Library behaviours"): `signUpEmail`'s returned id is not
   trusted (a made-up user comes back for an existing email), and email-send failures are caught so the
   response never differs between existing and unknown emails.
+  **Timing** (PR-41): the account-exists and invitation-pending branches create no account, so they would
+  skip the password hash and answer measurably faster. Both hash the submitted password and discard the
+  result (`server/auth/password-hash.ts`), the same function the library is configured with
+  (`emailAndPassword.password.hash`, the library's own scrypt hash; verification stays the library
+  default), so every branch costs one hash. Each branch also sends one email. The remaining differences
+  (a few database round trips) are small next to the hash and the email; the `register` rate limit does
+  not hide them, it only limits how many timing samples one client can collect.
 - **Rationale**: FR-005/FR-013/FR-020–023; one place for each rule.
 - **Alternatives**: validating in Better Auth hooks while leaving its endpoints public — rules split between
   hooks and actions, harder to test, and hook signatures vary by version.

@@ -91,6 +91,7 @@ previous batch is merged.
 | PR-38 | Polish | Final sweep and documentation | 250 |
 | PR-39 | Polish | Faster first paint on mobile (owner-approved 2026-11-18) | 150 |
 | PR-40 | Polish | Lighter first-load JavaScript (owner-approved 2026-11-19) | 1800 |
+| PR-41 | Polish | Hardening follow-ups from earlier reviews | 400 |
 
 ---
 
@@ -533,6 +534,15 @@ Status 2026-11-19: implemented and all gates green, but **not ticked** — the A
 
 **Accept**: Lighthouse 12.8.2 mobile preset (default simulated throttling) on the production build: LCP < 2.5 s on `/ar/sign-in` and `/ar/dashboard`, median of 3 runs, CLS ≤ 0.1 (values in the PR description) · the lowered script budgets and the font budget pass on every budgeted screen, `/en/sign-in` included, with the measured values printed · axe, CSP, responsive and no-JS form e2e specs still pass · no new runtime dependency
 
+### PR-41 — Hardening follow-ups · branch `001-pr41-hardening`
+
+Follow-ups from earlier reviews, ordered after PR-40 (`001-pr40-first-load-js`) and independent of it: it
+touches neither the shell menus, the i18n client providers, nor `perf-budget.spec.ts`.
+
+- [x] T149 Close the review follow-ups, each with tests: (1) **last administrator** — `users.setRole` (to another role) and `users.setStatus` (to `suspended`) lock the college's active administrators FOR NO KEY UPDATE in id order before deciding (whatever the target's role; foreign-key checks are not blocked) and answer `last_admin` when the target is the only one; the row actions map it to `forbidden` (contracts/db-api.md §1.6, server-actions.md §5.3; integration test with two concurrent changes); (2) **FR-032 race** — `tenants.findCurrentForShare(tx)`; `completeStudentProfileAction`, `updateStudentProfileAction`, and `adminUpdateStudentProfileAction` check the level against the college row locked FOR SHARE in their transaction (concurrent integration test in both orders); (3) `updateDivisionAction` reads the division with `divisions.findByIdForUpdate` and writes and audits nothing when nothing changed; (4) `server/auth/auth.ts` logs a failed password-reset audit with `errorName()`/`sqlStateOf()`; (5) **FR-005 timing** — registration hashes the password on the account-exists and invitation-pending branches with the hash the auth library is configured with (`server/auth/password-hash.ts`; unit tests; research.md §8); (6) one polite live region for the People table (`users-announcer.tsx`) instead of one per row action, StatusButton's refocus no longer goes stale, e2e assertions updated; (7) e2e: creating a missing student profile from the administrator's dialog (FR-005, FR-028, FR-030, FR-031, FR-032, FR-033, FR-042)
+
+**Accept**: two administrators demoting or suspending each other at the same moment leave exactly one active administrator (integration test) · a profile save and a settings save lowering the levels never both succeed, in either order (integration test) · `division.updated` lists only fields that differ from the locked row; no write and no audit row when nothing changed · every registration branch runs the password hash once (unit tests) · the People screen has exactly one `role="status"` region, with the same announcements, and focus returns to the row's status button after suspend and reactivate (e2e) · creating a missing profile from the dialog writes the profile and one `profile.created` row with the administrator as actor (e2e) · no CSP change, no new dependency
+
 ---
 
 ## Dependencies & Execution Order
@@ -600,7 +610,7 @@ After each checkpoint the system is releasable for the stories completed so far.
 | Requirement | Batches |
 |---|---|
 | FR-001–FR-003 | PR-16 (domain rule end-to-end in PR-35) |
-| FR-004, FR-005 | PR-12, PR-16, PR-17, PR-24 |
+| FR-004, FR-005 | PR-12, PR-16, PR-17, PR-24, PR-41 |
 | FR-006 | PR-18 |
 | FR-007 | PR-12, PR-16, PR-24 |
 | FR-008 | PR-12, PR-14, PR-18 |
@@ -615,9 +625,9 @@ After each checkpoint the system is releasable for the stories completed so far.
 | FR-023 | PR-29 |
 | FR-024–FR-027 | PR-21, PR-22, PR-23 |
 | FR-028 | PR-34 |
-| FR-029–FR-031 | PR-31, PR-32, PR-33 |
-| FR-032, FR-034 | PR-4, PR-35 |
-| FR-033 | PR-5, PR-36 |
+| FR-029–FR-031 | PR-31, PR-32, PR-33, PR-41 |
+| FR-032, FR-034 | PR-4, PR-35, PR-41 |
+| FR-033 | PR-5, PR-36, PR-41 |
 | FR-035 | PR-13, PR-19 |
 | FR-036 | PR-7, PR-10 |
 | FR-037 | PR-20 |

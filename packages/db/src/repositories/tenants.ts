@@ -50,6 +50,22 @@ export async function findCurrentForUpdate(tx: Tx): Promise<Tenant | null> {
 }
 
 /**
+ * The college in context, read in the caller's transaction and locked FOR SHARE until it ends — the
+ * counterpart of findCurrentForUpdate for writers that depend on a setting (FR-032: a profile save checks
+ * the level against `levelsCount`). A settings save waits until the caller commits, then sees its write;
+ * a caller that comes after a settings save waits for it and reads the new values. Concurrent FOR SHARE
+ * callers do not wait for each other. null when the context names no college.
+ */
+export async function findCurrentForShare(tx: Tx): Promise<Tenant | null> {
+  const rows = await tx
+    .select()
+    .from(tenants)
+    .where(sql`${tenants.id} = app_tenant_id()`)
+    .for('share');
+  return rows[0] ?? null;
+}
+
+/**
  * Updates the settings of the college in context and sets updated_at. Only the five settings columns are
  * copied from the patch, so a caller cannot smuggle `slug` or `status` in at run time.
  */

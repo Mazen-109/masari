@@ -20,6 +20,7 @@ import { fail, ok, type ActionResult } from '@/lib/result';
 import { recordAudit } from '@/server/audit';
 import { getAuth } from '@/server/auth/auth';
 import { findUsableInvitation } from '@/server/auth/invitation-lookup';
+import { hashPassword } from '@/server/auth/password-hash';
 import { getSessionContext } from '@/server/auth/session';
 import { sendEmail } from '@/server/email/send';
 import { accountExists } from '@/server/email/templates/account-exists';
@@ -182,9 +183,14 @@ async function register(formData: FormData, locale: Locale): Promise<ActionResul
     });
   }
 
+  // Steps 5 and 6 create no account, so they hash the password and throw the hash away: every branch then
+  // costs one password hash (step 7's is made inside signUpEmail) and the timing of the answer does not
+  // reveal whether the address is known (FR-005, research.md §8).
   if (await users.findByEmail(input.email)) {
+    await hashPassword(input.password);
     await sendAccountExists(input.email);
   } else if (await hasInvitationAwaitingAccount(tenant.id, input.email)) {
+    await hashPassword(input.password);
     await sendInvitationPending(input.email, tenant);
   } else {
     await createStudent(input, tenant.id, locale);
