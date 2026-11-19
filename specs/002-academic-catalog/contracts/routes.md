@@ -25,12 +25,17 @@ introduced by PR-5 (the first such screen):
 - An entry may carry `prepare?: (page: Page) => Promise<string>`. `path` then stays a readable label (e.g.
   `/catalog/courses/[courseId]`, used in test titles), and the three consumers (`a11y.spec.ts`,
   `security-headers.spec.ts`, `responsive.spec.ts`) visit `await screenPath(page, screen)` — a helper
-  exported from `screens.ts` that returns `path` or, after sign-in, the result of `prepare(page)`. That is
-  the only change to those specs.
+  exported from `screens.ts` that returns `path` or, after sign-in, the result of `prepare(page)`. Like
+  `path`, the returned value has **no locale prefix** (e.g. `/catalog/courses/<uuid>`); the consumers pass
+  it through `localized(locale, …)` exactly as they do for static paths. That is the only change to those
+  specs.
 - `prepare` creates data **only in the role-based access college** (`ensureRoleCollege(page)` from
   `support/roles.ts`), never in the demo college (tasks.md rule 7), through the idempotent test-support
   helper `ensureScreenFixtures` (contracts/db-api.md §3, wrapped in `support/db.ts`). It is safe when many
-  workers call it at once. 002's own specs use their own colleges, so these fixtures change no assertion.
+  workers call it at once. It never changes an existing current term: if the college has none it creates a
+  current first term; the course is placed for the current term's kind (first or second); a current summer
+  term makes it throw an explicit error (not reachable today, since only these fixtures create terms in that
+  college). 002's own specs use their own colleges, so these fixtures change no assertion.
 - Dynamic screens are therefore listed for roles of the role-based access college: `student_affairs` for
   catalog and roster screens, and a new pseudo-role **`college_student`** (that college's student, signed in
   with `signInAsRole(page, 'student')`) for the student course page. The demo `admin` is listed for the
@@ -60,7 +65,7 @@ into `support/responsive.ts` so both specs share it.
 | `/catalog/courses` | `catalog/courses/page.tsx` | `catalog.manage` | GET filters `q`, `level`, `division`, `status`; table (code, name in the current language, credit hours, number of placements, status); "Add course" link | PR-5 (level/division filters: PR-8) |
 | `/catalog/courses/new` | `catalog/courses/new/page.tsx` | `catalog.manage` | Course form (code `dir="ltr"`, Arabic name `dir="rtl"`, English name `dir="ltr"`, credit hours, description textarea `dir="auto"`) | PR-5 |
 | `/catalog/courses/[courseId]` | `catalog/courses/[courseId]/page.tsx` | `catalog.manage` | Sections, each with an `h2`: details (edit form + activate/deactivate), topics (ordered list with rename dialog, move up/down, remove, add form), study plan (placements table + add form: level select 1…`levelsCount`, term-kind select, division checkboxes in a `fieldset`), teachers (term select via `?term=<id>`, current term by default; teachers list with remove; add form with a select of active faculty members) | PR-5 (details), PR-6 (topics), PR-8 (study plan), PR-9 (teachers) |
-| `/roster` | `roster/page.tsx` | `requirePermission('roster.manage', '/roster')` | Upload form (file input `accept=".csv"`, template link, instructions) + link to the current draft if any; verification overview (GET filters `q`, `status`; table: student code, official name, official level/division, registered level/division, status badge with text and method, a "verification revoked" note, row actions confirm / revoke, each in a dialog showing the account name beside the official name); last 10 imports (date, by whom, rows, counts, status) | PR-17 (upload, history), PR-19 (overview) |
+| `/roster` | `roster/page.tsx` | `requirePermission('roster.manage', '/roster')` | Upload form (file input `accept=".csv"`, template link, instructions) + link to the current draft if any; verification overview (GET filters `q`, `status`; table: student code, official name, official level/division, registered level/division, status badge with text and method, a "verification revoked" note, row actions confirm / revoke, each in a dialog showing the account name beside the official name; the revoke dialog also states the next step — ask the administration to correct the account's student code if it belongs to someone else); last 10 imports (date, by whom, rows, counts, status) | PR-17 (upload, history), PR-19 (overview) |
 | `/roster/imports/[importId]` | `roster/imports/[importId]/page.tsx` | `roster.manage` | Status and summary (rows, problems, ignored columns); preview counts or result counts; problems table (row, column, problem text, value) with "and N more"; Apply (confirmation dialog repeating the removed / verification-losing counts) and Discard buttons while it is an applicable draft; after a `large_removal` answer, a second confirmation form that states "N of M students will be removed" and submits `confirmedRemoval = N` (works without JavaScript); the `levels_changed` and `expired` explanations; `?applied=1` → success banner | PR-17 (report, discard), PR-18 (apply) |
 | `/courses` | `courses/page.tsx` | `requirePermission('courses.view_own', '/courses')` | Current term label; list of the student's courses (code, name, credit hours, teachers' names) as links; total credit hours; empty states: no current term / summer term / nothing placed | PR-11 |
 | `/courses/[courseId]` | `courses/[courseId]/page.tsx` | `courses.view_own`; then `notFound()` unless `catalog.isStudentInCourse(…, currentTerm)` | Name (`h1`), code, credit hours, teachers, description, ordered topics (`<ol>`) | PR-11 |

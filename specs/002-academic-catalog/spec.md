@@ -100,8 +100,9 @@ requirements. Each is **(assumed, owner to confirm)**. Changing one later means 
   **(assumed, owner to confirm)**
 - Q: How long is uploaded personal data kept? → A: The uploaded file itself is never stored. The contents of
   an import that has not been applied are deleted when it is applied, discarded, or replaced; after 24 hours
-  it can no longer be applied and its contents are deleted the next time the college's roster screen or a
-  roster action is used (a scheduled clean-up arrives with the background jobs of feature 003). Official-list
+  it can no longer be applied and its contents are deleted the next time one of the college's roster screens
+  is opened or a catalog manager uploads, applies, or discards an import (a scheduled clean-up arrives with
+  the background jobs of feature 003). Official-list
   entries are kept while they are in the current list and deleted when a later import no longer contains
   them. **(assumed, owner to confirm)**
 - Q: How large may an import be, and must it run in the background? → A: Up to 10,000 students and 2 MB per
@@ -251,8 +252,8 @@ error is reported with its row number. Apply a clean file and verify the list an
    their verification before confirmation.
 7. **Given** an import that was not applied, **When** the catalog manager discards it or uploads another
    file, **Then** it can no longer be applied and its contents are deleted; **When** instead 24 hours pass,
-   **Then** it can no longer be applied and its contents are deleted the next time the roster screen is
-   opened.
+   **Then** it can no longer be applied and its contents are deleted the next time a roster screen is
+   opened or an import is uploaded, applied, or discarded.
 8. **Given** two catalog managers, **When** both press "Apply" on the same import at the same moment,
    **Then** it is applied exactly once.
 
@@ -332,7 +333,9 @@ sees the official data; re-import without A and verify A is unlocked.
   start with the owner's first three official names), the administration corrects the impostor's code
   directly. If the impostor was verified automatically (they knew the owner's first three names), a catalog
   manager first revokes the verification (FR-026), which unlocks the account and stops automatic
-  re-verification of it for that code; then the administration corrects the code. Automatic verification
+  re-verification of it for that code; then the administration corrects the code **at once** — the block
+  against re-verification lives on the official-list entry and is lost if an import removes that entry and
+  a later one adds the code back, while a corrected code makes any link impossible. Automatic verification
   after a name change is limited to five attempts per day per student (FR-022), so names cannot be guessed
   in bulk.
 - **Invisible characters and copied names**: invisible formatting characters (for example the right-to-left
@@ -433,7 +436,8 @@ sees the official data; re-import without A and verify A is unlocked.
 - **FR-021**: Personal data from uploaded files MUST be limited and short-lived: the file itself is never
   stored; columns other than the four MUST be ignored and never stored; the contents of an unapplied import
   MUST be deleted when it is applied, discarded, or replaced, and — once expired — no later than the next
-  time the college's roster screen is opened or a roster action runs; an official-list entry MUST be deleted
+  time one of the college's roster screens is opened or a catalog manager uploads, applies, or discards an
+  import; an official-list entry MUST be deleted
   when an applied import no longer contains it. Problems and contents of uploaded files MUST never be written
   to logs.
 
@@ -445,7 +449,9 @@ sees the official data; re-import without A and verify A is unlocked.
   the profile of an unverified student; an unverified student changes their name. The check after a name
   change MUST run at most five times per student per day (later name changes are saved without it; the next
   import checks again). An account whose verification was revoked (FR-026) MUST NOT be verified
-  automatically again for the same student code.
+  automatically again for the same student code while that code's entry stays in the official list (an
+  import that removes the entry also removes this block; the administration is expected to correct the
+  revoked account's student code right after revoking).
 - **FR-023**: When a student is verified, and whenever an applied import changes their official level or
   division, the student's level and division MUST be set to the official ones. Modules MUST read level and
   division only from the shared student profile.

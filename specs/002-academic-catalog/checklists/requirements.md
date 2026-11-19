@@ -65,5 +65,13 @@
     raised; daily purge tracked in `docs/roadmap.md` (003); explicit isolation read/write tests;
     normalised overview search; types exported once; test-support refusal tests in
     `test-support.int.test.ts`; second confirmation for large removals.
+- Re-review (2026-11-19, one blocking item) — addressed: `studentProfiles.update` takes the roster lock
+  before reading whenever the patch contains code, level, or division and writes only changed columns
+  (race test with two connections in PR-13); `ProfileForMatch` built from a separate `student_profiles`
+  read joined in memory; `revoked` defined as `revoked_user_id IS NOT NULL AND user_id IS NULL`, and every
+  link clears the marker; the marker's loss on remove-then-re-add is documented as a known limit (FR-022,
+  edge case, data-model §3.7) instead of adding a table; scenario 2's home badge asserted in PR-21; purge on
+  both roster screens with FR-021 wording aligned; `createDraft` statement-count test listed; `prepare`
+  paths are locale-free; `ensureScreenFixtures` term behaviour stated; orphaned table header removed.
 - FR-029 changes the privacy-notice draft of feature 001 (D17 there): the owner reviews the wording before
   the pilot.

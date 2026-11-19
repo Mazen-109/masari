@@ -142,7 +142,8 @@ maxLevelInUse(tx: Tx): Promise<number>   // highest level over course_placements
 
 All writes take the roster lock (data-model.md §2) as their first statement. Purging expired drafts:
 `createDraft` purges first; `applyImport` and `discard` judge their own target instead (an expired draft →
-`expired`, data-model.md §3.6); the roster screens call `purgeExpiredDrafts` when rendered.
+`expired`, data-model.md §3.6); both roster screens (`/roster` and the import report) call
+`purgeExpiredDrafts` when rendered. Confirmation and revocation do not purge (they touch only entries).
 
 ```ts
 createDraft(tx: Tx, tenantId: string, input: { rowCount: number; rows: StagedRow[]; issues: ImportIssue[];
@@ -179,6 +180,7 @@ overview(tx: Tx, filter: { q?: string; status?: VerificationStatus; page: number
   // FULL JOIN of roster_entries and student_profiles on (tenant_id, student_code); q matches the student
   // code (ILIKE, escaped) or, after normalizeArabicText, roster_entries.name_search (ILIKE, escaped);
   // ordered by student_code; two statements; RangeError like courses.list
+  // revoked = revoked_user_id IS NOT NULL AND user_id IS NULL (every link clears the marker, data-model §3.7)
   // OverviewRow = { studentCode; status; method: 'auto' | 'manual' | null; revoked: boolean;
   //   official: { fullName; level; divisionId } | null; profile: { userId; level; divisionId } | null }
 ```
@@ -190,10 +192,12 @@ parameters contain student codes and names.
 
 ### 2.7 Changes to 001 repositories
 
-**`studentProfiles.update`** — when the patch **changes** `studentCode`, `level`, or `divisionId` (a value
-different from the stored one; the current row is read first), the function takes the college's roster
-lock (data-model.md §2) and returns the new failure reason `verified_locked` if the profile is linked to an
-official-list entry. A patch that only repeats stored values, and every other field, behave as in 001. The
+**`studentProfiles.update`** — when the patch **contains** `studentCode`, `level`, or `divisionId`, the
+function takes the college's roster lock (data-model.md §2) **before reading the row**, then compares: it
+returns the new failure reason `verified_locked` if the profile is linked to an official-list entry and one
+of those values really changes, and otherwise writes **only the changed columns** (unlike 001, which writes
+every field of the patch), so a patch that only repeats stored values writes nothing to them and can never
+overwrite values synced by a concurrent apply. Patches without those three fields behave as in 001. The
 foreign-key error of a code change on a linked profile (SQLSTATE `23503` on `roster_entries_profile_fk`) is
 added to the function's `CONFLICTS` map as `verified_locked`, so it never surfaces as `internal`. Delivered
 in PR-13, together with the tables, so the lock exists before the first link can be created (PR-18).
@@ -204,6 +208,8 @@ in PR-13, together with the tables, so the lock exists before the first link can
 listNamesInTenant(tx: Tx, tenantId: string, userIds: readonly string[]): Promise<Array<{ id: string; name: string }>>
   // ids not in the college are left out; RangeError for more than 200 ids
 listStudentNames(tx: Tx, tenantId: string): Promise<Array<{ id: string; name: string }>>   // role student
+  // names only: the roster repository reads (user_id, student_code) from student_profiles in a separate
+  // statement and joins the two in memory into ProfileForMatch (counted in apply's fixed statement count)
 listActiveFaculty(tenantId: string): Promise<Array<{ id: string; name: string }>>
   // role faculty, status active, ordered by name, at most 1,000
 lockMemberInTenant(tx: Tx, tenantId: string, userId: string): Promise<{ role: Role; status: UserStatus } | null>
@@ -234,9 +240,12 @@ ensureScreenFixtures(migrationUrl, tenantId, input: { studentEmail: string }):
   Promise<{ courseId: string; importId: string | null }>
   // e2e screen lists only (contracts/routes.md §1). Idempotent and safe under concurrent workers: takes a
   // transaction-level advisory lock on the college, then creates only what is missing — a current first
-  // term 2026 (if the college has no current term), course `A11Y 101` with two topics (PR-5); a placement of
-  // it for the student's (level, division) in the first term (PR-11); an applied import with three
-  // synthetic entries whose codes start with `ZZ-` and match no profile (PR-17, then `importId` is set).
+  // term 2026 (if the college has no current term; an existing current term is never changed), course
+  // `A11Y 101` with two topics (PR-5); a placement of it for the student's (level, division) in the kind of
+  // the current term — `first` or `second`; a current summer term throws an explicit error, which cannot
+  // happen today because only these fixtures create terms in the role-based access college (PR-11); an
+  // applied import with three synthetic entries whose codes start with `ZZ-` and match no profile (PR-17,
+  // then `importId` is set).
 ```
 
 PR numbers above say which batch adds each helper; `createTerm` and `createCourse` come with PR-2 and PR-4,
@@ -244,8 +253,6 @@ PR numbers above say which batch adds each helper; `createTerm` and `createCours
 
 ## 4. Required integration tests (`packages/db/test/*.int.test.ts`)
 
-| File | Proves |
-|---|---|
 Every file that introduces a table contains, for each of its tables, an explicit **isolation read** case and
 **isolation write** case (data-model.md §1): inside college B's context, college A's rows are not returned,
 an `INSERT` with A's `tenant_id` fails the policy, and `UPDATE`/`DELETE` aimed at A's rows affect 0 rows.
@@ -260,9 +267,9 @@ an `INSERT` with A's `tenant_id` fails the policy, and `UPDATE`/`DELETE` aimed a
 | `catalog-read.int.test.ts` | Every function of catalog-read.md §2 (PR-10) and §3 (PR-21) incl. summer term, no current term, no profile, inactive course, a past term computed from the current profile, ordering, `termOfferings` in two statements, and a cross-college case per function. |
 | `users.int.test.ts` (extended) | The four new functions filter by college (another college's ids are never returned or locked); `listNamesInTenant` > 200 ids → `RangeError`. |
 | `roster-tables.int.test.ts` (PR-13) | Isolation read/write for `roster_imports` and `roster_entries`; the CHECKs forbid staged data on a non-draft and on an import with problems (direct inserts fail); `roster_entries_profile_fk`: a link to a profile of **another college with the same code** fails (inserted as the owner role, bypassing RLS), a link to a profile with a different code fails, changing a linked profile's code fails, deleting the profile's account sets only `user_id` to NULL. |
-| `student-profiles.int.test.ts` (extended, PR-13) | `update` → `verified_locked` for a patch that changes code, level, or division of a linked profile (link created by owner SQL), and for the `23503` path; a patch repeating the stored values of a linked profile succeeds; other fields and unlinked profiles behave as in 001; a level change waits for a concurrent holder of the roster lock (two connections). |
-| `roster-imports.int.test.ts` (PR-14) | `createDraft` replaces the previous draft (one draft per college, also under two concurrent uploads), preview counts, `findImport` never returns staged rows and derives `expired`; `discard` incl. `expired`; `purgeExpiredDrafts` clears data and sets `expired`; cross-college. |
+| `student-profiles.int.test.ts` (extended, PR-13) | `update` → `verified_locked` for a patch that changes code, level, or division of a linked profile (link created by owner SQL), and for the `23503` path; a patch repeating the stored values of a linked profile succeeds and writes no academic column; other fields and unlinked profiles behave as in 001; a level change waits for a concurrent holder of the roster lock (two connections); **race case (two connections)**: connection 1 holds the roster lock, links the profile, and syncs a new level/division (the same SQL as apply's sync), while connection 2 runs `update` repeating the old values — after both commit the profile has the synced values (connection 2 gets `verified_locked`, never overwrites). |
+| `roster-imports.int.test.ts` (PR-14) | `createDraft` replaces the previous draft (one draft per college, also under two concurrent uploads), preview counts, **the same statement count for 10 and 2,000 rows** (query counter), `findImport` never returns staged rows and derives `expired`; `discard` incl. `expired`; `purgeExpiredDrafts` clears data and sets `expired`; cross-college. |
 | `roster-apply.int.test.ts` (PR-18) | Replace semantics (insert/update/unchanged/remove); reasons in the order of data-model.md §3.7 — an expired draft answers `expired` (both before and after a purge), `has_issues`, `not_draft`, `levels_changed` after `levels_count` is reduced, `large_removal` (21% removed without confirmation; accepted with `confirmedRemoval` equal to the count, refused with another number); two concurrent applies → one `ok`; `manual` links kept; `auto` links kept when only the account name changed and re-checked when the official name changed; `revoked_user_id` never re-linked; removed students unlinked; verified profiles synced (level, division); **the same statement count for 10 and 2,000 rows** (query counter); result counts equal the plan; cross-college. |
-| `roster-verification.int.test.ts` (PR-19, PR-20) | `confirmMatch` (clears `revoked_user_id`) / `revokeVerification` of `auto` and `manual` links; `overview` statuses incl. `revoked`, filters, search by code and by name with spelling variants («احمد» finds «أحمد»), pagination (PR-19); `verifyProfile` outcomes, sync, and refusal for a revoked account (PR-20); cross-college. |
+| `roster-verification.int.test.ts` (PR-19, PR-20) | `confirmMatch` (clears `revoked_user_id`) / `revokeVerification` of `auto` and `manual` links; `overview` statuses incl. `revoked` (shown while unlinked; cleared when another account is then linked), filters, search by code and by name with spelling variants («احمد» finds «أحمد»), pagination (PR-19); `verifyProfile` outcomes, sync, and refusal for a revoked account (PR-20); cross-college. |
 | `admin.int.test.ts` (extended, PR-22) | Seed additions idempotent (data-model.md §6). |
 | `test-support.int.test.ts` (extended in each batch that adds a helper) | Every new test-support function refuses a database whose name is not a test database; `ensureScreenFixtures` is idempotent (two concurrent calls create one of each fixture). |

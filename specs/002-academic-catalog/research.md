@@ -68,9 +68,9 @@ open `NEEDS CLARIFICATION` items.
   - level and division change only through an applied import: when the official list changes them, the
     verified profile follows in the same transaction.
 
-  The lock is enforced in `@masari/db` (`studentProfiles.update` takes the college's roster lock when the
-  patch changes code, level, or division, and returns `verified_locked` for a profile linked to an
-  official-list entry) and, for the student code, also by the database (the link is a foreign key on
+  The lock is enforced in `@masari/db` (`studentProfiles.update` takes the college's roster lock, before
+  reading, whenever the patch contains code, level, or division, and returns `verified_locked` when such a
+  value really changes on a profile linked to an official-list entry) and, for the student code, also by the database (the link is a foreign key on
   `(tenant_id, user_id, student_code)` with `ON UPDATE RESTRICT`, data-model.md §3.7). The UI shows locked
   fields read-only with the reason. A student who leaves the list (or whose automatic match no longer holds)
   is unlocked automatically.
@@ -81,7 +81,16 @@ open `NEEDS CLARIFICATION` items.
   confirmation can. This is the path for an impostor who was verified automatically with someone else's
   code: revoke, then the administration corrects the impostor's student code (001's People dialog), and the
   real owner registers. The lock itself stays absolute: revocation is an explicit, audited state change,
-  not an override of individual fields.
+  not an override of individual fields. The marker lives on the entry, so an import that removes the entry
+  and a later one that re-adds the code would forget it; a separate table of revoked pairs was weighed and
+  not added, because correcting the impostor's code right after the revocation (the documented procedure,
+  repeated in the revoke dialog) makes a new link impossible anyway (data-model.md §3.7 "Revocation marker
+  lifetime").
+
+  **The lock and concurrent saves**: `studentProfiles.update` takes the roster lock *before* reading
+  whenever the patch contains code, level, or division, and writes only changed columns, so a student
+  re-saving the old values while an apply links and syncs them waits, then sees the synced row and cannot
+  write the old values back (data-model.md §2).
 - **Rationale**:
   - The roadmap's purpose for the roster is "locking verified academic data"; a lock the student can lift by
     editing would make verification meaningless for the consumers that need trustworthy data — Kitabi's
@@ -171,7 +180,7 @@ open `NEEDS CLARIFICATION` items.
   |---|---|---|
   | Uploaded file bytes | request memory only — never written to disk, object storage, the database, or logs | for the duration of the request |
   | Columns other than the four | discarded while parsing; only their header names are kept (in the import's summary, to tell the user) | never stored |
-  | Validated rows of an error-free draft (`staged_rows`; a draft with problems keeps no rows) and the problems of a draft (`issues`, ≤ 500, offending values truncated to 40 characters) | `roster_imports` row | until applied, discarded, or replaced; after 24 hours the draft cannot be applied and its data is cleared the next time the college's roster screen or a roster action runs |
+  | Validated rows of an error-free draft (`staged_rows`; a draft with problems keeps no rows) and the problems of a draft (`issues`, ≤ 500, offending values truncated to 40 characters) | `roster_imports` row | until applied, discarded, or replaced; after 24 hours the draft cannot be applied and its data is cleared the next time one of the college's roster screens is opened or an import is uploaded, applied, or discarded |
   | Import summary (who, when, status, counts, ignored header names) | `roster_imports` row | as long as the college's data (audit trail; no personal data) |
   | Official-list entries (code, name, level, division, link) | `roster_entries` | while present in the current official list; deleted when an applied import no longer contains them |
   | Audit events | `audit_events` | append-only, counts and IDs only |

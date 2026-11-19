@@ -54,14 +54,18 @@ included (contracts/db-api.md §4).
   Who takes it, always as the first statement of the operation:
   - every write to `roster_imports` or `roster_entries`: upload, discard, apply, purge, automatic
     verification of one profile, manual confirmation, revocation;
-  - `studentProfiles.update` (001) when the patch **changes** the student code, level, or division — a field
-    "changes" when its new value differs from the stored one; a patch that repeats the stored values does
-    not take the lock and is not refused.
+  - `studentProfiles.update` (001) whenever the patch **contains** `studentCode`, `level`, or `divisionId`
+    — before it reads the row. Only then does it compare: a field "changes" when its new value differs from
+    the stored one; only real changes are refused on a linked profile, and the UPDATE writes **only the
+    changed columns** (a pure repeat writes nothing to them).
 
   Roster writes and academic-data changes of one college are therefore serialised (an apply that links and
-  syncs a student cannot interleave with that student's level change), and different colleges never wait
-  for each other. The lock is re-entrant inside one transaction (an admin correction followed by
-  `verifyProfile` takes it twice).
+  syncs a student cannot interleave with that student's level change, and a re-save of unchanged values
+  that waits for the apply reads the synced row afterwards, so it can never write the old values back), and
+  different colleges never wait for each other. A row lock (`FOR UPDATE` on the profile) instead of the
+  advisory lock would deadlock against the apply's sync, which locks profiles after taking the roster lock.
+  The lock is re-entrant inside one transaction (an admin correction followed by `verifyProfile` takes it
+  twice).
 - **Course touch**: every write to a course's topics or placements also sets that course's `updated_at =
   now()` in the same transaction, so a consumer can find changed courses by `updated_at` (catalog-read.md
   §5: the regulations assistant's read is added by 003).
@@ -217,10 +221,12 @@ type ImportSummary = {
 
 Derived: an import is **expired** when `status = 'draft' AND created_at <= now() - interval '24 hours'`.
 `roster.purgeExpiredDrafts(tx)` turns such rows into `status = 'expired'`, clears `staged_rows` and `issues`,
-sets `resolved_at` (research.md §6). It runs when a roster screen is rendered and as the first step of
-`createDraft`. `applyImport` and `discard` do **not** purge first: they lock their target import and, if it
-is an expired draft, expire it themselves and answer `expired`; an import already in status `expired` also
-answers `expired` (never `not_draft`). A daily purge across colleges is a tracked 003 item
+sets `resolved_at` (research.md §6). It runs when either roster screen (`/roster` or an import report) is
+rendered and as the first step of `createDraft`. `applyImport` and `discard` do **not** purge first: they
+lock their target import and, if it is an expired draft, expire it themselves and answer `expired`; an
+import already in status `expired` also answers `expired` (never `not_draft`). Because a college has at most
+one draft, these are all the places an expired draft can be met; confirmation and revocation touch only
+entries and do not purge. A daily purge across colleges is a tracked 003 item
 (`docs/roadmap.md` §2 "003").
 
 State transitions:
@@ -278,9 +284,10 @@ Derived verification status (never stored) — for a student code present on eit
 
 Rules (repository). Every rule below that writes, and the lock check, takes the roster lock of §2 first:
 
-- **Lock**: `studentProfiles.update` (001), when the patch changes the student code, level, or division
-  (§2), takes the roster lock and then refuses with reason `verified_locked` if an entry is linked to the
-  profile (`SELECT 1 FROM roster_entries WHERE user_id = $1`). The database FK independently refuses a code
+- **Lock**: `studentProfiles.update` (001), when the patch contains the student code, level, or division
+  (§2), first takes the roster lock, then reads the row and the link (`SELECT 1 FROM roster_entries WHERE
+  user_id = $1`), and refuses with reason `verified_locked` if the profile is linked and a value really
+  changes; otherwise it updates only the changed columns. The database FK independently refuses a code
   change; its violation (SQLSTATE `23503` on `roster_entries_profile_fk`) is also reported as
   `verified_locked`. Other fields, and patches that repeat the stored values, are unaffected.
 - **Sync**: linking a profile, and applying an import that changes a linked entry's level or division, set
@@ -296,8 +303,10 @@ Rules (repository). Every rule below that writes, and the lock check, takes the 
      `issue_count > 0` → `has_issues`;
   2. **levels re-check**: a staged level above the college's current `levels_count` → `levels_changed`
      (nothing written; the catalog manager uploads again);
-  3. read the current entries and the college's student profiles with account names
-     (`users.listStudentNames`); plan with `planRosterApply` (pure, `packages/db/src/roster/plan.ts`);
+  3. read the current entries; read the college's profiles (`user_id`, `student_code` from
+     `student_profiles`) and the student account names (`users.listStudentNames`, `{ id, name }`) as two
+     separate statements and join them in memory into `ProfileForMatch[]` (profiles without a name entry are
+     skipped); plan with `planRosterApply` (pure, `packages/db/src/roster/plan.ts`);
   4. **large removal**: if the plan removes more than `largeRemovalPercent` (20%) of a non-empty current
      list and the caller's `confirmedRemoval` is not the planned removed count → `large_removal` with the
      count (nothing written);
@@ -308,17 +317,28 @@ Rules (repository). Every rule below that writes, and the lock check, takes the 
      user_ids)`); sync linked profiles whose level or division differs (one `UPDATE student_profiles … FROM
      roster_entries`); mark the import applied with the result counts.
 
-  Statement count: a fixed number (about 12, no loop over rows) for every size up to 10,000 rows — the
-  integration test compares 10 and 2,000 rows. Array parameters also keep the bind-parameter count fixed.
+  Statement count: a fixed number (about 12 — the three reads of step 3 included — no loop over rows) for
+  every size up to 10,000 rows; the integration test compares 10 and 2,000 rows. Array parameters also keep
+  the bind-parameter count fixed. `createDraft`'s preview uses the same three reads.
 - **Automatic links across imports** (spec FR-028): a `manual` link is kept while the code stays listed; an
   `auto` link is kept unless the entry's official name changes (compared after `normalizeArabicText`), and
   when it changes, it is kept only if `namesMatch(current account name, new official name)`. A change of the
   account name alone never removes a link. Unlinked entries whose profile matches get an `auto` link, except
   for the entry's `revoked_user_id`.
 - **Manual confirmation**: entry and profile with the same code, unlinked → link `manual`,
-  `verified_by = actor`, `revoked_user_id = NULL`, sync. **Revocation** (`auto` or `manual`): clear the
-  three verification columns and set `revoked_user_id` to the unlinked account; the profile keeps its synced
-  values and becomes editable again.
+  `verified_by = actor`, sync. **Revocation** (`auto` or `manual`): clear the three verification columns
+  and set `revoked_user_id` to the unlinked account; the profile keeps its synced values and becomes
+  editable again.
+- **Revocation marker lifetime**: every link (`manual`, or `auto` of another account — the revoked account
+  itself is never auto-linked) sets `revoked_user_id = NULL` in the same statement, so the marker only
+  describes an entry that is still unlinked. The overview's `revoked` flag is
+  `revoked_user_id IS NOT NULL AND user_id IS NULL`. **Known limit**: the marker lives on the entry; if an
+  import removes the entry and a later import adds the code back, the marker is gone and a still-matching
+  revoked account could be linked automatically again. This is accepted rather than adding a table of
+  revoked pairs, because the procedure after a revocation is to have the administration correct the
+  impostor's student code at once (spec edge case "Code typed by an impostor"); once the impostor's profile
+  no longer carries the code, no link to that code is possible (the FK requires equal codes). The revoke
+  dialog states this next step.
 
 ## 4. Relationships
 
