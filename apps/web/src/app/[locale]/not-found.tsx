@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
-import { getTranslations } from 'next-intl/server';
+import { getLocale, getTranslations } from 'next-intl/server';
 import { LocaleSwitcher } from '@/components/shell/locale-switcher';
-import { Link } from '@/i18n/navigation';
-import type { Locale } from '@/lib/locale';
+import { DEFAULT_LOCALE, isLocale, localizeHref, type Locale } from '@/lib/locale';
 
 // On a 404 render Next.js takes the title from the layouts plus the deepest `not-found` file of the
 // matched tree, not from the page that called `notFound()` — so the localized 404 title
@@ -21,16 +20,20 @@ export async function generateMetadata({
   return { title: t('notFound') };
 }
 
-// Localized 404 for unknown paths under a valid locale (contracts/routes.md §5).
+// Localized 404 for unknown paths under a valid locale (contracts/routes.md §5). The home link is a plain
+// anchor: this boundary is part of every page's scripts, and `next/link` would add its own copy there
+// (PR-40); leaving a 404 with a full page load costs nothing noticeable.
 export default async function LocaleNotFound() {
   const t = await getTranslations('common');
+  const locale = await getLocale();
+  const home = localizeHref(isLocale(locale) ? locale : DEFAULT_LOCALE, '/');
 
   return (
     <main id="main">
       <h1>{t('notFound.title')}</h1>
       <p>{t('notFound.body')}</p>
       <p>
-        <Link href="/">{t('actions.goHome')}</Link>
+        <a href={home}>{t('actions.goHome')}</a>
       </p>
       <LocaleSwitcher />
     </main>

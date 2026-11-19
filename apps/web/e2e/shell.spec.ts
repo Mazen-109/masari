@@ -41,6 +41,55 @@ async function focusedDescriptor(page: Page): Promise<{ id: string; x: number; y
   });
 }
 
+/**
+ * Holds back — or fails, as if offline — the script chunk whose code contains `marker`: the code that the
+ * user menu and the drawer fetch on first use (PR-40). Routing disables the HTTP cache, so the chunk is
+ * requested again on this page. `requested` resolves when the page asks for it (its idle preload, which
+ * also shows the page is hydrated); `release` lets a held chunk through.
+ */
+async function interceptChunk(
+  page: Page,
+  marker: string,
+  mode: 'hold' | 'fail',
+): Promise<{ requested: Promise<void>; release: () => void }> {
+  let release = () => {};
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let markRequested = () => {};
+  const requested = new Promise<void>((resolve) => {
+    markRequested = resolve;
+  });
+  await page.route('**/_next/static/chunks/**/*.js', async (route) => {
+    const response = await route.fetch();
+    const body = await response.text();
+    if (!body.includes(marker)) return route.fulfill({ response, body });
+    markRequested();
+    if (mode === 'fail') return route.abort('internetdisconnected');
+    await released;
+    return route.fulfill({ response, body });
+  });
+  return { requested, release };
+}
+
+/** A string found only in the user menu's dropdown chunk (its sign-out form id). */
+const DROPDOWN_CHUNK = 'user-menu-sign-out';
+/** A string found only in the drawer's chunk (the sheet's `data-slot`). */
+const DRAWER_CHUNK = 'sheet-content';
+
+/** A fresh tab of the signed-in student's context with `/ar/dashboard` open and a chunk intercepted. */
+async function dashboardWithChunk(
+  page: Page,
+  marker: string,
+  mode: 'hold' | 'fail',
+): Promise<{ tab: Page; requested: Promise<void>; release: () => void }> {
+  const tab = await page.context().newPage();
+  const chunk = await interceptChunk(tab, marker, mode);
+  await tab.goto('/ar/dashboard');
+  await chunk.requested;
+  return { tab, ...chunk };
+}
+
 test('a student sees exactly Home and their five modules in the navigation and as cards', async ({
   page,
 }) => {
@@ -225,6 +274,76 @@ test('with JavaScript on, the no-JavaScript sign-out form takes no room in the h
   await expect(fallback.locator('form')).toHaveCount(1);
 });
 
+test.describe('before the user menu code has arrived', () => {
+  test('Enter opens it on the first item, and Escape returns focus to the trigger', async ({
+    page,
+  }) => {
+    await signInStudent(page);
+    const { tab, release } = await dashboardWithChunk(page, DROPDOWN_CHUNK, 'hold');
+    const trigger = userMenuTrigger(tab);
+    await trigger.focus();
+    await tab.keyboard.press('Enter');
+    await expect(trigger).toHaveAttribute('aria-busy', 'true');
+    await expect(tab.getByRole('menu')).toHaveCount(0);
+
+    release();
+    await expect(tab.getByRole('menu')).toBeVisible();
+    await expect(tab.getByRole('menuitem', { name: ar.nav.profile })).toBeFocused();
+    await expectNoA11yViolations(tab);
+    await tab.keyboard.press('Escape');
+    await expect(tab.getByRole('menu')).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await expect(trigger).not.toHaveAttribute('aria-busy');
+  });
+
+  test('a pointer press opens it once the code arrives', async ({ page }) => {
+    await signInStudent(page);
+    const { tab, release } = await dashboardWithChunk(page, DROPDOWN_CHUNK, 'hold');
+    await userMenuTrigger(tab).click();
+    release();
+    await expect(tab.getByRole('menu')).toBeVisible();
+    await expect(tab.getByRole('menuitem', { name: ar.auth.signOut.submit })).toBeVisible();
+  });
+
+  test('keyboard focus on the trigger carries over, and a press given up meanwhile opens nothing', async ({
+    page,
+  }) => {
+    await signInStudent(page);
+    const focused = await dashboardWithChunk(page, DROPDOWN_CHUNK, 'hold');
+    await userMenuTrigger(focused.tab).focus();
+    focused.release();
+    await expect(userMenuTrigger(focused.tab)).toHaveAttribute('aria-haspopup', 'menu');
+    await expect(focused.tab.locator('[data-slot="user-menu-trigger"][id]')).toHaveCount(1);
+    await expect(userMenuTrigger(focused.tab)).toBeFocused();
+    await expect(focused.tab.getByRole('menu')).toHaveCount(0);
+
+    const movedOn = await dashboardWithChunk(page, DROPDOWN_CHUNK, 'hold');
+    await userMenuTrigger(movedOn.tab).click();
+    await movedOn.tab.getByRole('heading', { level: 1 }).click();
+    movedOn.release();
+    await expect(movedOn.tab.locator('[data-slot="user-menu-trigger"][id]')).toHaveCount(1);
+    await expect(movedOn.tab.getByRole('menu')).toHaveCount(0);
+  });
+
+  test('a failed download leaves the page and the button usable, and a later press opens it', async ({
+    page,
+  }) => {
+    await signInStudent(page);
+    const { tab } = await dashboardWithChunk(page, DROPDOWN_CHUNK, 'fail');
+    const trigger = userMenuTrigger(tab);
+    await trigger.click();
+    await expect(trigger).not.toHaveAttribute('aria-busy');
+    await expect(tab.getByRole('menu')).toHaveCount(0);
+    await expect(tab.getByRole('heading', { level: 1 })).toBeVisible();
+
+    await tab.unrouteAll({ behavior: 'wait' });
+    await expect(async () => {
+      if (!(await tab.getByRole('menu').isVisible())) await trigger.click();
+      await expect(tab.getByRole('menu')).toBeVisible({ timeout: 1_000 });
+    }).toPass();
+  });
+});
+
 test.describe('on a phone', () => {
   test('@mobile the drawer opens, traps focus, closes with Escape, and passes axe', async ({
     page,
@@ -272,6 +391,57 @@ test.describe('on a phone', () => {
     await expect(drawer).toBeHidden();
     await expect(page.getByRole('navigation', { name: ar.nav.label })).toHaveCount(1);
     await expect(mainNav(page)).toBeVisible();
+  });
+
+  test('@mobile a press before the drawer code arrives opens it, and closing returns focus', async ({
+    page,
+  }) => {
+    await signInStudent(page);
+    const { tab, release } = await dashboardWithChunk(page, DRAWER_CHUNK, 'hold');
+    const menuButton = tab.getByRole('button', { name: ar.nav.openMenu });
+    const drawer = tab.getByRole('dialog', { name: ar.nav.menuTitle });
+    await menuButton.click();
+    await expect(menuButton).toHaveAttribute('aria-busy', 'true');
+    await expect(menuButton).toHaveAttribute('aria-expanded', 'false');
+    await expect(drawer).toHaveCount(0);
+
+    release();
+    await expect(drawer).toBeVisible();
+    // The open modal drawer hides the rest of the page from assistive technology (aria-hidden), so
+    // the button is found by its slot, not its role, while the drawer is open.
+    const hiddenButton = tab.locator('[data-slot="mobile-nav-trigger"]');
+    await expect(hiddenButton).toHaveAttribute('aria-expanded', 'true');
+    await expect(hiddenButton).not.toHaveAttribute('aria-busy');
+    const controls = await hiddenButton.getAttribute('aria-controls');
+    expect(controls).toBeTruthy();
+    await expect(drawer).toHaveAttribute('id', controls ?? '');
+    expect(await drawer.evaluate((element) => element.contains(document.activeElement))).toBe(true);
+    await tab.keyboard.press('Escape');
+    await expect(drawer).toBeHidden();
+    await expect(menuButton).toBeFocused();
+    await expect(menuButton).not.toHaveAttribute('aria-busy');
+  });
+
+  test('@mobile a failed drawer download leaves the screen usable, and a later press opens it', async ({
+    page,
+  }) => {
+    await signInStudent(page);
+    const { tab } = await dashboardWithChunk(page, DRAWER_CHUNK, 'fail');
+    const menuButton = tab.getByRole('button', { name: ar.nav.openMenu });
+    const drawer = tab.getByRole('dialog', { name: ar.nav.menuTitle });
+    await menuButton.click();
+    await expect(menuButton).not.toHaveAttribute('aria-busy');
+    await expect(menuButton).toHaveAttribute('aria-expanded', 'false');
+    await expect(drawer).toHaveCount(0);
+    // The shell and the page are still there (no error screen).
+    await expect(tab.getByRole('banner')).toBeVisible();
+    await expect(tab.getByRole('heading', { level: 1 })).toBeVisible();
+
+    await tab.unrouteAll({ behavior: 'wait' });
+    await expect(async () => {
+      if (!(await drawer.isVisible())) await menuButton.click();
+      await expect(drawer).toBeVisible({ timeout: 1_000 });
+    }).toPass();
   });
 
   test('@mobile no screen of the shell scrolls horizontally at 320 px', async ({ page }) => {

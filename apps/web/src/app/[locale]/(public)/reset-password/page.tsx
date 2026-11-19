@@ -4,6 +4,7 @@ import { hasLocale } from 'next-intl';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { buttonVariants } from '@/components/ui/button';
 import { ResetPasswordForm } from '@/features/auth/components/reset-password-form';
+import { ClientMessages } from '@/i18n/client-messages';
 import { Link } from '@/i18n/navigation';
 import { routing } from '@/i18n/routing';
 
@@ -52,7 +53,9 @@ export default async function ResetPasswordPage({ params, searchParams }: Props)
       <h1 className="text-3xl font-bold text-balance">{t('title')}</h1>
       <p className="mt-3 text-lg text-muted-foreground">{t('lead')}</p>
       <div className="mt-8">
-        <ResetPasswordForm token={token} />
+        <ClientMessages forms namespaces={['auth.resetPassword']}>
+          <ResetPasswordForm token={token} />
+        </ClientMessages>
       </div>
     </div>
   );

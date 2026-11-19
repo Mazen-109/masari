@@ -5,6 +5,8 @@ import { hasLocale } from 'next-intl';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Alert } from '@/components/ui/alert';
 import { SignInForm } from '@/features/auth/components/sign-in-form';
+import { getResendLabels, getSignInLabels } from '@/features/auth/labels';
+import { FormMessages } from '@/i18n/form-messages';
 import { Link } from '@/i18n/navigation';
 import { routing } from '@/i18n/routing';
 import { localeLessNext } from '@/lib/safe-next';
@@ -73,7 +75,21 @@ export default async function SignInPage({ params, searchParams }: Props) {
         ) : null}
       </div>
       <div className="mt-8">
-        <SignInForm next={localeLessNext(query.next)} />
+        <FormMessages>
+          <SignInForm
+            next={localeLessNext(query.next)}
+            labels={await getSignInLabels()}
+            resendLabels={await getResendLabels('missing')}
+            forgotPasswordLink={
+              <Link
+                href="/forgot-password"
+                className="inline-flex min-h-11 items-center rounded-md text-primary underline underline-offset-4"
+              >
+                {t('forgotPassword')}
+              </Link>
+            }
+          />
+        </FormMessages>
       </div>
       <p className="mt-10 border-t border-border pt-6 text-muted-foreground">
         {t('noAccount')}{' '}

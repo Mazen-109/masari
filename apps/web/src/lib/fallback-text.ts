@@ -1,8 +1,9 @@
 import type { Locale } from './locale';
 
-// Static bilingual text for pages rendered where no locale or message catalog is available
-// (`app/global-error.tsx`, titles of 404s for an unknown locale). Importing the catalogs into the
-// client-side global error page would ship both to every page, so the strings are copied here;
+// Static text for pages rendered where no message catalog is available (`app/global-error.tsx`, titles
+// of 404s for an unknown locale, and `[locale]/error.tsx`, which picks its locale's half). These error
+// pages are part of every page's client code, and importing the catalogs there would ship them to every
+// page, so the strings are copied here;
 // `src/i18n/messages.test.ts` asserts they equal the catalog entries named in each comment.
 export const FALLBACK_TEXT = {
   ar: {

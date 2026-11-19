@@ -1,9 +1,9 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
 import type { ComponentProps, MouseEvent } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
+import { useFormMessages } from './form-messages-context';
 
 type SubmitButtonProps = Omit<ComponentProps<typeof Button>, 'type' | 'asChild'>;
 
@@ -15,7 +15,7 @@ type SubmitButtonProps = Omit<ComponentProps<typeof Button>, 'type' | 'asChild'>
  */
 export function SubmitButton({ children, onClick, ...props }: SubmitButtonProps) {
   const { pending } = useFormStatus();
-  const t = useTranslations('common.actions');
+  const { pending: pendingLabel } = useFormMessages();
 
   function handleClick(event: MouseEvent<HTMLButtonElement>) {
     if (pending) {
@@ -33,7 +33,7 @@ export function SubmitButton({ children, onClick, ...props }: SubmitButtonProps)
       aria-busy={pending || undefined}
       onClick={handleClick}
     >
-      {pending ? t('pending') : children}
+      {pending ? pendingLabel : children}
     </Button>
   );
 }

@@ -4,6 +4,7 @@ import { connection } from 'next/server';
 import { hasLocale } from 'next-intl';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { ForgotPasswordForm } from '@/features/auth/components/forgot-password-form';
+import { ClientMessages } from '@/i18n/client-messages';
 import { Link } from '@/i18n/navigation';
 import { routing } from '@/i18n/routing';
 import { getSessionContext } from '@/server/auth/session';
@@ -39,7 +40,9 @@ export default async function ForgotPasswordPage({ params }: Props) {
       <h1 className="text-3xl font-bold text-balance">{t('title')}</h1>
       <p className="mt-3 text-lg text-muted-foreground">{t('lead')}</p>
       <div className="mt-8">
-        <ForgotPasswordForm />
+        <ClientMessages forms namespaces={['auth.forgotPassword']}>
+          <ForgotPasswordForm />
+        </ClientMessages>
       </div>
       <p className="mt-10 border-t border-border pt-6">
         <Link href="/sign-in" className="font-medium text-primary underline underline-offset-4">

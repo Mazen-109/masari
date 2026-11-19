@@ -313,7 +313,9 @@ Every unknown in the plan's Technical Context is resolved here. Format per item:
   tokens, DESIGN.md "Typography"); the files go through `next/font/local` so the Arabic 400 file is
   preloaded and cached immutably; the Arabic faces also claim the space (their files contain it), so
   Arabic text no longer pulls a Latin file; and a `size-adjust`ed local fallback keeps the swap from
-  shifting layout. `perf-budget.spec.ts` asserts at most the four Plex files (≤ 130 KB) and one font
+  shifting layout (this fallback helps only where DejaVu Sans is installed — mostly Linux; elsewhere
+  the next local font in the stack is used unscaled — and its `size-adjust` was tuned on Arabic text, so
+  Latin text may still shift a little on swap). `perf-budget.spec.ts` asserts at most the four Plex files (≤ 130 KB) and one font
   preload on every budgeted screen — deterministic like the JS budget. Rejected: `experimental.inlineCss`
   (removes the stylesheet request, but the pinned Next.js embeds the CSS four times in each HTML page and
   again in every client-navigation payload).
@@ -326,6 +328,32 @@ Every unknown in the plan's Technical Context is resolved here. Format per item:
   unthrottled trace, so Lighthouse's simulation puts all of them in front of the LCP while FCP's estimate
   leaves them out. Font tweaks (preloading the 700 weight, `font-display: optional`) cannot remove that
   and were not pursued; closing the gap means less first-load JavaScript (open follow-up for the owner).
+- **First-load JavaScript (PR-40, owner-approved 2026-11-19)**: Turbopack builds one chunk group per
+  layout, page and boundary (`error`, `not-found`, `global-error`), shares code only with ancestor
+  layouts, and collects a client reference for every imported client module even when it is not rendered
+  — so a client module imported by a boundary, or `next/link` in several siblings, is paid for on every
+  page. Measured on the build (gzip, without the `nomodule` polyfill that modern browsers skip; the
+  framework itself is ~129 KB): `/ar/sign-in` 15 files / ~174 KB → 12 / ~152 KB, `/ar/dashboard`
+  16 / ~205 KB → 10 / ~141 KB before the idle preloads (+~42 KB after the load event), `/ar/register`
+  ~164 KB, `/ar/admin/users` ~181 KB (+~21 KB idle). Changes: (1) no catalog-wide
+  `NextIntlClientProvider` in `[locale]/layout.tsx` — the whole catalog was a third of every page's HTML
+  (prerendered `/ar/verify-email` 44 → 20 KB); `ClientMessages` gives each client subtree only the
+  namespaces it uses; (2) the shared form parts read server-translated strings (`FormMessages`; the one
+  plural, `common.retryAfter`, is rendered per plural category and picked with `Intl.PluralRules`, which
+  is what the message runtime does for category-only messages), and sign-in gets its labels as props, so
+  `/ar/sign-in` loads no next-intl client code (its ICU parser was ~13 KB gzip); (3) `createNavigation` is
+  replaced by a server `Link` and a small client `ClientLink`; the language switch, privacy link and 404
+  home links are plain anchors (a full page load is right there: the locale changes the whole document);
+  (4) the mobile drawer and the user menu dropdown (Radix) load on first use and are preloaded when the
+  page is idle, behind an eager trigger button of the same look. Rejected: `next/dynamic` with
+  `ssr: true` (its preload hints put the chunk back before LCP), next-intl's
+  `experimental.messages.precompile` (experimental; transforms every catalog import, including the
+  server's email templates), and dropping `tailwind-merge` (real class conflicts rely on it). The script
+  budgets were lowered to the new sizes plus a small margin (contracts/ci.md §5).
+  **Measured after PR-40** (Lighthouse 12.8.2, mobile preset, simulated throttling, three runs, 2026-11-19):
+  `/ar/sign-in` LCP 3.0 / 2.5 / 2.2 s (median 2.5 s), `/ar/dashboard` 2.8 / 2.8 / 2.1 s (median 2.8 s);
+  1.5 s on both with devtools throttling; first-load JavaScript 180 → 160 KB (sign-in) and 215 → 194 KB
+  (dashboard). SC-006's < 2.5 s is still not met under simulated throttling; open for the owner (T148).
 
 ## 18. Browser protections
 

@@ -7,6 +7,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Card, CardContent } from '@/components/ui/card';
 import { MAX_LEVEL } from '@/features/profile/schemas';
 import { SettingsForm } from '@/features/tenant-settings/components/settings-form';
+import { ClientMessages } from '@/i18n/client-messages';
 import { routing } from '@/i18n/routing';
 import { formatNumber } from '@/lib/format';
 import { requirePermission } from '@/server/auth/session';
@@ -64,11 +65,13 @@ export default async function SettingsPage({ params }: Props) {
 
       <Card data-slot="settings" className="max-w-4xl">
         <CardContent>
-          <SettingsForm
-            current={{ nameAr, nameEn, allowedEmailDomains, levelsCount, enabledModules }}
-            levels={levels}
-            modules={modules}
-          />
+          <ClientMessages forms namespaces={['admin.settings']}>
+            <SettingsForm
+              current={{ nameAr, nameEn, allowedEmailDomains, levelsCount, enabledModules }}
+              levels={levels}
+              modules={modules}
+            />
+          </ClientMessages>
         </CardContent>
       </Card>
     </div>

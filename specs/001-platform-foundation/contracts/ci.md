@@ -113,8 +113,10 @@ Thresholds are switched on in the batch that adds the first real code to each pa
   each to prove the CSP raises no violation. **Every batch that adds a screen appends it to the list.**
 - `apps/web/e2e/perf-budget.spec.ts` loads a fresh context, sums `encodedDataLength` of all `Script`
   responses (Chromium DevTools protocol) until network idle, and asserts ≤ 200 KB for public screens
-  (`/ar/sign-in`, `/ar/register`; `/ar` until those exist) and ≤ 300 KB for signed-in screens (`/ar/dashboard`, `/ar/admin/users` once
-  it exists).
+  and ≤ 300 KB for signed-in screens (FR-043). Since PR-40 the limits are the measured sizes plus a small
+  margin, and are only ever lowered: `/ar/sign-in` and `/en/sign-in` ≤ 170 KB, `/ar/register` ≤ 180 KB,
+  `/ar/dashboard` ≤ 210 KB, `/ar/admin/users` ≤ 230 KB (the signed-in figures include the menus the shell
+  preloads once the page is idle).
 - The same test holds the font budget (PR-39): every `Font` response is one of the IBM Plex Sans Arabic
   files of `apps/web/src/app/fonts.ts` (Arabic or Latin, weight 400 or 700), at most 4 files and ≤ 130 KB
   encoded in total, and the page has exactly one font preload (the Arabic 400 file).

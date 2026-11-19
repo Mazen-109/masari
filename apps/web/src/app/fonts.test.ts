@@ -1,4 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 // Guards for the font setup of fonts.ts and globals.css (PR-39, FR-043): two weights, swap, one preload,
@@ -82,4 +84,32 @@ describe('globals.css fonts', () => {
       expect(face).toContain('line-gap-override: 0%;');
     }
   });
+});
+
+describe('font imports', () => {
+  // Every file that loads globals.css renders `<html>` and must also load fonts.ts, or that screen falls
+  // back to system fonts (PR-39 review).
+  const appDir = fileURLToPath(new URL('.', import.meta.url));
+  const sources = readdirSync(appDir, { recursive: true, encoding: 'utf8' })
+    .filter((name) => /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name))
+    .map((name) => ({ name, text: readFileSync(join(appDir, name), 'utf8') }));
+  // Side-effect imports only, single-quoted and ending in `;` — the form Prettier writes.
+  const importsOf = (text: string) => [...text.matchAll(/^import\s+'([^']+)';/gm)].map((m) => m[1]);
+  const withGlobals = sources.filter(({ text }) =>
+    importsOf(text).some((path) => path?.endsWith('/globals.css')),
+  );
+
+  it('finds the files that load globals.css', () => {
+    expect(withGlobals.map(({ name }) => name).sort()).toEqual(
+      expect.arrayContaining(['global-error.tsx', 'not-found.tsx']),
+    );
+    expect(withGlobals.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it.each(withGlobals.map(({ name, text }) => [name, text] as const))(
+    '%s also imports fonts.ts',
+    (_name, text) => {
+      expect(importsOf(text).some((path) => path?.endsWith('/fonts'))).toBe(true);
+    },
+  );
 });

@@ -8,7 +8,7 @@ import { SubmitButton } from '@/components/forms/submit-button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { Link } from '@/i18n/navigation';
+import { ClientLink } from '@/i18n/client-link';
 import type { ActionResult } from '@/lib/result';
 import { registerStudentAction } from '../actions';
 
@@ -147,7 +147,7 @@ export function RegisterForm({ college, colleges }: RegisterFormProps) {
         label={t.rich('consent', {
           link: (chunks) => (
             // A new tab, so the form keeps what was typed while the notice is read.
-            <Link
+            <ClientLink
               href="/privacy"
               target="_blank"
               rel="noopener"
@@ -155,7 +155,7 @@ export function RegisterForm({ college, colleges }: RegisterFormProps) {
             >
               {chunks}
               <span className="sr-only">{tCommon('opensInNewTab')}</span>
-            </Link>
+            </ClientLink>
           ),
         })}
         error={fieldErrors?.consent}

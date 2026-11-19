@@ -1,8 +1,8 @@
-import { useTranslations } from 'next-intl';
 import { useId, type ReactNode } from 'react';
 import { Label } from '@/components/ui/label';
 import type { FieldErrorCode } from '@/lib/result';
 import { cn } from '@/lib/utils';
+import { FieldErrorText } from './form-messages-context';
 
 /** Props the field hands to its control: spread them on the `<input>`, `<select>`, or checkbox. */
 export type FieldControlProps = {
@@ -16,7 +16,8 @@ type FieldProps = Readonly<{
   label: ReactNode;
   /** Optional help text under the control. */
   hint?: ReactNode;
-  /** Field error code from `ActionFailure.fieldErrors`; translated from the `errors` namespace. */
+  /** Field error code from `ActionFailure.fieldErrors`; translated from the `errors` namespace
+   * (server-translated, see `FormMessages`). */
   error?: FieldErrorCode | null;
   /**
    * Replaces the generic translation of `error` when a screen needs to say more (e.g. what to do next).
@@ -48,7 +49,6 @@ export function Field({
   className,
   children,
 }: FieldProps) {
-  const t = useTranslations('errors');
   const generatedId = useId();
   const controlId = id ?? generatedId;
   const errorId = `${controlId}-error`;
@@ -72,7 +72,7 @@ export function Field({
   ) : null;
   const errorElement = hasError ? (
     <p id={errorId} className="text-sm font-medium text-danger">
-      {errorMessage ?? t(error)}
+      {errorMessage ?? <FieldErrorText code={error} />}
     </p>
   ) : null;
 

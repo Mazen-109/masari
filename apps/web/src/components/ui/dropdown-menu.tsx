@@ -16,15 +16,28 @@ function DropdownMenuTrigger(props: ComponentProps<typeof DropdownMenuPrimitive.
   return <DropdownMenuPrimitive.Trigger data-slot="dropdown-menu-trigger" {...props} />;
 }
 
+type DropdownMenuContentProps = ComponentProps<typeof DropdownMenuPrimitive.Content> & {
+  /**
+   * Called when the menu moves focus into itself on opening; `preventDefault()` replaces Radix's choice
+   * (the panel, or the first item after a key press Radix saw). Radix passes it through at runtime but
+   * leaves it out of the Dropdown Menu types.
+   */
+  onOpenAutoFocus?: (event: Event) => void;
+};
+
 function DropdownMenuContent({
   className,
   sideOffset = 4,
+  onOpenAutoFocus,
   ...props
-}: ComponentProps<typeof DropdownMenuPrimitive.Content>) {
+}: DropdownMenuContentProps) {
+  // Typed as the inner Menu content's private prop, which Dropdown Menu forwards with the rest.
+  const openAutoFocus = { onOpenAutoFocus } as object;
   return (
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.Content
         data-slot="dropdown-menu-content"
+        {...openAutoFocus}
         sideOffset={sideOffset}
         className={cn(
           'z-50 max-h-(--radix-dropdown-menu-content-available-height) min-w-56 overflow-y-auto rounded-lg border border-border bg-surface p-1 text-foreground shadow-md',

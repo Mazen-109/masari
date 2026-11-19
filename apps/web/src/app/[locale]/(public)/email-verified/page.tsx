@@ -4,6 +4,8 @@ import { hasLocale } from 'next-intl';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { buttonVariants } from '@/components/ui/button';
 import { ResendVerificationForm } from '@/features/auth/components/resend-verification-form';
+import { getResendLabels } from '@/features/auth/labels';
+import { FormMessages } from '@/i18n/form-messages';
 import { Link } from '@/i18n/navigation';
 import { routing } from '@/i18n/routing';
 
@@ -40,7 +42,9 @@ export default async function EmailVerifiedPage({ params, searchParams }: Props)
         <h1 className="text-3xl font-bold text-balance">{t('errorTitle')}</h1>
         <p className="mt-4 text-lg">{t('errorBody')}</p>
         <div className="mt-10 border-t border-border pt-8">
-          <ResendVerificationForm variant="invalid" />
+          <FormMessages>
+            <ResendVerificationForm labels={await getResendLabels('invalid')} />
+          </FormMessages>
         </div>
       </div>
     );

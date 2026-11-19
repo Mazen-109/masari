@@ -205,12 +205,16 @@ marked `disabled` for assistive technology.
 700**, are loaded — each costs an Arabic and a Latin file, and fewer files make the first paint on a
 phone faster (FR-043, research.md §17). The woff2 files of `@fontsource/ibm-plex-sans-arabic` are
 self-hosted through `next/font/local` in `apps/web/src/app/fonts.ts` (no font CDN; `font-display: swap`;
-`unicode-range` subsets, so a screen downloads only the scripts it shows; the Arabic files also cover the
-space, so Arabic text needs no Latin file for it). Only the Arabic 400 file is preloaded.
+`unicode-range` subsets: a file is downloaded only when the screen has a character in its range — an
+Arabic screen usually needs only the Arabic files, while an English screen also fetches an Arabic file
+of a weight for the spaces it draws; the Arabic files cover the space, so Arabic text needs no Latin file for it). Only the
+Arabic 400 file is preloaded. The `latin-ext` and Cyrillic subsets are no longer loaded (since PR-39):
+characters outside the Arabic and Latin ranges fall back to the system fonts below.
 
 While the files load, text is drawn in **IBM Plex Sans Arabic Fallback**: a local system font
 (DejaVu Sans where installed) scaled with `size-adjust` and the ascent/descent overrides measured
-against Plex, so the swap does not move the layout. Then: `system-ui, -apple-system, 'Segoe UI',
+against Plex, so the swap does not move the layout. It helps only where DejaVu Sans is installed, and
+`size-adjust` was tuned on Arabic text, so Latin text may shift slightly on swap. Then: `system-ui, -apple-system, 'Segoe UI',
 Tahoma, 'Noto Sans Arabic', 'Geeza Pro', sans-serif`.
 
 **Weight utilities.** `font-normal` and `font-medium` render 400; `font-semibold` and `font-bold` render

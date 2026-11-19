@@ -1,12 +1,13 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { Link, usePathname } from '@/i18n/navigation';
+import { ClientLink } from '@/i18n/client-link';
 import { isCurrentPath } from '@/lib/is-current-path';
-import { cn } from '@/lib/utils';
+import { localeLessPath, type AppPath } from '@/lib/locale';
 
 /** A navigation entry as rendered by the server: translated label, rendered icon (nav-items.ts). */
-export type RenderedNavItem = { id: string; href: string; label: string; icon: ReactNode };
+export type RenderedNavItem = { id: string; href: AppPath; label: string; icon: ReactNode };
 export type RenderedNavSection = { id: string; heading?: string; items: RenderedNavItem[] };
 
 /**
@@ -19,7 +20,7 @@ export function NavList({
   idPrefix,
   onNavigate,
 }: Readonly<{ sections: RenderedNavSection[]; idPrefix: string; onNavigate?: () => void }>) {
-  const pathname = usePathname();
+  const pathname = localeLessPath(usePathname());
 
   return (
     <div className="flex flex-col gap-6">
@@ -40,23 +41,24 @@ export function NavList({
                 const current = isCurrentPath(pathname, item.href);
                 return (
                   <li key={item.id}>
-                    <Link
+                    <ClientLink
                       href={item.href}
                       data-nav={item.id}
                       aria-current={current ? 'page' : undefined}
                       onClick={onNavigate}
-                      className={cn(
-                        // Stand-alone navigation rows: no underline (DESIGN.md "Underlined-Link
-                        // Rule"); hover fill, selected colours, and the focus ring mark them.
-                        'flex min-h-11 items-center gap-3 rounded-md px-3 font-medium no-underline',
+                      // Stand-alone navigation rows: no underline (DESIGN.md "Underlined-Link Rule");
+                      // hover fill, selected colours, and the focus ring mark them. The two colour
+                      // sets never overlap, so the classes are joined without `cn` (whose
+                      // tailwind-merge would be this list's largest script, PR-40).
+                      className={`flex min-h-11 items-center gap-3 rounded-md px-3 font-medium no-underline ${
                         current
                           ? 'bg-primary-soft text-primary-soft-foreground'
-                          : 'text-foreground hover:bg-muted',
-                      )}
+                          : 'text-foreground hover:bg-muted'
+                      }`}
                     >
                       {item.icon}
                       <span className="min-w-0">{item.label}</span>
-                    </Link>
+                    </ClientLink>
                   </li>
                 );
               })}

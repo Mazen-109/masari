@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import { hasLocale } from 'next-intl';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { ResendVerificationForm } from '@/features/auth/components/resend-verification-form';
+import { getResendLabels } from '@/features/auth/labels';
+import { FormMessages } from '@/i18n/form-messages';
 import { routing } from '@/i18n/routing';
 
 type Props = Readonly<{ params: Promise<{ locale: string }> }>;
@@ -32,7 +34,9 @@ export default async function VerifyEmailPage({ params }: Props) {
       <p className="mt-4 text-lg">{t('body')}</p>
       <p className="mt-3 text-muted-foreground">{t('spam')}</p>
       <div className="mt-10 border-t border-border pt-8">
-        <ResendVerificationForm variant="missing" />
+        <FormMessages>
+          <ResendVerificationForm labels={await getResendLabels('missing')} />
+        </FormMessages>
       </div>
     </div>
   );

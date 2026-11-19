@@ -1,6 +1,7 @@
 import type { ModuleKey, Role } from '@masari/db';
 import { MODULE_REGISTRY, visibleModules } from '@/modules/registry';
 import { can, type Permission } from '@/server/auth/permissions';
+import type { AppPath } from '@/lib/locale';
 
 /**
  * Entries of the signed-in navigation (contracts/routes.md §4; FR-016), built from the session context:
@@ -18,7 +19,7 @@ export type NavItem = {
   /** Stable id, also used as `data-nav` in the markup. */
   id: string;
   /** Locale-less path. */
-  href: string;
+  href: AppPath;
   /** lucide icon name (see nav-icon.tsx). */
   icon: string;
   label: NavLabelKey;
@@ -28,7 +29,7 @@ export type NavItems = { main: NavItem[]; admin: NavItem[] };
 
 export type AdminNavEntry = {
   key: AdminNavKey;
-  href: string;
+  href: AppPath;
   icon: string;
   permission: Permission;
 };
