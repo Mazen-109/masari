@@ -16,20 +16,27 @@ reused: `code_taken` (course code), `too_many` (topics, teachers), `out_of_range
 `invalid_format`, `required`, `too_long`.
 
 `conflict` carries `meta.reason` where the user needs to know which state blocked the action:
-`expired` | `has_issues` | `not_draft` (imports), `course_inactive` (teacher assignment),
-`not_mismatch` | `not_manual` (verification).
+`expired` | `has_issues` | `not_draft` | `levels_changed` | `large_removal` (imports; `large_removal` also
+carries `meta.removed` and `meta.current`), `course_inactive` (teacher assignment), `not_mismatch` |
+`not_verified` (verification).
+
+**Lists in `meta`**: `ActionFailure.meta` is `Record<string, string | number>` (001 `lib/result.ts`), so a
+list is sent as **one string of canonical keys joined by commas**, without spaces, in a fixed order — e.g.
+`meta.columns = 'student_code,division'` for `missing_columns` / `duplicate_columns`. The UI splits on `,`
+and translates each key (`roster.columns.<key>`). Keys never contain commas.
 
 ## 2. Rate-limit policy addition
 
 | Purpose | Key | Limit |
 |---|---|---|
 | `roster-upload` | per acting user id | 30 / 3600 s |
+| `profile-verify` | per student user id | 5 / 86400 s — counts only the automatic verification attempt after a name change (§6, `updateAccountAction`); when exhausted, the name is still saved and the attempt is skipped (logged as `roster.verify_rate_limited`, no personal data) |
 
 ## 3. Shared field rules (Zod, `features/*/schemas.ts`)
 
 | Field | Rule | Field error codes |
 |---|---|---|
-| `termId`, `courseId`, `topicId`, `placementId`, `importId` (hidden fields) | any value; missing, empty, over 64 chars, malformed, unknown, or other-college → the action answers `not_found` (never a field error) — same rule as 001's `divisionId` on the divisions screen | none (`not_found`) |
+| `termId`, `courseId`, `topicId`, `placementId`, `importId`, `userId` (roster overview) (hidden fields) | any value; missing, empty, over 64 chars, malformed, unknown, or other-college → the action answers `not_found` (never a field error) — same rule as 001's `divisionId` on the divisions screen | none (`not_found`) |
 | `startYear` | Western or Arabic-Indic digits, trimmed, integer 2000–2100 | `required`, `invalid_format`, `out_of_range` |
 | `kind` (term) | `first` \| `second` \| `summer` | `invalid_choice` |
 | `startsOn`, `endsOn` | `YYYY-MM-DD`, a real calendar date (`<input type="date">`) | `required`, `invalid_format`; `endsOn` ≤ `startsOn` → `endsOn: date_order` |
@@ -45,6 +52,7 @@ reused: `code_taken` (course code), `too_many` (topics, teachers), `out_of_range
 | `divisionIds` (placement, repeated checkboxes) | 1–50 values, each a uuid | `required` (none checked), `invalid_choice` |
 | `userId` (teacher select) | 1–64 chars | `required`, `invalid_choice` |
 | `file` (roster) | a `File`; checks of contracts/roster-csv.md §1–2 | `required`, `file_*`, `missing_columns`, `duplicate_columns`, `too_many_rows` |
+| `confirmedRemoval` (apply, optional) | absent, or Western/Arabic-Indic digits, integer 0–10,000; anything else is treated as absent | none (a wrong number → `conflict {reason: large_removal}`) |
 | Query `q` | ≤ 100 chars, trimmed; longer/invalid → ignored | — |
 | Query `status` (courses) | `active` \| `inactive`; invalid → ignored | — |
 | Query `status` (roster) | one of `VERIFICATION_STATUSES`; invalid → ignored | — |
@@ -91,8 +99,8 @@ All catalog writes run in one `withTenant` transaction with their audit rows.
 3. Validate `file` presence, name, size (contracts/roster-csv.md §1) **before** reading its bytes.
 4. Read bytes; check signatures; decode (`decodeCsvBytes`); parse records (`parseCsv`) — failures →
    `fieldErrors.file` with the matching code and `meta` (nothing stored).
-5. Map the header (`mapRosterHeader`) → `missing_columns` / `duplicate_columns`; data records > 10,000 →
-   `too_many_rows`.
+5. Map the header (`mapRosterHeader`) → `missing_columns` / `duplicate_columns` with `meta.columns` as a
+   comma-joined key list (§1); data records > 10,000 → `too_many_rows`.
 6. Load the college's divisions (all) and `levelsCount` (from the session context).
 7. `validateRosterRecords(records, header, { divisions, levelsCount })` → `{ rows, issues, issueCount,
    ignoredColumns }` (pure, `features/roster/rules.ts`).
@@ -107,24 +115,27 @@ The bytes, decoded text, and records live only in the action's memory. Logging: 
 
 | Action | Fields | Rules | Audit | Result |
 |---|---|---|---|---|
-| `discardRosterImportAction` (form) — FR-019 | `importId` | `not_found`; `not_draft` → `conflict {reason}` | `roster.import_discarded` | `redirect('/{locale}/roster')` |
-| `applyRosterImportAction` (form) — FR-018 | `importId` | repository reasons → `not_found` or `conflict {reason: expired \| has_issues \| not_draft}` | `roster.import_applied {added, changed, removed, linked, unlinked, synced}` | `revalidatePath('/', 'layout')`; `redirect('/{locale}/roster/imports/{id}?applied=1')` |
+| `discardRosterImportAction` (form) — FR-019 | `importId` | `not_found`; `not_draft` / `expired` → `conflict {reason}` | `roster.import_discarded` | `redirect('/{locale}/roster')` |
+| `applyRosterImportAction` (form) — FR-018 | `importId`, `confirmedRemoval?` | repository reasons → `not_found` or `conflict {reason: expired \| has_issues \| not_draft \| levels_changed}`; `large_removal` → `conflict {reason: 'large_removal', removed, current}` — the report then shows the second confirmation (routes.md §2), whose submit carries `confirmedRemoval = removed` | `roster.import_applied {added, changed, removed, linked, unlinked, synced}` | `revalidatePath('/', 'layout')`; `redirect('/{locale}/roster/imports/{id}?applied=1')` |
 | `confirmVerificationAction` (form) — FR-026 | `userId` (hidden, any value; unknown → `not_found`) | `roster.confirmMatch`: `not_found`; `not_mismatch` → `conflict` | `profile.verified {method: 'manual'}` (target: the student's profile) | `ok`; revalidate `/roster` |
-| `undoVerificationAction` (form) — FR-026 | `userId` | `roster.undoConfirmation`: `not_found`; `not_manual` → `conflict` | `profile.verification_undone` | `ok`; revalidate `/roster` |
+| `revokeVerificationAction` (form) — FR-026 | `userId` | `roster.revokeVerification`: `not_found`; `not_verified` → `conflict` | `profile.verification_revoked {method}` | `ok`; `revalidatePath('/', 'layout')` |
 
 ## 6. Changed feature-001 actions
 
-| Action (001 contract) | Change |
-|---|---|
-| `completeStudentProfileAction` (§5.1) — FR-022 | After `studentProfiles.create` succeeds, in the same transaction: `roster.verifyProfile(tx, tenantId, userId, ctx.user.name)`; on `verified` audit `profile.verified {method: 'auto'}` (actor: the student). The redirect is unchanged; the home screen then shows the verified state. |
-| `updateStudentProfileAction` (§5.1) — FR-024 | Repository `verified_locked` → `fail('profile_locked')`; nothing changes, no audit. |
-| `updateAccountAction` (§5.1) — FR-022 | For a student, after the name is saved: `withTenant` → `roster.verifyProfile(tx, tenantId, userId, newName)`; on `verified` audit `profile.verified {method: 'auto'}`. A failure of this step is logged (`roster.verify_after_rename_failed`, error name only) and does not fail the action (the name is saved; the next import re-checks). |
-| `adminUpdateStudentProfileAction` (§5.3) — FR-022, FR-024 | `verified_locked` → `fail('profile_locked')`. After creating or updating an unverified profile: `roster.verifyProfile` with the student's account name; on `verified` audit `profile.verified {method: 'auto'}` (actor: the administrator). |
-| `updateTenantSettingsAction` (§5.4) — FR-009 | The `levels_in_use` minimum is `max(studentProfiles.maxLevelInUse(tx), catalog.maxLevelInUse(tx))`. |
+| Action (001 contract) | Change | Batch |
+|---|---|---|
+| **All Server Actions** (framework setting) | The body size limit grows from 1 MB to 3 MB (`next.config.ts`), also for the public actions, so a 2 MB list reaches the validation; cost weighed in research.md §15 | PR-17 |
+| `updateTenantSettingsAction` (§5.4) — FR-009 | The `levels_in_use` minimum is `max(studentProfiles.maxLevelInUse(tx), catalog.maxLevelInUse(tx))`. | PR-8 |
+| `updateStudentProfileAction` (§5.1) — FR-024 | Repository `verified_locked` → `fail('profile_locked')`; nothing changes, no audit. Resubmitting the stored values is not refused (data-model.md §2). | PR-13 |
+| `adminUpdateStudentProfileAction` (§5.3) — FR-024 | `verified_locked` → `fail('profile_locked')` (shown in the existing dialog's error summary). | PR-13 |
+| `completeStudentProfileAction` (§5.1) — FR-022 | After `studentProfiles.create` succeeds, in the same transaction: `roster.verifyProfile(tx, tenantId, userId, ctx.user.name)`; on `verified` audit `profile.verified {method: 'auto'}` (actor: the student). The redirect is unchanged; the home screen then shows the verified state. | PR-20 |
+| `updateAccountAction` (§5.1) — FR-022 | For a student who is not verified, after the name is saved: consume `profile-verify` (§2); if allowed, `withTenant` → `roster.verifyProfile(tx, tenantId, userId, newName)`; on `verified` audit `profile.verified {method: 'auto'}`. A verified student's rename does not call it (FR-028). A failure or an exhausted limit is logged (`roster.verify_after_rename_failed` with the error name / `roster.verify_rate_limited`) and does not fail the action (the name is saved; the next import re-checks). | PR-20 |
+| `adminUpdateStudentProfileAction` (§5.3) — FR-022 | After creating or updating an unverified profile: `roster.verifyProfile` with the student's account name; on `verified` audit `profile.verified {method: 'auto'}` (actor: the administrator). | PR-20 |
 
 ## 7. Logging events added
 
-`roster.upload_failed`, `roster.apply_failed`, `roster.verify_after_rename_failed`, `catalog.action_failed`
+`roster.upload_failed`, `roster.apply_failed`, `roster.verify_after_rename_failed`, `roster.verify_rate_limited`,
+`catalog.action_failed`
 (with `action` = the action name) — each with `errorName` and, where relevant, `sqlState`; never codes,
 names, titles, descriptions, or file contents.
 
@@ -135,6 +146,11 @@ names, titles, descriptions, or file contents.
   the audit row.
 - `uploadRosterAction`: every whole-file code end to end; row problems via the report; rate limit at the
   31st upload in an hour (unit test of the policy; e2e not required).
+- `applyRosterImportAction`: `large_removal` without and with the right `confirmedRemoval`, and with a
+  forged wrong number; `levels_changed` after the administrator reduces the number of levels.
+- `revokeVerificationAction`: an `auto` and a `manual` link; the revoked account is not re-linked by a
+  rename or by the next import.
 - Changed 001 actions: their existing e2e specs keep passing; new cases for `profile_locked` (student form
   and admin dialog, including a forged submission with the lock bypassed in the DOM) and automatic
-  verification at onboarding and on rename.
+  verification at onboarding and on rename; the sixth rename in a day is saved without verification (unit
+  test of the action with the policy).

@@ -20,7 +20,7 @@ export const VERIFICATION_METHODS = ['auto', 'manual'] as const;
 export const VERIFICATION_STATUSES = ['verified', 'name_mismatch', 'not_in_roster', 'not_registered'] as const;
 export const COURSE_LIMITS = { maxTopics: 50, maxTeachersPerTerm: 10 } as const;
 export const ROSTER_LIMITS = { maxFileBytes: 2 * 1024 * 1024, maxRows: 10_000, maxListedIssues: 500,
-                               draftHours: 24, upsertChunk: 1_000 } as const;
+                               draftHours: 24, largeRemovalPercent: 20 } as const;
 ```
 
 ## 1. Table classification (additions)
@@ -38,19 +38,33 @@ export const ROSTER_LIMITS = { maxFileBytes: 2 * 1024 * 1024, maxRows: 10_000, m
 No new global table. Terms, courses, and imports are never deleted (no `DELETE` grant); topics,
 placements, teacher assignments, and official-list entries are.
 
-Changed 001 table: `student_profiles` gains `UNIQUE (user_id, student_code)` (constraint
-`student_profiles_user_code_unique`), the target of the verification foreign key in §3.7. No column is
-added (001 data-model §3.6: later features extend the profile with their own tables).
+Changed 001 table: `student_profiles` gains `UNIQUE (tenant_id, user_id, student_code)` (constraint
+`student_profiles_tenant_user_code_unique`), the target of the verification foreign key in §3.7. No column
+is added (001 data-model §3.6: later features extend the profile with their own tables).
+
+Isolation tests (every table above): inside college B's context, `SELECT` returns none of college A's rows;
+`INSERT` with A's `tenant_id` fails the policy; `UPDATE` and (where granted) `DELETE` aimed at A's rows
+affect 0 rows — one explicit read case and one write case per table, `course_topics` and `roster_entries`
+included (contracts/db-api.md §4).
 
 ## 2. Lock and ordering rules shared by the repositories
 
-- **Roster lock**: every write to `roster_imports` or `roster_entries` (upload, discard, apply, purge,
-  automatic verification of one profile, manual confirmation, undo) first takes
-  `pg_advisory_xact_lock(hashtextextended('masari.roster:' || app_tenant_id()::text, 0))`, so roster writes of
-  one college are serialised and writes of different colleges never wait for each other.
-- **Course touch**: every write to a course's topics or placements also sets that course's `updated_at = now()`
-  in the same transaction (the regulations assistant re-reads changed courses by `updated_at`,
-  contracts/catalog-read.md §2.11).
+- **Roster lock**: `pg_advisory_xact_lock(hashtextextended('masari.roster:' || app_tenant_id()::text, 0))`,
+  taken by a private helper (`packages/db/src/repositories/roster-lock.ts`, not exported from the package).
+  Who takes it, always as the first statement of the operation:
+  - every write to `roster_imports` or `roster_entries`: upload, discard, apply, purge, automatic
+    verification of one profile, manual confirmation, revocation;
+  - `studentProfiles.update` (001) when the patch **changes** the student code, level, or division — a field
+    "changes" when its new value differs from the stored one; a patch that repeats the stored values does
+    not take the lock and is not refused.
+
+  Roster writes and academic-data changes of one college are therefore serialised (an apply that links and
+  syncs a student cannot interleave with that student's level change), and different colleges never wait
+  for each other. The lock is re-entrant inside one transaction (an admin correction followed by
+  `verifyProfile` takes it twice).
+- **Course touch**: every write to a course's topics or placements also sets that course's `updated_at =
+  now()` in the same transaction, so a consumer can find changed courses by `updated_at` (catalog-read.md
+  §5: the regulations assistant's read is added by 003).
 - **Current term**: `setCurrent` locks the college's terms (`SELECT id FROM academic_terms FOR UPDATE`), then
   `UPDATE … SET is_current = false WHERE is_current`, then sets the chosen term (research.md §12).
 
@@ -203,7 +217,11 @@ type ImportSummary = {
 
 Derived: an import is **expired** when `status = 'draft' AND created_at <= now() - interval '24 hours'`.
 `roster.purgeExpiredDrafts(tx)` turns such rows into `status = 'expired'`, clears `staged_rows` and `issues`,
-sets `resolved_at`; it runs at the start of every roster action and of the roster screens (research.md §6).
+sets `resolved_at` (research.md §6). It runs when a roster screen is rendered and as the first step of
+`createDraft`. `applyImport` and `discard` do **not** purge first: they lock their target import and, if it
+is an expired draft, expire it themselves and answer `expired`; an import already in status `expired` also
+answers `expired` (never `not_draft`). A daily purge across colleges is a tracked 003 item
+(`docs/roadmap.md` §2 "003").
 
 State transitions:
 
@@ -220,7 +238,8 @@ draft ──24 h, at the next purge──► expired (terminal)
 | `id` | uuid | PK |
 | `tenant_id` | uuid | NOT NULL, default `app_tenant_id()`, FK → `tenants(id)` |
 | `student_code` | text | NOT NULL, `CHECK (student_code ~ '^[A-Za-z0-9-]{3,20}$')` (same rule as profiles) |
-| `full_name` | text | NOT NULL, `CHECK (char_length(full_name) BETWEEN 2 AND 100)` |
+| `full_name` | text | NOT NULL, `CHECK (char_length(full_name) BETWEEN 2 AND 100)` — the file's value after removing invisible characters, NFKC, and collapsing whitespace |
+| `name_search` | text | NOT NULL — `normalizeArabicText(full_name)`, written by the repository with every write of `full_name`; used only by the overview search |
 | `level` | smallint | NOT NULL, `CHECK (level BETWEEN 1 AND 7)` |
 | `division_id` | uuid | NOT NULL |
 | `import_id` | uuid | NOT NULL — the last applied import that inserted or changed the entry |
@@ -228,6 +247,7 @@ draft ──24 h, at the next purge──► expired (terminal)
 | `verification_method` | text | NULL, `CHECK (verification_method IN ('auto','manual'))` |
 | `verified_by` | text | NULL, FK → `users(id)` ON DELETE SET NULL (who confirmed by hand) |
 | `verified_at` | timestamptz | NULL |
+| `revoked_user_id` | text | NULL, FK → `users(id)` ON DELETE SET NULL — the account whose verification for this entry was revoked; automatic matching never links it to this entry again |
 | `created_at`, `updated_at` | timestamptz | NOT NULL, default `now()` |
 
 Constraints:
@@ -236,10 +256,12 @@ Constraints:
   (`roster_entries_user_unique`; several NULLs allowed).
 - FK `(tenant_id, division_id)` → `divisions (tenant_id, id)` RESTRICT; FK `(tenant_id, import_id)` →
   `roster_imports (tenant_id, id)` RESTRICT.
-- **Verification link**: `FOREIGN KEY (user_id, student_code) REFERENCES student_profiles (user_id,
-  student_code) ON UPDATE RESTRICT ON DELETE SET NULL (user_id)` (PostgreSQL ≥ 15 column list). A link can
-  only point at a profile with the same code; a linked profile's code cannot change; deleting the account
-  (feature 009) unlinks the entry.
+- **Verification link**: `CONSTRAINT roster_entries_profile_fk FOREIGN KEY (tenant_id, user_id,
+  student_code) REFERENCES student_profiles (tenant_id, user_id, student_code) ON UPDATE RESTRICT ON DELETE
+  SET NULL (user_id)` (PostgreSQL ≥ 15 column list; `MATCH SIMPLE`, so an unlinked entry, `user_id` NULL, is
+  not checked). Like every other cross-table reference of this feature it starts with `tenant_id`: a link
+  can only point at a profile **of the same college** with the same code; a linked profile's code cannot
+  change; deleting the account (feature 009) sets only `user_id` to NULL.
 - `CHECK (user_id IS NULL OR (verification_method IS NOT NULL AND verified_at IS NOT NULL))`. Repository
   writes always clear the three verification columns together; after an account deletion the stale method
   and time are ignored because `user_id` is NULL.
@@ -254,26 +276,49 @@ Derived verification status (never stored) — for a student code present on eit
 | no | yes | — | `not_in_roster` |
 | yes | no | — | `not_registered` |
 
-Rules (repository; all take the roster lock of §2):
+Rules (repository). Every rule below that writes, and the lock check, takes the roster lock of §2 first:
 
-- **Lock**: `studentProfiles.update` (001) refuses a patch touching `studentCode`, `level`, or `divisionId`
-  of a linked profile with reason `verified_locked` (checked by a `SELECT … FROM roster_entries WHERE user_id
-  = $1 FOR SHARE` in the same transaction); the database FK independently refuses a code change.
+- **Lock**: `studentProfiles.update` (001), when the patch changes the student code, level, or division
+  (§2), takes the roster lock and then refuses with reason `verified_locked` if an entry is linked to the
+  profile (`SELECT 1 FROM roster_entries WHERE user_id = $1`). The database FK independently refuses a code
+  change; its violation (SQLSTATE `23503` on `roster_entries_profile_fk`) is also reported as
+  `verified_locked`. Other fields, and patches that repeat the stored values, are unaffected.
 - **Sync**: linking a profile, and applying an import that changes a linked entry's level or division, set
   `student_profiles.level` and `division_id` to the entry's values in the same transaction (internal
   function, not exported).
 - **Automatic match** (`verifyProfile`, at profile creation, admin creation/correction of an unverified
-  profile, and an unverified student's name change): lock the entry with the profile's code `FOR UPDATE`;
-  if it exists, is unlinked, and `namesMatch(accountName, full_name)` → link `auto`, sync.
-- **Apply** (`applyImport`): plan with `planRosterApply` (pure, `packages/db/src/roster/plan.ts`) from the
-  staged rows, the current entries, and the college's profiles with account names; then delete entries
-  whose code is absent; upsert staged rows (chunks of 1,000, `ON CONFLICT (tenant_id, student_code) DO UPDATE
-  … WHERE` a value differs); unlink `auto` links whose name no longer matches; keep `manual` links whose code
-  is still listed; link unlinked entries whose profile name matches (`auto`); sync linked profiles; mark the
-  import applied with the result counts. All in one transaction; statement count independent of row count.
+  profile, and an unverified student's name change — the last one rate-limited by the caller): lock the
+  entry with the profile's code `FOR UPDATE`; if it exists, is unlinked, its `revoked_user_id` is not this
+  account, and `namesMatch(accountName, full_name)` → link `auto`, sync.
+- **Apply** (`applyImport`), in this order, in one transaction (the caller's):
+  1. roster lock; the import row `FOR UPDATE` → `not_found`; status `applied`/`discarded` → `not_draft`;
+     status `expired`, or a draft older than 24 h (expired now, data cleared) → `expired`;
+     `issue_count > 0` → `has_issues`;
+  2. **levels re-check**: a staged level above the college's current `levels_count` → `levels_changed`
+     (nothing written; the catalog manager uploads again);
+  3. read the current entries and the college's student profiles with account names
+     (`users.listStudentNames`); plan with `planRosterApply` (pure, `packages/db/src/roster/plan.ts`);
+  4. **large removal**: if the plan removes more than `largeRemovalPercent` (20%) of a non-empty current
+     list and the caller's `confirmedRemoval` is not the planned removed count → `large_removal` with the
+     count (nothing written);
+  5. write, **one statement per set**, each set passed as array parameters and expanded with `unnest()`:
+     delete removed entries (`DELETE … WHERE id = ANY($1)`); insert new entries (`INSERT … SELECT … FROM
+     unnest($1::text[], $2::text[], $3::text[], $4::smallint[], $5::uuid[])`); update changed entries
+     (`UPDATE … FROM unnest(…)`); clear dropped links; set new `auto` links (`UPDATE … FROM unnest(codes,
+     user_ids)`); sync linked profiles whose level or division differs (one `UPDATE student_profiles … FROM
+     roster_entries`); mark the import applied with the result counts.
+
+  Statement count: a fixed number (about 12, no loop over rows) for every size up to 10,000 rows — the
+  integration test compares 10 and 2,000 rows. Array parameters also keep the bind-parameter count fixed.
+- **Automatic links across imports** (spec FR-028): a `manual` link is kept while the code stays listed; an
+  `auto` link is kept unless the entry's official name changes (compared after `normalizeArabicText`), and
+  when it changes, it is kept only if `namesMatch(current account name, new official name)`. A change of the
+  account name alone never removes a link. Unlinked entries whose profile matches get an `auto` link, except
+  for the entry's `revoked_user_id`.
 - **Manual confirmation**: entry and profile with the same code, unlinked → link `manual`,
-  `verified_by = actor`, sync. **Undo**: only a `manual` link → clear the three columns (the profile keeps
-  its synced values and becomes editable again).
+  `verified_by = actor`, `revoked_user_id = NULL`, sync. **Revocation** (`auto` or `manual`): clear the
+  three verification columns and set `revoked_user_id` to the unlinked account; the profile keeps its synced
+  values and becomes editable again.
 
 ## 4. Relationships
 
@@ -284,7 +329,7 @@ courses 1 ──< course_topics            (composite FK keeps both in one colle
 courses 1 ──< course_placements >── 1 divisions
 courses 1 ──< course_teachers  >── 1 academic_terms ; course_teachers >── 1 users (role faculty, checked)
 roster_imports 1 ──< roster_entries (import_id = last import that wrote the entry)
-roster_entries 0..1 ── 0..1 student_profiles  (link on (user_id, student_code); verified students)
+roster_entries 0..1 ── 0..1 student_profiles  (link on (tenant_id, user_id, student_code); verified students)
 roster_entries >── 1 divisions
 ```
 
@@ -313,7 +358,7 @@ New target types: `term`, `course`, `roster_import`. Metadata: IDs, enumerations
 | `roster.import_discarded` | catalog manager | roster_import | `{}` |
 | `roster.import_applied` | catalog manager | roster_import | `{ added, changed, removed, linked, unlinked, synced }` |
 | `profile.verified` | the student (auto at profile completion or name change), admin (auto after a correction), or catalog manager (manual) | student_profile | `{ method }` |
-| `profile.verification_undone` | catalog manager | student_profile | `{}` |
+| `profile.verification_revoked` | catalog manager | student_profile | `{ method }` (method of the revoked link) |
 
 Expiry of a draft writes no audit row (no actor). Verification changes caused by an import are counted in
 `roster.import_applied`, not written per student.
@@ -336,6 +381,6 @@ faculty account) and no official list (it is loaded through the screen, quicksta
 | `course_teachers` | FR-010, FR-011, FR-012 |
 | `roster_imports`, lifecycle, purge | FR-014–FR-021 |
 | `roster_entries`, link, derived statuses, lock, sync | FR-018, FR-022–FR-028 |
-| `student_profiles_user_code_unique` | FR-024 |
+| `student_profiles_tenant_user_code_unique`, `revoked_user_id` | FR-024, FR-026 |
 | RLS + classification of every table | FR-035 |
 | Audit catalogue | FR-032 |

@@ -47,5 +47,23 @@
   although the fifth is T027; db-api.md §4 lacked the `student-profiles.int.test.ts` row and the
   "no staged rows with problems" CHECK that tasks.md tests. No uncovered requirement, no constitution
   violation beyond the principle VI exception recorded in plan.md Complexity Tracking.
+- Planning review (2026-11-19, CHANGES_REQUESTED) — all items addressed:
+  - Apply writes each set with one `unnest()` statement, so the statement count is really fixed (data-model
+    §3.7; test compares 10 and 2,000 rows).
+  - The verification FK includes `tenant_id`; a cross-college same-code link is tested.
+  - Impostor path closed: `namesMatch` now needs the first min(|O|, 3) official names in the account name;
+    re-verification after a rename is rate-limited (5/day); a catalog manager can revoke any verification
+    (`revoked_user_id` blocks automatic re-linking); edge-case text fixed (FR-022, FR-026, US5 scenario 10).
+  - Dynamic-id screens use `prepare` hooks with fixtures in the role-based access college (routes.md §1.1).
+  - PR-13 split into "roster tables + lock" (PR-13) and "import repository" (PR-14); the module reads it
+    held were deferred (YAGNI) or moved to their first consumer (`verificationOf`, PR-21). 22 batches.
+  - Non-blocking: lock taken by `studentProfiles.update` on changed values and landing in PR-13; FR-028 rule
+    (official-name change only) applied in the plan; `expired` order; levels re-check; invisible characters,
+    NFKC, code case; `meta.columns` encoding; past-term semantics; YAGNI deferral of `courseStudents`,
+    `groupSizes`, `listedStudents`, `knowledgeCourses` (catalog-read.md §5, with the review's notes);
+    owner sign-off moved to this docs PR; body limit listed as a 001 change and weighed; size estimates
+    raised; daily purge tracked in `docs/roadmap.md` (003); explicit isolation read/write tests;
+    normalised overview search; types exported once; test-support refusal tests in
+    `test-support.int.test.ts`; second confirmation for large removals.
 - FR-029 changes the privacy-notice draft of feature 001 (D17 there): the owner reviews the wording before
   the pilot.

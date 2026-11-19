@@ -24,7 +24,8 @@ Every whole-file problem above is returned as `fieldErrors.file` of the upload a
 
 ## 2. Header
 
-Header cells are matched after `normalizeArabicText` (research.md §7) and replacing `_`/`-` with a space.
+Header cells are matched after `normalizeArabicText` (research.md §7; it removes invisible characters and
+applies NFKC first) and replacing `_`/`-` with a space.
 Recognised aliases (normalised form shown in parentheses where it differs):
 
 | Column key | Arabic aliases | English aliases | Required |
@@ -34,21 +35,25 @@ Recognised aliases (normalised form shown in parentheses where it differs):
 | `level` | الفرقة (الفرقه), الفرقه, المستوى (المستوي) | level, year | yes |
 | `division` | الشعبة (الشعبه), الشعبه, القسم (القسم) | division, department | yes |
 
-- A missing required column → `missing_columns` (`meta.columns` = the missing keys, translated in the UI).
-- Two headers mapping to the same key → `duplicate_columns` (`meta.columns`).
+- A missing required column → `missing_columns`; `meta.columns` = the missing keys as one comma-joined
+  string in the table's order (e.g. `'level,division'`, contracts/server-actions.md §1), translated in the
+  UI.
+- Two headers mapping to the same key → `duplicate_columns` (`meta.columns`, same encoding).
 - Any other header is **ignored**: its values are dropped while reading and never stored; the header text
   (≤ 64 characters each, at most 20 names) is kept in the import summary so the report can say
   "ignored columns: …".
 
 ## 3. Values (per data record)
 
-Every value is trimmed. Row numbers are 1-based record numbers including the header (header = row 1) and
-blank records — the row numbers a spreadsheet shows.
+Every value first goes through `stripInvisible` (U+00AD, U+061C, U+200B–U+200F, U+202A–U+202E,
+U+2060–U+2064, U+2066–U+2069, U+FEFF — research.md §1) and NFKC, then is trimmed. Row numbers are 1-based
+record numbers including the header (header = row 1) and blank records — the row numbers a spreadsheet
+shows.
 
 | Column | Normalisation | Valid when | Problem codes |
 |---|---|---|---|
-| student code | `toWesternDigits` | matches `^[A-Za-z0-9-]{3,20}$` (feature 001 FR-025) | empty → `code_required`; matches `^\d+(\.\d+)?[eE][+-]?\d+$` → `code_scientific`; otherwise invalid → `code_invalid`; same code as an earlier row → `code_duplicate` (`otherRow` = first row with it) |
-| name | inner whitespace collapsed | 2–100 characters | empty → `name_required`; otherwise → `name_length` |
+| student code | `toWesternDigits`; **letter case kept** (compared exactly, like feature 001's profiles) | matches `^[A-Za-z0-9-]{3,20}$` (feature 001 FR-025) | empty → `code_required`; matches `^\d+(\.\d+)?[eE][+-]?\d+$` → `code_scientific`; otherwise invalid → `code_invalid`; same code (exact) as an earlier row → `code_duplicate` (`otherRow` = first row with it) |
+| name | inner whitespace collapsed (stored this way; `name_search` = `normalizeArabicText` of it, data-model.md §3.7) | 2–100 characters | empty → `name_required`; otherwise → `name_length` |
 | level | `toWesternDigits`, then `normalizeArabicText` | an integer 1–7 written in digits, or one of الاولي/الاولى, الثانيه, الثالثه, الرابعه, الخامسه, السادسه, السابعه (normalised forms of «الأولى» … «السابعة»), optionally preceded by «الفرقة» | empty → `level_required`; not a level → `level_invalid`; above the college's number of levels → `level_out_of_range` |
 | division | trimmed | equals (case-insensitive) the code of one of the college's divisions, or (after `normalizeArabicText`) its Arabic name, or (case-insensitive) its English name; active or inactive divisions both count | empty → `division_required`; no match → `division_unknown`; matches two different divisions → `division_ambiguous` |
 | (record) | — | has exactly as many fields as the header, ignoring empty trailing fields | otherwise → `wrong_field_count` (column `null`) |

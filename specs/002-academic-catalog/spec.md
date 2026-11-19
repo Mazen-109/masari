@@ -4,7 +4,8 @@
 
 **Created**: 2026-11-19
 
-**Status**: Ready for implementation (assumptions marked "owner to confirm" in Clarifications)
+**Status**: Draft — waiting for the owner's answers (assumptions marked "owner to confirm" in Clarifications,
+and the principle VI exception in plan.md Complexity Tracking); no batch starts before they are answered
 
 **Input**: User description: "Feature 002 of the roadmap — the shared academic data the modules read: terms;
 courses with Arabic and English names, a description, and an ordered list of topics; assignment of courses to
@@ -64,17 +65,26 @@ requirements. Each is **(assumed, owner to confirm)**. Changing one later means 
 - Q: Does an import add to the official list or replace it? → A: It **replaces** it: the uploaded file is the
   complete current list. Students missing from the new file are removed from the list and lose their
   verification. Because this is drastic, every import is shown as a preview (added, changed, removed, and
-  verified students who would lose verification) and is applied only after confirmation. **(assumed, owner to
-  confirm)**
+  verified students who would lose verification) and is applied only after confirmation; an import that
+  would remove more than a fifth of the current list needs a second, explicit confirmation. **(assumed, owner
+  to confirm)**
 - Q: When does a student's name "match" the official name? → A: After ignoring diacritics, letter-form
-  variants (أ/إ/آ/ا, ة/ه, ى/ي), extra spaces, and the space inside compound names such as «عبد الله», the first
-  three words of both names are equal — or all words when one name has fewer than three, with at least two.
-  A student whose code is found but whose name does not match is not verified; a catalog manager reviews and
-  may confirm the match by hand. **(assumed, owner to confirm)**
+  variants (أ/إ/آ/ا, ة/ه, ى/ي), extra and invisible spaces, and the space inside compound names such as
+  «عبد الله», the account name starts with the first three words of the official name (all of them when the
+  official name has only two). An account name with fewer words than that never matches automatically, so a
+  student cannot be verified by guessing only a first and a father's name. A student whose code is found but
+  whose name does not match is not verified; a catalog manager reviews and may confirm the match by hand.
+  **(assumed, owner to confirm)**
 - Q: May a verified student still change their level and division, and may the administration correct a
   verified student's academic data? → A: No to both. A verified student's student code, level, and division
-  come only from the official list; the fix for wrong official data is a corrected import. Decided with
-  reasons in `research.md` §2 (the roadmap left it to the plan). **(assumed, owner to confirm)**
+  come only from the official list; the fix for wrong official data is a corrected import. A catalog
+  manager can revoke a wrong verification (for example a student verified with someone else's code), after
+  which the data can be corrected. Decided with reasons in `research.md` §2 (the roadmap left it to the
+  plan). **(assumed, owner to confirm)**
+- Q: Are student codes compared with or without regard to letter case? → A: As in feature 001: exactly as
+  written (the college's codes are expected to be digits, sometimes with a hyphen). Digits written in Arabic
+  script and invisible formatting characters copied from other programs are ignored. **(assumed, owner to
+  confirm)**
 - Q: Do faculty members get a "my teaching courses" screen in this feature? → A: No. Teacher assignments are
   stored and readable by modules; the first screen that uses them is CodeJudge (feature 005). **(assumed,
   owner to confirm)**
@@ -96,8 +106,9 @@ requirements. Each is **(assumed, owner to confirm)**. Changing one later means 
   them. **(assumed, owner to confirm)**
 - Q: How large may an import be, and must it run in the background? → A: Up to 10,000 students and 2 MB per
   file, processed while the catalog manager waits (a few seconds). Background processing arrives with the job
-  runner of feature 003; see the plan's Complexity Tracking for this exception to constitution principle VI.
-  **(assumed, owner to confirm)**
+  runner of feature 003; see the plan's Complexity Tracking for this exception to constitution principle VI,
+  which the owner accepts or rejects **before this documentation is merged**. **(assumed, owner to
+  confirm)**
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -278,7 +289,7 @@ sees the official data; re-import without A and verify A is unlocked.
    list.
 5. **Given** a student whose code is in the list but whose name does not match, **When** a catalog manager
    reviews the student in the roster overview and confirms the match, **Then** the student is verified (by
-   hand); undoing the confirmation returns them to "name mismatch".
+   hand); revoking that verification returns them to "name mismatch".
 6. **Given** a student with a name mismatch, **When** they correct their own name so that it matches,
    **Then** they become verified without action from Student Affairs.
 7. **Given** a student who is not verified (code not in the list, or name mismatch), **When** they open their
@@ -289,6 +300,11 @@ sees the official data; re-import without A and verify A is unlocked.
    20 per page.
 9. **Given** a verified student who is absent from a newly applied list, **When** they next open their
    profile, **Then** they are no longer verified and can edit level and division again.
+10. **Given** a student verified automatically with another student's code (an impostor whose account name
+    starts with the owner's first three names), **When** a catalog manager revokes the verification, **Then**
+    the account is unverified and unlocked, it is not verified automatically again for that code by a later
+    import or name change (only a confirmation by hand can link it again), and the administration can
+    correct its student code so that the real owner can register.
 
 ---
 
@@ -311,9 +327,17 @@ sees the official data; re-import without A and verify A is unlocked.
 - **Blank rows** are skipped; row numbers in the report are the line numbers a spreadsheet shows (header =
   row 1).
 - **A deactivated division** in the official list is accepted (students of a closing division stay listed).
-- **Code typed by an impostor**: a student who typed another student's code is not verified (name mismatch);
-  the student who owns the code cannot use it (code taken, feature 001) and contacts the administration, who
-  corrects the impostor's code — possible because the impostor is not verified.
+- **Code typed by an impostor**: the student who owns the code cannot use it (code taken, feature 001) and
+  contacts the administration. If the impostor is not verified (the usual case: their account name does not
+  start with the owner's first three official names), the administration corrects the impostor's code
+  directly. If the impostor was verified automatically (they knew the owner's first three names), a catalog
+  manager first revokes the verification (FR-026), which unlocks the account and stops automatic
+  re-verification of it for that code; then the administration corrects the code. Automatic verification
+  after a name change is limited to five attempts per day per student (FR-022), so names cannot be guessed
+  in bulk.
+- **Invisible characters and copied names**: invisible formatting characters (for example the right-to-left
+  mark Excel and other programs insert) are removed from every cell, and Arabic letters in "presentation
+  form" (common in names copied from PDF files) are treated as the ordinary letters.
 - **Student moves to the next level**: the next import changes the official level; verified students follow
   automatically; unverified students keep their own level.
 - **Course common to several divisions or levels**: one course may have any number of placements.
@@ -387,7 +411,9 @@ sees the official data; re-import without A and verify A is unlocked.
 - **FR-015**: Whole-file problems — no file, empty file, too large, too many rows, a spreadsheet workbook or
   another non-text file, an unsupported encoding, missing required columns — MUST be reported on the form
   without storing anything.
-- **FR-016**: Every row MUST be validated (student code format as in feature 001 FR-025, name 2–100
+- **FR-016**: Invisible formatting characters MUST be removed from every cell, and Arabic-Indic digits
+  converted, before validation; student codes keep their letter case, as in feature 001. Every row MUST be
+  validated (student code format as in feature 001 FR-025, name 2–100
   characters, level within the college's levels, division known to the college, no student code twice in the
   file, correct number of fields), and the validation report MUST list each problem with its row number,
   column, and a translated explanation; at most 500 problems are listed, followed by the count of the rest.
@@ -395,7 +421,10 @@ sees the official data; re-import without A and verify A is unlocked.
   unchanged entries, entries that will be removed, and verified students who will lose their verification;
   and the names of any ignored columns. An import with at least one row problem MUST NOT be applicable.
 - **FR-018**: Applying an import MUST replace the official list with the file's rows as one all-or-nothing
-  change, re-verify the college's students (FR-021), and be possible exactly once.
+  change, re-verify the college's students (FR-022), and be possible exactly once. Apply MUST be refused,
+  with an explanation, when the college's number of levels has been reduced since the upload below a level
+  in the file (upload again), and when it would remove more than a fifth of the current list without the
+  catalog manager's second, explicit confirmation of the number removed.
 - **FR-019**: A catalog manager MUST be able to discard an import that has not been applied. Uploading a new
   file MUST discard the previous unapplied import. An unapplied import MUST expire after 24 hours and can
   then no longer be applied.
@@ -413,25 +442,33 @@ sees the official data; re-import without A and verify A is unlocked.
 - **FR-022**: A registered student MUST be verified automatically when their student code is in the official
   list and their account name matches the official name (rule in Clarifications), at each of these moments:
   an import is applied; the student completes their academic profile; the administration creates or corrects
-  the profile of an unverified student; an unverified student changes their name.
+  the profile of an unverified student; an unverified student changes their name. The check after a name
+  change MUST run at most five times per student per day (later name changes are saved without it; the next
+  import checks again). An account whose verification was revoked (FR-026) MUST NOT be verified
+  automatically again for the same student code.
 - **FR-023**: When a student is verified, and whenever an applied import changes their official level or
   division, the student's level and division MUST be set to the official ones. Modules MUST read level and
   division only from the shared student profile.
 - **FR-024**: A verified student MUST NOT be able to change their level or division, and the administration
   MUST NOT be able to change a verified student's student code, level, or division; both are told that the
-  data comes from the official list.
+  data comes from the official list. Only a change of value is refused: submitting the current values again
+  is not.
 - **FR-025**: A catalog manager MUST be able to see every student with one status — verified (automatically
   or by hand), name mismatch, not in the official list (registered but absent), not registered (listed but
-  without an account profile) — search by student code or official name, filter by status, 20 per page.
+  without an account profile) — with a note when a verification was revoked; search by student code or
+  official name (ignoring the Arabic spelling variants of the name rule), filter by status, 20 per page.
 - **FR-026**: A catalog manager MUST be able to confirm by hand a student with a name mismatch (after seeing
-  the account name and the official name side by side), and undo such a confirmation.
+  the account name and the official name side by side), and to revoke any verification, automatic or by
+  hand (after seeing both names); a revoked account becomes unverified and editable again.
 - **FR-027**: A verified student MUST see on their profile and home screen that their academic data is
   verified, and on their profile the official record held about them (student code, official name, level,
-  division). An unverified student MUST see only that their data is not verified yet, never whether their
-  code is in the list or the name it carries.
+  division). An unverified student MUST see only that their data is not verified yet, with the same neutral
+  advice for everyone (write the account name as in the college's records, with at least the first three
+  names), never whether their code is in the list or the name it carries.
 - **FR-028**: A student who is absent from a newly applied list, or whose automatic match no longer holds
   after the official name changed, MUST lose the verification and the lock; a confirmation by hand is kept
-  while the student's code stays in the list.
+  while the student's code stays in the list. A verified student who changes their account name stays
+  verified (the automatic match is checked again only when the official name changes).
 - **FR-029**: The privacy notice (feature 001 FR-011) MUST state that the college's official student list
   (student code, name, level, division) is used to verify students' academic data.
 
@@ -452,14 +489,16 @@ sees the official data; re-import without A and verify A is unlocked.
 - **FR-032**: The audit log (feature 001 FR-044) MUST record term creation, change, and making current;
   course creation, change, activation, deactivation, and topic changes; placements added and removed; teacher
   assignments added and removed; imports uploaded, discarded, and applied (with counts); students verified
-  automatically at profile completion or name change, confirmed by hand, and confirmations undone — with who,
+  automatically at profile completion or name change, confirmed by hand, and verifications revoked — with who,
   what, and when, and never names, student codes, or file contents.
 - **FR-033**: Other modules MUST be able to read, through one documented interface and never by their own
-  copies: the current term; a course with its topics; a student's courses for a term; whether a student takes
-  a course; the courses a faculty member teaches in a term and whether they teach a given course; the students
-  of a course in a term; a term's running courses with their level/division groups and teachers; the number
-  of registered and listed students per level and division; course descriptions and topics for the
-  regulations assistant; and a student's verification status with the official name. Each returns empty results rather than failing when the college has not entered the data yet.
+  copies: the current term and any term; a course with its topics; a student's courses for a term; whether a
+  student takes a course; the courses a faculty member teaches in a term and whether they teach a given
+  course; a term's running courses with their level/division groups and teachers; and a student's
+  verification status with the official name. Each returns empty results rather than failing when the
+  college has not entered the data yet. Reads that only a later feature needs (for example the students of
+  a course, group sizes, the official list for a not-yet-bought report, course data for the regulations
+  assistant) are added to the same interface by that feature.
 - **FR-034**: All new screens MUST meet feature 001's language, direction, accessibility, and responsiveness
   requirements (FR-036, FR-041, FR-042, FR-043); course codes, student codes, and academic years are shown in
   left-to-right isolation inside Arabic text; descriptions and topics are shown in their own direction.
@@ -509,7 +548,9 @@ sees the official data; re-import without A and verify A is unlocked.
 
 - Builds on feature 001 as merged: colleges, the four roles, divisions, number of levels, the academic profile
   (student code, level, division), the audit log, the people screen, and the shared shell. Nothing of 001's
-  behaviour changes except where FR-009, FR-022–FR-024, FR-027, and FR-029 say so.
+  behaviour changes except where FR-009, FR-022–FR-024, FR-027, and FR-029 say so, plus one technical
+  change: the largest accepted form submission grows from 1 MB to 3 MB for every form, so that a 2 MB list
+  reaches the validation (plan.md Complexity Tracking).
 - The pilot college has up to about 5,000 students, 100 courses, and 300 faculty members; one official list
   per college (no per-division lists).
 - The official list comes from the college's student information system or a spreadsheet maintained by

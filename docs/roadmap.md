@@ -118,6 +118,10 @@ unanswered questions into a list for Student Affairs; evaluation set of ≥ 50 r
 sources, run in CI against a recorded fake and manually against the live model. *Later*: OCR for scanned
 documents, multi-turn memory beyond the current conversation, voice input.
 
+**Tracked from 002.** With the job runner, add a daily job that expires unapplied official-list (roster)
+drafts older than 24 hours in every college and clears their personal data (until then they are cleared only
+when the college next opens its roster screen; `specs/002-academic-catalog/research.md` §6).
+
 **Decide in its plan.** Embedding model for Arabic (multilingual, hosted vs self-hosted) and its cost;
 retrieval strategy (hybrid keyword + vector for Arabic morphology); generation model tier; job-queue
 library; object-storage provider for the pilot.
