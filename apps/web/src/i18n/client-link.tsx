@@ -3,11 +3,11 @@
 import NextLink from 'next/link';
 import { useParams } from 'next/navigation';
 import type { ComponentProps } from 'react';
-import { DEFAULT_LOCALE, isLocale, localizeHref } from '@/lib/locale';
+import { DEFAULT_LOCALE, isLocale, localizeHref, type AppPath } from '@/lib/locale';
 
 type ClientLinkProps = Omit<ComponentProps<typeof NextLink>, 'href' | 'locale'> & {
   /** Locale-less app path, e.g. `/dashboard` or `/profile`. */
-  href: string;
+  href: AppPath;
 };
 
 /**

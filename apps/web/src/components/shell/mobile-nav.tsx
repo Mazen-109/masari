@@ -1,7 +1,16 @@
 'use client';
 
-import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from 'react';
 import { preloadWhenIdle } from './lazy-ui';
+import type { MobileNavDrawerProps } from './mobile-nav-drawer';
 import type { RenderedNavSection } from './nav-list';
 
 /**
@@ -14,8 +23,10 @@ import type { RenderedNavSection } from './nav-list';
  *
  * Only the button is part of the page's first scripts (PR-40, FR-043): the drawer (Radix Dialog) is a
  * separate chunk, fetched once the page is idle after loading, or at the first press if that comes
- * earlier — the drawer then opens as soon as it has arrived. The button is rendered here, not by Radix,
- * so it exists from the first paint; the drawer returns focus to it.
+ * earlier — the drawer then opens as soon as it has arrived, and the button says it is busy meanwhile.
+ * If the chunk cannot be fetched (offline), the button stays usable and the next press tries again; the
+ * rest of the screen is unaffected. The button is rendered here, not by Radix, so it exists from the
+ * first paint; the drawer returns focus to it.
  */
 
 export type MobileNavLabels = Readonly<{
@@ -26,7 +37,6 @@ export type MobileNavLabels = Readonly<{
 }>;
 
 const loadDrawer = () => import('./mobile-nav-drawer');
-const MobileNavDrawer = lazy(loadDrawer);
 
 /** Tailwind's `lg` breakpoint (64 rem), where the sidebar replaces the drawer. */
 const SIDEBAR_QUERY = '(min-width: 64rem)';
@@ -44,12 +54,29 @@ export function MobileNav({
   /** The decorative menu icon, rendered on the server. */
   triggerIcon: ReactNode;
 }>) {
+  const [Drawer, setDrawer] = useState<ComponentType<MobileNavDrawerProps> | null>(null);
+  // Requested by the user: shown as soon as the drawer is there.
   const [open, setOpen] = useState(false);
-  // Mounted from the first opening on, so Radix sees every later open/close.
-  const [mounted, setMounted] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const requested = useRef(false);
+  const contentId = useId();
 
-  useEffect(() => preloadWhenIdle(loadDrawer), []);
+  const load = useCallback(() => {
+    if (requested.current) return;
+    requested.current = true;
+    loadDrawer().then(
+      (module) => setDrawer(() => module.default),
+      () => {
+        // Offline or a failed chunk: stay closed; the next press tries again.
+        requested.current = false;
+        setOpen(false);
+      },
+    );
+  }, []);
+
+  useEffect(() => preloadWhenIdle(load), [load]);
+
+  const shown = open && Drawer !== null;
 
   useEffect(() => {
     if (!open) return;
@@ -71,26 +98,27 @@ export function MobileNav({
         className={triggerClassName}
         aria-label={labels.openMenu}
         aria-haspopup="dialog"
-        aria-expanded={open}
+        aria-expanded={shown}
+        aria-controls={shown ? contentId : undefined}
+        aria-busy={(open && Drawer === null) || undefined}
         data-slot="mobile-nav-trigger"
         onClick={() => {
-          setMounted(true);
           setOpen(true);
+          load();
         }}
       >
         {triggerIcon}
       </button>
-      {mounted ? (
-        <Suspense fallback={null}>
-          <MobileNavDrawer
-            open={open}
-            onOpenChange={setOpen}
-            sections={sections}
-            labels={labels}
-            triggerRef={triggerRef}
-          />
-        </Suspense>
-      ) : null}
+      {Drawer === null ? null : (
+        <Drawer
+          open={open}
+          onOpenChange={setOpen}
+          sections={sections}
+          labels={labels}
+          triggerRef={triggerRef}
+          contentId={contentId}
+        />
+      )}
     </>
   );
 }

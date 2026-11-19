@@ -13,7 +13,7 @@ import {
 } from '@/features/profile/components/student-profile-form';
 import { levelLabelKey } from '@/features/profile/level-label';
 import { isDivisionSelectable, levelOptions } from '@/features/profile/rules';
-import { ClientMessages } from '@/i18n/client-messages';
+import { ClientMessages, type ClientNamespace } from '@/i18n/client-messages';
 import { routing } from '@/i18n/routing';
 import { can } from '@/server/auth/permissions';
 import { requireSession } from '@/server/auth/session';
@@ -67,53 +67,55 @@ export default async function ProfilePage({ params }: Props) {
     };
   }
 
+  const studentForm = profile !== null && academic !== null;
+  const namespaces: ClientNamespace[] = ['profile.account', 'profile.saved'];
+  if (studentForm) namespaces.push('onboarding', 'profile.academic');
+
   return (
-    <div className="flex max-w-2xl flex-col gap-8">
-      <h1 className="text-3xl font-bold text-balance">{t('title')}</h1>
+    <ClientMessages forms namespaces={namespaces}>
+      <div className="flex max-w-2xl flex-col gap-8">
+        <h1 className="text-3xl font-bold text-balance">{t('title')}</h1>
 
-      <Card data-slot="account">
-        <CardHeader>
-          <CardTitle>
-            <h2>{t('account.title')}</h2>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ClientMessages forms namespaces={['profile.account', 'profile.saved']}>
-            <AccountForm name={ctx.user.name} email={ctx.user.email} />
-          </ClientMessages>
-        </CardContent>
-      </Card>
-
-      <Card data-slot="language">
-        <CardHeader>
-          <CardTitle>
-            <h2>{t('language.title')}</h2>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <p>{t('language.current', { language: tCommon(`languages.${locale}`) })}</p>
-          <SignedInLocaleSwitcher />
-        </CardContent>
-      </Card>
-
-      {profile === null || academic === null ? null : (
-        <Card data-slot="academic">
+        <Card data-slot="account">
           <CardHeader>
             <CardTitle>
-              <h2>{t('academic.title')}</h2>
+              <h2>{t('account.title')}</h2>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ClientMessages forms namespaces={['onboarding', 'profile.academic', 'profile.saved']}>
+            <AccountForm name={ctx.user.name} email={ctx.user.email} />
+          </CardContent>
+        </Card>
+
+        <Card data-slot="language">
+          <CardHeader>
+            <CardTitle>
+              <h2>{t('language.title')}</h2>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <p>{t('language.current', { language: tCommon(`languages.${locale}`) })}</p>
+            <SignedInLocaleSwitcher />
+          </CardContent>
+        </Card>
+
+        {profile === null || academic === null ? null : (
+          <Card data-slot="academic">
+            <CardHeader>
+              <CardTitle>
+                <h2>{t('academic.title')}</h2>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
               <StudentProfileForm
                 levels={academic.levels}
                 divisions={academic.divisions}
                 current={profile}
               />
-            </ClientMessages>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </ClientMessages>
   );
 }

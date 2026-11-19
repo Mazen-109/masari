@@ -65,7 +65,7 @@ export default async function SettingsPage({ params }: Props) {
 
       <Card data-slot="settings" className="max-w-4xl">
         <CardContent>
-          <ClientMessages forms namespaces={['errors', 'admin.settings']}>
+          <ClientMessages forms namespaces={['admin.settings']}>
             <SettingsForm
               current={{ nameAr, nameEn, allowedEmailDomains, levelsCount, enabledModules }}
               levels={levels}

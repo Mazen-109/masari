@@ -153,7 +153,13 @@ export default async function UsersPage({ params, searchParams }: Props) {
         ) : (
           <ClientMessages
             forms
-            namespaces={['common.actions', 'admin.users.actions', 'onboarding']}
+            namespaces={[
+              'common.actions',
+              'admin.users.actions',
+              'onboarding.studentCode',
+              'onboarding.level',
+              'onboarding.division',
+            ]}
           >
             <UsersTable
               rows={rows}

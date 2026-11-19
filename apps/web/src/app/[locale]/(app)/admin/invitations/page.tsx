@@ -63,34 +63,32 @@ export default async function InvitationsPage({ params }: Props) {
   return (
     // One column for the heading, the form card, and the table, so their edges line up (DESIGN.md
     // "Tables"); only the lead keeps a reading measure.
-    <div className="flex w-full min-w-0 flex-col gap-8">
-      <div>
-        <h1 className="text-3xl font-bold text-balance">{t('title')}</h1>
-        <p className="mt-3 max-w-2xl text-lg text-muted-foreground">{t('lead')}</p>
-      </div>
+    <ClientMessages forms namespaces={['admin.invitations.form', 'admin.invitations.list']}>
+      <div className="flex w-full min-w-0 flex-col gap-8">
+        <div>
+          <h1 className="text-3xl font-bold text-balance">{t('title')}</h1>
+          <p className="mt-3 max-w-2xl text-lg text-muted-foreground">{t('lead')}</p>
+        </div>
 
-      <Card data-slot="invite">
-        <CardHeader>
-          <CardTitle>
-            <h2>{t('form.title')}</h2>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ClientMessages forms namespaces={['admin.invitations.form']}>
+        <Card data-slot="invite">
+          <CardHeader>
+            <CardTitle>
+              <h2>{t('form.title')}</h2>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
             <InviteForm roles={roles} />
-          </ClientMessages>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* Not a labelled section: the table's scroll region already carries the heading as its name. */}
-      <section className="flex min-w-0 flex-col gap-4">
-        <h2 id="invitations-list-title" className="text-xl font-semibold">
-          {t('list.title')}
-        </h2>
-        <ClientMessages forms namespaces={['admin.invitations.list']}>
+        {/* Not a labelled section: the table's scroll region already carries the heading as its name. */}
+        <section className="flex min-w-0 flex-col gap-4">
+          <h2 id="invitations-list-title" className="text-xl font-semibold">
+            {t('list.title')}
+          </h2>
           <InvitationsTable rows={rows} labelledBy="invitations-list-title" />
-        </ClientMessages>
-      </section>
-    </div>
+        </section>
+      </div>
+    </ClientMessages>
   );
 }

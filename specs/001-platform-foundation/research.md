@@ -343,6 +343,10 @@ Every unknown in the plan's Technical Context is resolved here. Format per item:
   `experimental.messages.precompile` (experimental; transforms every catalog import, including the
   server's email templates), and dropping `tailwind-merge` (real class conflicts rely on it). The script
   budgets were lowered to the new sizes plus a small margin (contracts/ci.md §5).
+  **Measured after PR-40** (Lighthouse 12.8.2, mobile preset, simulated throttling, three runs, 2026-11-19):
+  `/ar/sign-in` LCP 3.0 / 2.5 / 2.2 s (median 2.5 s), `/ar/dashboard` 2.8 / 2.8 / 2.1 s (median 2.8 s);
+  1.5 s on both with devtools throttling; first-load JavaScript 180 → 160 KB (sign-in) and 215 → 194 KB
+  (dashboard). SC-006's < 2.5 s is still not met under simulated throttling; open for the owner (T148).
 
 ## 18. Browser protections
 

@@ -1,14 +1,7 @@
 'use client';
 
 import { LogOut, UserRound } from 'lucide-react';
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useTransition,
-  type MouseEvent,
-  type ReactNode,
-} from 'react';
+import { useLayoutEffect, useRef, useTransition, type MouseEvent, type ReactNode } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -65,12 +58,20 @@ export function UserMenuDropdown({
     if (focusTrigger || pendingOpen !== null) triggerRef.current?.focus();
   }, [focusTrigger, pendingOpen]);
 
-  // Opened from the keyboard before the menu arrived: start on the first item, as Radix does for a
-  // keyboard opening. Runs after the menu's own mount focus (a child effect), which picked the panel.
-  useEffect(() => {
-    if (pendingOpen !== 'keyboard') return;
-    contentRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
-  }, [pendingOpen]);
+  // The first opening only may come from a press on the stand-in button.
+  const firstOpen = useRef(true);
+
+  // Opened from the keyboard before the menu arrived: Radix did not see that key press, so start on the
+  // first item here, as Radix does for a keyboard opening. Later openings are Radix's own.
+  function handleOpenAutoFocus(event: Event) {
+    const fromStandIn = firstOpen.current;
+    firstOpen.current = false;
+    if (!fromStandIn || pendingOpen !== 'keyboard') return;
+    const item = contentRef.current?.querySelector<HTMLElement>('[role="menuitem"]');
+    if (item === null || item === undefined) return;
+    event.preventDefault();
+    item.focus({ preventScroll: true });
+  }
 
   function signOut() {
     // runSignOut rethrows the redirect to the sign-in screen (and any other Next.js control-flow error)
@@ -97,7 +98,12 @@ export function UserMenuDropdown({
         >
           {triggerContent}
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" data-slot="user-menu" ref={contentRef}>
+        <DropdownMenuContent
+          align="end"
+          data-slot="user-menu"
+          ref={contentRef}
+          onOpenAutoFocus={handleOpenAutoFocus}
+        >
           <DropdownMenuLabel className="flex flex-col">
             <bdi className="font-semibold break-words">{name}</bdi>
             <span className="text-sm text-muted-foreground">{roleLabel}</span>

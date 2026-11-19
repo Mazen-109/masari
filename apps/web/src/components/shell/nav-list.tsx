@@ -4,10 +4,10 @@ import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { ClientLink } from '@/i18n/client-link';
 import { isCurrentPath } from '@/lib/is-current-path';
-import { localeLessPath } from '@/lib/locale';
+import { localeLessPath, type AppPath } from '@/lib/locale';
 
 /** A navigation entry as rendered by the server: translated label, rendered icon (nav-items.ts). */
-export type RenderedNavItem = { id: string; href: string; label: string; icon: ReactNode };
+export type RenderedNavItem = { id: string; href: AppPath; label: string; icon: ReactNode };
 export type RenderedNavSection = { id: string; heading?: string; items: RenderedNavItem[] };
 
 /**

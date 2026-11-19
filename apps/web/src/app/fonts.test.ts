@@ -93,6 +93,7 @@ describe('font imports', () => {
   const sources = readdirSync(appDir, { recursive: true, encoding: 'utf8' })
     .filter((name) => /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name))
     .map((name) => ({ name, text: readFileSync(join(appDir, name), 'utf8') }));
+  // Side-effect imports only, single-quoted and ending in `;` — the form Prettier writes.
   const importsOf = (text: string) => [...text.matchAll(/^import\s+'([^']+)';/gm)].map((m) => m[1]);
   const withGlobals = sources.filter(({ text }) =>
     importsOf(text).some((path) => path?.endsWith('/globals.css')),

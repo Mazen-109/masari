@@ -58,43 +58,41 @@ export default async function DivisionsPage({ params }: Props) {
   return (
     // One column for the heading, the form card, and the table, so their edges line up (DESIGN.md
     // "Tables"); only the lead keeps a reading measure.
-    <div className="flex w-full min-w-0 flex-col gap-8">
-      <div>
-        <h1 className="text-3xl font-bold text-balance">{t('title')}</h1>
-        <p className="mt-3 max-w-2xl text-lg text-muted-foreground">{t('lead')}</p>
-      </div>
+    <ClientMessages
+      forms
+      namespaces={['common.actions', 'admin.divisions.form', 'admin.divisions.actions']}
+    >
+      <div className="flex w-full min-w-0 flex-col gap-8">
+        <div>
+          <h1 className="text-3xl font-bold text-balance">{t('title')}</h1>
+          <p className="mt-3 max-w-2xl text-lg text-muted-foreground">{t('lead')}</p>
+        </div>
 
-      <Card data-slot="division-add">
-        <CardHeader>
-          <CardTitle>
-            <h2>{t('form.title')}</h2>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ClientMessages forms namespaces={['common.actions', 'admin.divisions.form']}>
+        <Card data-slot="division-add">
+          <CardHeader>
+            <CardTitle>
+              <h2>{t('form.title')}</h2>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
             <DivisionForm mode="create" />
-          </ClientMessages>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* Not a labelled section: the table's scroll region already carries the heading as its name. */}
-      <section className="flex min-w-0 flex-col gap-4">
-        <h2 id="divisions-list-title" className="text-xl font-semibold">
-          {t('list.title')}
-        </h2>
-        {rows.length === 0 ? (
-          <p className="text-muted-foreground" data-slot="divisions-empty">
-            {t('list.empty')}
-          </p>
-        ) : (
-          <ClientMessages
-            forms
-            namespaces={['common.actions', 'admin.divisions.form', 'admin.divisions.actions']}
-          >
+        {/* Not a labelled section: the table's scroll region already carries the heading as its name. */}
+        <section className="flex min-w-0 flex-col gap-4">
+          <h2 id="divisions-list-title" className="text-xl font-semibold">
+            {t('list.title')}
+          </h2>
+          {rows.length === 0 ? (
+            <p className="text-muted-foreground" data-slot="divisions-empty">
+              {t('list.empty')}
+            </p>
+          ) : (
             <DivisionsTable rows={rows} labelledBy="divisions-list-title" />
-          </ClientMessages>
-        )}
-      </section>
-    </div>
+          )}
+        </section>
+      </div>
+    </ClientMessages>
   );
 }

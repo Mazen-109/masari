@@ -39,16 +39,19 @@ export function otherLocale(locale: Locale): Locale {
   return locale === 'ar' ? 'en' : 'ar';
 }
 
+/** A locale-less app path; the leading slash is required (`profile` would give `/arprofile`). */
+export type AppPath = `/${string}`;
+
 /** The locale-less app path `href` (`/dashboard`, `/`, `/sign-in?x=1`) under `locale`. */
-export function localizeHref(locale: Locale, href: string): string {
+export function localizeHref(locale: Locale, href: AppPath): string {
   if (href === '/') return `/${locale}`;
   return href.startsWith('/?') ? `/${locale}${href.slice(1)}` : `/${locale}${href}`;
 }
 
 /** The browser pathname (`/ar/dashboard`) without its locale segment (`/dashboard`; `/` for `/ar`). */
-export function localeLessPath(pathname: string): string {
+export function localeLessPath(pathname: string): AppPath {
   const [, first = '', ...rest] = pathname.split('/');
-  if (!isLocale(first)) return pathname;
+  if (!isLocale(first)) return pathname.startsWith('/') ? (pathname as AppPath) : `/${pathname}`;
   return rest.length === 0 ? '/' : `/${rest.join('/')}`;
 }
 

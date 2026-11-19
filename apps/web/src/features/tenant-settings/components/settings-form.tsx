@@ -3,6 +3,7 @@
 import { useLocale, useTranslations } from 'next-intl';
 import { useActionState, type ReactNode } from 'react';
 import { Field } from '@/components/forms/field';
+import { FieldErrorText } from '@/components/forms/form-messages-context';
 import { FormError } from '@/components/forms/form-error';
 import { SubmitButton } from '@/components/forms/submit-button';
 import { Alert } from '@/components/ui/alert';
@@ -54,7 +55,6 @@ const ltr = (chunks: ReactNode) => <bdi dir="ltr">{chunks}</bdi>;
  */
 export function SettingsForm({ current, levels, modules }: SettingsFormProps) {
   const t = useTranslations('admin.settings');
-  const tErrors = useTranslations('errors');
   const locale = useLocale();
   const [result, formAction, pending] = useActionState<ActionResult | null, FormData>(
     updateTenantSettingsAction,
@@ -206,7 +206,7 @@ export function SettingsForm({ current, levels, modules }: SettingsFormProps) {
         </p>
         {modulesError ? (
           <p id="settings-modules-error" className="mt-2 text-sm font-medium text-danger">
-            {tErrors(modulesError)}
+            <FieldErrorText code={modulesError} />
           </p>
         ) : null}
         <ul className="mt-4 grid gap-x-8 gap-y-3 sm:grid-cols-2">

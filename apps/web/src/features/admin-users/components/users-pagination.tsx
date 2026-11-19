@@ -3,6 +3,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Link } from '@/i18n/navigation';
 import { formatNumber } from '@/lib/format';
+import type { AppPath } from '@/lib/locale';
 import { usersQueryString, type UsersFilterParams } from '../schemas';
 
 /**
@@ -18,7 +19,7 @@ export function UsersPagination({
   const t = useTranslations('admin.users.pagination');
   const locale = useLocale();
   if (pages <= 1) return null;
-  const href = (target: number) => `/admin/users${usersQueryString(filter, target)}`;
+  const href = (target: number): AppPath => `/admin/users${usersQueryString(filter, target)}`;
 
   return (
     <nav
