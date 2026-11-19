@@ -10,6 +10,7 @@ import {
   type ChoiceOption,
 } from '@/features/profile/components/student-profile-form';
 import { isDivisionSelectable, levelOptions } from '@/features/profile/rules';
+import { ClientMessages } from '@/i18n/client-messages';
 import { routing } from '@/i18n/routing';
 import { can } from '@/server/auth/permissions';
 import { requireSession } from '@/server/auth/session';
@@ -66,7 +67,9 @@ export default async function OnboardingPage({ params }: Props) {
         {divisionOptions.length === 0 ? (
           <p role="status">{t('noDivisions')}</p>
         ) : (
-          <StudentProfileForm levels={levels} divisions={divisionOptions} />
+          <ClientMessages forms namespaces={['onboarding', 'profile.academic', 'profile.saved']}>
+            <StudentProfileForm levels={levels} divisions={divisionOptions} />
+          </ClientMessages>
         )}
       </div>
     </div>

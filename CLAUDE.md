@@ -71,6 +71,10 @@ No Docker (e.g. cloud sessions)? Use the machine's PostgreSQL 16+ as described i
   and `en.json`. Arabic is written natively (الفرقة، الشعبة، شئون الطلاب، كود الطالب).
   Messages never use ICU number/date/plural formatting (`{x, number}`, `{x, date}`, `#`): pass values
   pre-formatted with `src/lib/format.ts` (Western digits, FR-041); `pnpm i18n:check` rejects them.
+  There is no catalog-wide client message provider (PR-40): wrap a client component that calls
+  `useTranslations` in `<ClientMessages namespaces={[…]}>` (add `forms` when it renders Field/FormError/
+  SubmitButton, or use `<FormMessages>` alone when its labels come as props). Server components use the
+  `Link` of `@/i18n/navigation`; client components use `ClientLink` of `@/i18n/client-link`.
 - **RTL**: logical utilities only (`ms-`, `me-`, `ps-`, `pe-`, `start-`, `end-`, `text-start`); wrap
   emails/codes/URLs in `dir="ltr"` or `<bdi>`; mirror directional icons.
 - **Accessibility**: semantic HTML, labelled controls, visible focus, keyboard-complete flows; add every new

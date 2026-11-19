@@ -5,6 +5,7 @@ import { hasLocale } from 'next-intl';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { buttonVariants } from '@/components/ui/button';
 import { AcceptInvitationForm } from '@/features/auth/components/accept-invitation-form';
+import { ClientMessages } from '@/i18n/client-messages';
 import { Link } from '@/i18n/navigation';
 import { routing } from '@/i18n/routing';
 import { findUsableInvitation } from '@/server/auth/invitation-lookup';
@@ -72,7 +73,9 @@ export default async function InvitePage({ params }: Props) {
         </dd>
       </dl>
       <div className="mt-8">
-        <AcceptInvitationForm token={token} />
+        <ClientMessages forms namespaces={['auth.invite', 'common.opensInNewTab']}>
+          <AcceptInvitationForm token={token} />
+        </ClientMessages>
       </div>
     </div>
   );

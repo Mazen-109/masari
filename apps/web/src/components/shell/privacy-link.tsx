@@ -1,16 +1,23 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
-import { Link, usePathname } from '@/i18n/navigation';
+import { usePathname } from 'next/navigation';
+import { localeLessPath } from '@/lib/locale';
 
-/** Footer link to the privacy notice (FR-011); marked as the current page on `/privacy`. */
-export function PrivacyLink({ className }: Readonly<{ className?: string }>) {
-  const t = useTranslations('common');
-  const current = usePathname() === '/privacy';
+/**
+ * Footer link to the privacy notice (FR-011); marked as the current page on `/privacy`. The server layout
+ * gives the translated label and the localized address. A plain anchor: this footer is on every public
+ * screen, and `next/link` would add its own copy to this script (PR-40); the notice is a static page.
+ */
+export function PrivacyLink({
+  href,
+  label,
+  className,
+}: Readonly<{ href: string; label: string; className?: string }>) {
+  const current = localeLessPath(usePathname()) === '/privacy';
 
   return (
-    <Link href="/privacy" aria-current={current ? 'page' : undefined} className={className}>
-      {t('privacyNotice')}
-    </Link>
+    <a href={href} aria-current={current ? 'page' : undefined} className={className}>
+      {label}
+    </a>
   );
 }

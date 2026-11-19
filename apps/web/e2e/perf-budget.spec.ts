@@ -3,20 +3,23 @@ import { signIn, signInAsDemoAdmin } from './support/flows';
 import { registerStudentWithProfile } from './support/students';
 
 // Script budget (contracts/ci.md §5, FR-043): the compressed bytes of every JavaScript response a fresh
-// visitor downloads, measured through the Chromium DevTools protocol until the network is idle. Public
-// screens ≤ 200 KB, signed-in screens ≤ 300 KB. Every batch that adds a budgeted screen appends it here.
-// Signed-in screens are measured after signing in, on a fresh page with the browser cache disabled.
-// `signedIn` names who is signed in: a new student, or the demo college's administrator.
+// visitor downloads, measured through the Chromium DevTools protocol until the network is idle — this
+// includes the menus the signed-in shell preloads once the page is idle. The limits are the sizes measured
+// after PR-40 plus a small margin; lower them when a batch makes a screen lighter, never raise them.
+// Every batch that adds a budgeted screen appends it here. Signed-in screens are measured after signing
+// in, on a fresh page with the browser cache disabled. `signedIn` names who is signed in: a new student,
+// or the demo college's administrator.
 const BUDGETS: readonly { path: string; limitKB: number; signedIn?: 'student' | 'admin' }[] = [
-  { path: '/ar/sign-in', limitKB: 200 },
-  { path: '/ar/register', limitKB: 200 },
-  { path: '/ar/dashboard', limitKB: 300, signedIn: 'student' },
-  { path: '/ar/admin/users', limitKB: 300, signedIn: 'admin' },
+  { path: '/ar/sign-in', limitKB: 170 },
+  { path: '/en/sign-in', limitKB: 170 },
+  { path: '/ar/register', limitKB: 180 },
+  { path: '/ar/dashboard', limitKB: 210, signedIn: 'student' },
+  { path: '/ar/admin/users', limitKB: 230, signedIn: 'admin' },
 ];
 
 // Font budget (PR-39, research.md §17): the same load may fetch at most the four IBM Plex Sans Arabic
 // files of fonts.ts — Arabic and Latin, weights 400 and 700 — about 126 KB together; an Arabic screen
-// usually needs fewer. A new weight, subset, or font file fails here. Only the Arabic 400 file is preloaded.
+// usually needs fewer, and `/en/sign-in` checks that an English screen stays within it too. A new weight, subset, or font file fails here. Only the Arabic 400 file is preloaded.
 const FONT_BUDGET = { files: 4, limitKB: 130 } as const;
 const PLEX_FILE =
   /\/_next\/static\/media\/ibm_plex_sans_arabic_(arabic|latin)_(400|700)_normal\.[^/]*woff2$/;

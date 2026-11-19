@@ -5,7 +5,10 @@ import {
   bypassesLocaleRouting,
   dirOf,
   isLocale,
+  localeLessPath,
+  localizeHref,
   otherLocale,
+  switchLocalePath,
 } from '@/lib/locale';
 
 describe('isLocale', () => {
@@ -78,5 +81,43 @@ describe('defaults', () => {
   it('is Arabic-first', () => {
     expect(DEFAULT_LOCALE).toBe('ar');
     expect(LOCALES[0]).toBe('ar');
+  });
+});
+
+describe('localizeHref', () => {
+  it.each([
+    ['ar', '/', '/ar'],
+    ['en', '/dashboard', '/en/dashboard'],
+    ['ar', '/modules/mueed', '/ar/modules/mueed'],
+    ['en', '/sign-in?next=%2Fprofile', '/en/sign-in?next=%2Fprofile'],
+    ['ar', '/?x=1', '/ar?x=1'],
+  ] as const)('puts %s in front of %s', (locale, href, expected) => {
+    expect(localizeHref(locale, href)).toBe(expected);
+  });
+});
+
+describe('localeLessPath', () => {
+  it.each([
+    ['/ar', '/'],
+    ['/en/', '/'],
+    ['/ar/dashboard', '/dashboard'],
+    ['/en/admin/users', '/admin/users'],
+    ['/ar/unknown/deep/path', '/unknown/deep/path'],
+  ])('strips the locale from %s', (pathname, expected) => {
+    expect(localeLessPath(pathname)).toBe(expected);
+  });
+
+  it('leaves a path without a locale unchanged', () => {
+    expect(localeLessPath('/fr/x')).toBe('/fr/x');
+    expect(localeLessPath('/')).toBe('/');
+  });
+});
+
+describe('switchLocalePath', () => {
+  it('keeps the path and changes only the locale', () => {
+    expect(switchLocalePath('/ar/dashboard', 'en')).toBe('/en/dashboard');
+    expect(switchLocalePath('/en/privacy', 'ar')).toBe('/ar/privacy');
+    expect(switchLocalePath('/ar', 'en')).toBe('/en');
+    expect(switchLocalePath('/en/no/such/page', 'ar')).toBe('/ar/no/such/page');
   });
 });

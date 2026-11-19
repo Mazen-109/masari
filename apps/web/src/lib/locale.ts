@@ -38,3 +38,21 @@ export function bypassesLocaleRouting(pathname: string): boolean {
 export function otherLocale(locale: Locale): Locale {
   return locale === 'ar' ? 'en' : 'ar';
 }
+
+/** The locale-less app path `href` (`/dashboard`, `/`, `/sign-in?x=1`) under `locale`. */
+export function localizeHref(locale: Locale, href: string): string {
+  if (href === '/') return `/${locale}`;
+  return href.startsWith('/?') ? `/${locale}${href.slice(1)}` : `/${locale}${href}`;
+}
+
+/** The browser pathname (`/ar/dashboard`) without its locale segment (`/dashboard`; `/` for `/ar`). */
+export function localeLessPath(pathname: string): string {
+  const [, first = '', ...rest] = pathname.split('/');
+  if (!isLocale(first)) return pathname;
+  return rest.length === 0 ? '/' : `/${rest.join('/')}`;
+}
+
+/** The same browser pathname under `target`: `/ar/dashboard` → `/en/dashboard` (language switch). */
+export function switchLocalePath(pathname: string, target: Locale): string {
+  return localizeHref(target, localeLessPath(pathname));
+}

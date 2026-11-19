@@ -1,9 +1,12 @@
-import { NextIntlClientProvider } from 'next-intl';
+import { createTranslator, NextIntlClientProvider } from 'next-intl';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { FormMessagesProvider } from '@/components/forms/form-messages-context';
+import { buildFormMessages, type CatalogTranslator } from '@/lib/form-messages';
 import { fail, ok, type ActionResult } from '@/lib/result';
 import en from '../../../../messages/en.json';
+import type { ResendLabels, SignInLabels } from '../labels';
 import { AcceptInvitationForm } from './accept-invitation-form';
 import { ForgotPasswordForm } from './forgot-password-form';
 import { RegisterForm } from './register-form';
@@ -32,8 +35,8 @@ vi.mock('../actions', () => ({
   resetPasswordAction: () => undefined,
   acceptInvitationAction: () => undefined,
 }));
-vi.mock('@/i18n/navigation', () => ({
-  Link: ({ href, children }: { href: string; children: ReactNode }) => (
+vi.mock('@/i18n/client-link', () => ({
+  ClientLink: ({ href, children }: { href: string; children: ReactNode }) => (
     <a href={href}>{children}</a>
   ),
 }));
@@ -43,11 +46,30 @@ afterEach(() => {
   actionState.pending = false;
 });
 
+const FORM_MESSAGES = buildFormMessages(
+  'en',
+  createTranslator({ locale: 'en', messages: en }) as unknown as CatalogTranslator,
+);
+
+// What the pages pass (`getResendLabels`, `getSignInLabels`).
+const RESEND: ResendLabels = {
+  title: en.auth.resend.titleMissing,
+  lead: en.auth.resend.lead,
+  email: en.auth.resend.email,
+  submit: en.auth.resend.submit,
+  sent: en.auth.resend.sent,
+};
+const SIGN_IN: SignInLabels = {
+  email: en.auth.signIn.email,
+  password: en.auth.signIn.password,
+  submit: en.auth.signIn.submit,
+};
+
 function render(node: ReactNode, state: ActionResult | null): string {
   actionState.current = state;
   return renderToStaticMarkup(
     <NextIntlClientProvider locale="en" messages={en} timeZone="Africa/Cairo">
-      {node}
+      <FormMessagesProvider value={FORM_MESSAGES}>{node}</FormMessagesProvider>
     </NextIntlClientProvider>,
   );
 }
@@ -104,13 +126,13 @@ const EMPTY_STATUS = '<div role="status" data-slot="form-status"></div>';
 
 describe('ResendVerificationForm', () => {
   it('shows no status sentence before a request', () => {
-    const html = render(<ResendVerificationForm />, null);
+    const html = render(<ResendVerificationForm labels={RESEND} />, null);
     expect(html).toContain(EMPTY_STATUS);
     expect(html).not.toContain(en.auth.resend.sent);
   });
 
   it('shows the same sentence after every successful request', () => {
-    const html = render(<ResendVerificationForm />, ok(undefined));
+    const html = render(<ResendVerificationForm labels={RESEND} />, ok(undefined));
     expect(html).toMatch(
       new RegExp(
         `<div role="status" data-slot="form-status"><p[^>]*>${en.auth.resend.sent}</p></div>`,
@@ -121,14 +143,14 @@ describe('ResendVerificationForm', () => {
 
   it('removes the sentence while a new request is pending, so the next success is announced again', () => {
     actionState.pending = true;
-    const html = render(<ResendVerificationForm />, ok(undefined));
+    const html = render(<ResendVerificationForm labels={RESEND} />, ok(undefined));
     expect(html).toContain(EMPTY_STATUS);
     expect(html).not.toContain(en.auth.resend.sent);
   });
 
   it('shows the field error and keeps the entered email', () => {
     const html = render(
-      <ResendVerificationForm id="resend" />,
+      <ResendVerificationForm labels={RESEND} id="resend" />,
       fail('validation', { fieldErrors: { email: 'invalid_email' }, meta: { email: 'x@' } }),
     );
     expect(html).toContain('aria-describedby="resend-error"');
@@ -139,7 +161,7 @@ describe('ResendVerificationForm', () => {
 
   it('shows when to try again after a rate-limit refusal', () => {
     const html = render(
-      <ResendVerificationForm />,
+      <ResendVerificationForm labels={RESEND} />,
       fail('rate_limited', { retryAfterSeconds: 3600 }),
     );
     expect(html).toContain(en.errors.rate_limited);
@@ -147,41 +169,71 @@ describe('ResendVerificationForm', () => {
   });
 
   it('starts with the given email', () => {
-    const html = render(<ResendVerificationForm id="r" defaultEmail="mona@example.edu" />, null);
+    const html = render(
+      <ResendVerificationForm labels={RESEND} id="r" defaultEmail="mona@example.edu" />,
+      null,
+    );
     expect(html).toMatch(/<input[^>]*id="r"[^>]*value="mona@example.edu"/);
   });
 
   it('removes a previous error while a new request is pending, so it is announced again', () => {
     actionState.pending = true;
     const html = render(
-      <ResendVerificationForm />,
+      <ResendVerificationForm labels={RESEND} />,
       fail('rate_limited', { retryAfterSeconds: 3600 }),
     );
     expect(html).not.toContain('data-slot="form-error"');
   });
 });
 
+// The page renders the "forgot your password?" link (a server component) and hands it to the form.
+const FORGOT = <span data-slot="forgot-password-link" />;
+
 describe('SignInForm', () => {
   it('sends a safe next back as a hidden field, and none without one', () => {
-    expect(render(<SignInForm next="/profile" />, null)).toContain(
-      '<input type="hidden" name="next" value="/profile"/>',
-    );
-    expect(render(<SignInForm next={null} />, null)).not.toContain('name="next"');
+    expect(
+      render(
+        <SignInForm
+          next="/profile"
+          forgotPasswordLink={FORGOT}
+          labels={SIGN_IN}
+          resendLabels={RESEND}
+        />,
+        null,
+      ),
+    ).toContain('<input type="hidden" name="next" value="/profile"/>');
+    expect(
+      render(
+        <SignInForm
+          next={null}
+          forgotPasswordLink={FORGOT}
+          labels={SIGN_IN}
+          resendLabels={RESEND}
+        />,
+        null,
+      ),
+    ).not.toContain('name="next"');
   });
 
   it('labels the fields for sign-in, with dir="ltr" inputs and the right autocomplete', () => {
-    const html = render(<SignInForm next={null} />, null);
+    const html = render(
+      <SignInForm next={null} forgotPasswordLink={FORGOT} labels={SIGN_IN} resendLabels={RESEND} />,
+      null,
+    );
     expect(html).toMatch(/<input[^>]*id="sign-in-email"[^>]*dir="ltr"[^>]*autoComplete="email"/);
     expect(html).toMatch(
       /<input[^>]*id="sign-in-password"[^>]*dir="ltr"[^>]*autoComplete="current-password"/,
     );
-    expect(html).toContain('href="/forgot-password"');
+    // The page's link sits inside the form, after the submit button.
+    expect(html).toMatch(
+      /<button[^>]*type="submit"[\s\S]*data-slot="forgot-password-link"[\s\S]*<\/form>/,
+    );
     expect(html).not.toContain('data-slot="form-error"');
   });
 
   it('shows the generic message and keeps the email, never the password', () => {
     const html = render(
-      <SignInForm next={null} />,
+      <SignInForm next={null} forgotPasswordLink={FORGOT} labels={SIGN_IN} resendLabels={RESEND} />,
       fail('invalid_credentials', { meta: { email: 'mona@example.edu' } }),
     );
     expect(html).toContain('data-code="invalid_credentials"');
@@ -193,17 +245,21 @@ describe('SignInForm', () => {
 
   it('offers the resend form, prefilled, for an unconfirmed address', () => {
     const html = render(
-      <SignInForm next={null} />,
+      <SignInForm next={null} forgotPasswordLink={FORGOT} labels={SIGN_IN} resendLabels={RESEND} />,
       fail('email_not_verified', { meta: { email: 'mona@example.edu' } }),
     );
     expect(html).toContain('data-code="email_not_verified"');
     expect(html).toContain('<h2 id="sign-in-resend-title"');
+    expect(html).toContain(en.auth.resend.lead);
     expect(html).toMatch(/<input[^>]*id="sign-in-resend"[^>]*value="mona@example.edu"/);
   });
 
   it('removes the previous error while the next attempt is pending', () => {
     actionState.pending = true;
-    const html = render(<SignInForm next={null} />, fail('invalid_credentials'));
+    const html = render(
+      <SignInForm next={null} forgotPasswordLink={FORGOT} labels={SIGN_IN} resendLabels={RESEND} />,
+      fail('invalid_credentials'),
+    );
     expect(html).not.toContain('data-slot="form-error"');
   });
 });

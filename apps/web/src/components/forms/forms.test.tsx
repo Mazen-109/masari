@@ -1,12 +1,14 @@
-import { NextIntlClientProvider } from 'next-intl';
+import { createTranslator } from 'next-intl';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { buildFormMessages, type CatalogTranslator } from '@/lib/form-messages';
 import { fail, ok } from '@/lib/result';
 import ar from '../../../messages/ar.json';
 import en from '../../../messages/en.json';
 import { Field, type FieldControlProps } from './field';
 import { FormError } from './form-error';
+import { FormMessagesProvider } from './form-messages-context';
 import { SubmitButton } from './submit-button';
 
 // `useFormStatus` is mocked so the pending state can be rendered without submitting a form; the rest of
@@ -24,17 +26,29 @@ afterEach(() => {
   formStatus.pending = false;
 });
 
+// The form parts read server-translated texts (`FormMessages`), not a next-intl provider (PR-40).
 function render(node: ReactNode, locale: 'ar' | 'en' = 'en'): string {
+  const messages = locale === 'ar' ? ar : en;
+  const t = createTranslator({ locale, messages }) as unknown as CatalogTranslator;
   return renderToStaticMarkup(
-    <NextIntlClientProvider
-      locale={locale}
-      messages={locale === 'ar' ? ar : en}
-      timeZone="Africa/Cairo"
-    >
-      {node}
-    </NextIntlClientProvider>,
+    <FormMessagesProvider value={buildFormMessages(locale, t)}>{node}</FormMessagesProvider>,
   );
 }
+
+it('refuses to render a form part outside the form messages provider', () => {
+  expect(() => renderToStaticMarkup(<SubmitButton>Send</SubmitButton>)).toThrow(
+    'outside <FormMessages>',
+  );
+});
+
+it('renders a valid field without the provider (server-rendered filters)', () => {
+  const html = renderToStaticMarkup(
+    <Field id="q" label="Search">
+      {(control) => <input name="q" {...control} />}
+    </Field>,
+  );
+  expect(html).toContain('id="q"');
+});
 
 const input = (props: FieldControlProps) => <input name="field" {...props} />;
 

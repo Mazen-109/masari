@@ -90,6 +90,7 @@ previous batch is merged.
 | PR-37 | Polish | Browser protections | 200 |
 | PR-38 | Polish | Final sweep and documentation | 250 |
 | PR-39 | Polish | Faster first paint on mobile (owner-approved 2026-11-18) | 150 |
+| PR-40 | Polish | Lighter first-load JavaScript (owner-approved 2026-11-19) | 1800 |
 
 ---
 
@@ -522,13 +523,21 @@ Status 2026-11-18: implemented and all gates green, but **not ticked** — the A
 
 **Accept**: Lighthouse 12.8.2 mobile preset (default simulated throttling) on the production build: LCP < 2.5 s on `/ar/sign-in` and `/ar/dashboard`, CLS ≤ 0.1 (values in the PR description) · the font budget passes on every budgeted screen and prints the measured KB and file count · script budgets and axe scans still pass · no CSP change
 
+### PR-40 — Lighter first-load JavaScript · branch `001-pr40-first-load-js`
+
+Added with the owner's approval on 2026-11-19 after PR-39: Lighthouse's simulated LCP still counts all 14–17 first-load script chunks (180–215 KB) of `/ar/sign-in` and `/ar/dashboard` (research.md §17 "First-load JavaScript").
+
+- [ ] T148 Cut the JavaScript loaded and run before first paint (FR-043, SC-006, constitution VI), with no new runtime dependency and no-JS form submission kept: drop the catalog-wide `NextIntlClientProvider` from `[locale]/layout.tsx` and give client components only the namespaces they use (`apps/web/src/i18n/client-messages.tsx`, `pick-messages.ts`); translate the texts of the shared form parts (Field, FormError, SubmitButton) on the server (`apps/web/src/lib/form-messages.ts`, `apps/web/src/i18n/form-messages.tsx`, plural `common.retryAfter` pre-rendered per plural category) and pass the sign-in and resend labels as props (`apps/web/src/features/auth/labels.ts`), so `/ar/sign-in` loads no next-intl client code; a server-only `Link` (`apps/web/src/i18n/navigation.tsx`) and a client `ClientLink` (`client-link.tsx`) instead of `createNavigation`; plain anchors where a full page load is fine (language switch, privacy link, 404 home links); load the mobile navigation drawer and the user menu dropdown on first use, preloaded when the page is idle (`apps/web/src/components/shell/lazy-ui.ts`); unit tests for the new modules; lower the script budgets of `apps/web/e2e/perf-budget.spec.ts` and contracts/ci.md §5 to the measured sizes plus a small margin and add `/en/sign-in`; PR-39 review follow-ups (fonts.test.ts checks every `globals.css` importer also imports `./fonts`; research.md §17 and DESIGN.md "Typography" corrections)
+
+**Accept**: Lighthouse 12.8.2 mobile preset (default simulated throttling) on the production build: LCP < 2.5 s on `/ar/sign-in` and `/ar/dashboard`, median of 3 runs, CLS ≤ 0.1 (values in the PR description) · the lowered script budgets and the font budget pass on every budgeted screen, `/en/sign-in` included, with the measured values printed · axe, CSP, responsive and no-JS form e2e specs still pass · no new runtime dependency
+
 ---
 
 ## Dependencies & Execution Order
 
 ### Batch order
 
-Strictly sequential: `PR-1 → PR-2 → … → PR-38 → PR-39`. This is the only supported order for the single
+Strictly sequential: `PR-1 → PR-2 → … → PR-38 → PR-39 → PR-40`. This is the only supported order for the single
 implementer/reviewer workflow; the notes below explain why and what could move if the owner re-prioritises.
 
 ### Phase dependencies
@@ -614,7 +623,7 @@ After each checkpoint the system is releasable for the stories completed so far.
 | FR-039, FR-040 | PR-18, PR-19, PR-22, PR-28 |
 | FR-041 | PR-7 |
 | FR-042 | PR-10, PR-15, every screen batch, PR-38 |
-| FR-043 | PR-10, PR-18, PR-32, PR-38, PR-39 |
+| FR-043 | PR-10, PR-18, PR-32, PR-38, PR-39, PR-40 |
 | FR-044 | PR-5, PR-14, and every batch whose action lists an audit |
 | FR-045 | PR-9 |
 | FR-046 | PR-2, PR-7, PR-8, PR-10 |
@@ -622,7 +631,7 @@ After each checkpoint the system is releasable for the stories completed so far.
 | FR-048, FR-049 | PR-7 (noindex metadata), PR-37 |
 | SC-003 | PR-3…PR-5, PR-21, PR-25 (isolation tests), PR-27 (e2e) |
 | SC-004 | PR-13 (matrix), PR-30 (e2e matrix) |
-| SC-005, SC-006 | PR-10, PR-38 (SC-006 LCP: PR-39) |
+| SC-005, SC-006 | PR-10, PR-38 (SC-006 LCP: PR-39, PR-40) |
 | SC-007 | PR-26, PR-27 |
 | SC-008, SC-009 | PR-2, PR-38 |
 

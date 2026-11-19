@@ -80,7 +80,7 @@ size 20.
 
 | File | Behaviour |
 |---|---|
-| `src/app/[locale]/layout.tsx` | Root layout: `<html lang dir>`, fonts, `NextIntlClientProvider`, base metadata. Validates the locale (`notFound()` otherwise). |
+| `src/app/[locale]/layout.tsx` | Root layout: `<html lang dir>`, fonts, base metadata. Validates the locale (`notFound()` otherwise). Renders no message provider (PR-40): client components that translate get only their namespaces from `ClientMessages` (`src/i18n/client-messages.tsx`), and client forms get the server-translated form texts from `FormMessages` (`src/i18n/form-messages.tsx`). |
 | `src/app/[locale]/[...rest]/page.tsx` | Catch-all for unknown paths under a valid locale: calls `notFound()` (after `setRequestLocale`, since dotted paths skip the proxy) so `[locale]/not-found.tsx` renders inside the locale layout. Its `generateMetadata` only affects client-side navigations; the served 404 title comes from `[locale]/not-found.tsx`. Added in PR-7. |
 | `src/app/[locale]/not-found.tsx` | Localized 404 with a link to home, for public paths and unknown paths (rendered in the root layout, without the signed-in shell). Exports `generateMetadata`: title `meta.notFound` (it only ever runs for a valid locale). For an unknown locale such as `/fr`, `[locale]/layout.tsx` itself calls `notFound()`, Next.js 16 emits no metadata title, and `app/not-found.tsx` renders the bilingual `<title>` element directly (PR-10). |
 | `src/app/[locale]/(app)/not-found.tsx` | The same localized 404 content rendered inside the `(app)` layout, so that `notFound()` thrown by an `(app)` page (missing permission, disabled or unknown module) keeps the header and navigation. Added in PR-19. |

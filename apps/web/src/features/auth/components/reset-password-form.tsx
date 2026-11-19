@@ -6,7 +6,7 @@ import { Field } from '@/components/forms/field';
 import { FormError } from '@/components/forms/form-error';
 import { SubmitButton } from '@/components/forms/submit-button';
 import { Input } from '@/components/ui/input';
-import { Link } from '@/i18n/navigation';
+import { ClientLink } from '@/i18n/client-link';
 import type { ActionResult } from '@/lib/result';
 import { resetPasswordAction } from '../actions';
 
@@ -33,12 +33,12 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
     <form action={formAction} noValidate className="flex flex-col gap-6">
       <FormError result={result} pending={pending} />
       {tokenInvalid ? (
-        <Link
+        <ClientLink
           href="/forgot-password"
           className="inline-flex min-h-11 items-center self-start rounded-md font-medium text-primary underline underline-offset-4"
         >
           {t('requestNew')}
-        </Link>
+        </ClientLink>
       ) : null}
       <input type="hidden" name="token" value={token} />
       <Field

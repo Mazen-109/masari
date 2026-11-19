@@ -6,6 +6,7 @@ import { hasLocale } from 'next-intl';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { RegisterForm, type CollegeOption } from '@/features/auth/components/register-form';
 import { pickCollege } from '@/features/auth/rules';
+import { ClientMessages } from '@/i18n/client-messages';
 import { routing } from '@/i18n/routing';
 import { getSessionContext } from '@/server/auth/session';
 
@@ -51,7 +52,9 @@ export default async function RegisterPage({ params, searchParams }: Props) {
       <h1 className="text-3xl font-bold text-balance">{t('title')}</h1>
       <p className="mt-3 text-lg text-muted-foreground">{t('lead')}</p>
       <div className="mt-8">
-        <RegisterForm college={pickCollege(options, u)} colleges={options} />
+        <ClientMessages forms namespaces={['auth.register', 'common.opensInNewTab']}>
+          <RegisterForm college={pickCollege(options, u)} colleges={options} />
+        </ClientMessages>
       </div>
     </div>
   );

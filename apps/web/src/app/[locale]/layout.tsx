@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { hasLocale, NextIntlClientProvider } from 'next-intl';
+import { hasLocale } from 'next-intl';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import type { ReactNode } from 'react';
 import { routing } from '@/i18n/routing';
@@ -38,11 +38,11 @@ export default async function LocaleLayout({ children, params }: Props) {
   }
   setRequestLocale(locale);
 
+  // No message provider here: client components that translate get only their namespaces from
+  // `ClientMessages` (i18n/client-messages.tsx), so the catalog is not sent with every page (PR-40).
   return (
     <html lang={locale} dir={dirOf(locale)}>
-      <body className="antialiased">
-        <NextIntlClientProvider>{children}</NextIntlClientProvider>
-      </body>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }

@@ -10,6 +10,7 @@ import {
   InvitationsTable,
   type InvitationRow,
 } from '@/features/invitations/components/invitations-table';
+import { ClientMessages } from '@/i18n/client-messages';
 import { routing } from '@/i18n/routing';
 import { requirePermission } from '@/server/auth/session';
 
@@ -75,7 +76,9 @@ export default async function InvitationsPage({ params }: Props) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <InviteForm roles={roles} />
+          <ClientMessages forms namespaces={['admin.invitations.form']}>
+            <InviteForm roles={roles} />
+          </ClientMessages>
         </CardContent>
       </Card>
 
@@ -84,7 +87,9 @@ export default async function InvitationsPage({ params }: Props) {
         <h2 id="invitations-list-title" className="text-xl font-semibold">
           {t('list.title')}
         </h2>
-        <InvitationsTable rows={rows} labelledBy="invitations-list-title" />
+        <ClientMessages forms namespaces={['admin.invitations.list']}>
+          <InvitationsTable rows={rows} labelledBy="invitations-list-title" />
+        </ClientMessages>
       </section>
     </div>
   );

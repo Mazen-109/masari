@@ -1,8 +1,8 @@
-import { useLocale, useTranslations } from 'next-intl';
 import { Alert } from '@/components/ui/alert';
-import { formatNumber } from '@/lib/format';
+import { retryAfterText } from '@/lib/form-messages';
 import type { ActionResult } from '@/lib/result';
 import { retryAfterMinutes } from '@/lib/retry-after';
+import { useFormMessages } from './form-messages-context';
 
 type FormErrorProps = Readonly<{
   /** The form action's last result (`useActionState`); nothing is shown unless it is a failure. */
@@ -21,9 +21,7 @@ type FormErrorProps = Readonly<{
  * (`common.retryAfter`), in whole minutes written with Western digits (FR-041).
  */
 export function FormError({ result, pending = false, className }: FormErrorProps) {
-  const t = useTranslations('errors');
-  const tCommon = useTranslations('common');
-  const locale = useLocale();
+  const messages = useFormMessages();
   if (pending || result === null || result === undefined || result.ok) return null;
 
   const minutes =
@@ -37,15 +35,8 @@ export function FormError({ result, pending = false, className }: FormErrorProps
       data-code={result.code}
       className={className}
     >
-      <p>{t(result.code)}</p>
-      {minutes !== null && (
-        <p className="mt-1">
-          {tCommon('retryAfter', {
-            count: minutes,
-            minutes: formatNumber(minutes, locale),
-          })}
-        </p>
-      )}
+      <p>{messages.errors[result.code]}</p>
+      {minutes !== null && <p className="mt-1">{retryAfterText(messages, minutes)}</p>}
     </Alert>
   );
 }

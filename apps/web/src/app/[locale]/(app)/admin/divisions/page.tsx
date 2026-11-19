@@ -7,6 +7,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DivisionForm } from '@/features/divisions/components/division-form';
 import { DivisionsTable, type DivisionRow } from '@/features/divisions/components/divisions-table';
+import { ClientMessages } from '@/i18n/client-messages';
 import { routing } from '@/i18n/routing';
 import { requirePermission } from '@/server/auth/session';
 
@@ -70,7 +71,9 @@ export default async function DivisionsPage({ params }: Props) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <DivisionForm mode="create" />
+          <ClientMessages forms namespaces={['common.actions', 'admin.divisions.form']}>
+            <DivisionForm mode="create" />
+          </ClientMessages>
         </CardContent>
       </Card>
 
@@ -84,7 +87,12 @@ export default async function DivisionsPage({ params }: Props) {
             {t('list.empty')}
           </p>
         ) : (
-          <DivisionsTable rows={rows} labelledBy="divisions-list-title" />
+          <ClientMessages
+            forms
+            namespaces={['common.actions', 'admin.divisions.form', 'admin.divisions.actions']}
+          >
+            <DivisionsTable rows={rows} labelledBy="divisions-list-title" />
+          </ClientMessages>
         )}
       </section>
     </div>

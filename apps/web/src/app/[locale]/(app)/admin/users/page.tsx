@@ -19,6 +19,7 @@ import {
 } from '@/features/admin-users/schemas';
 import { levelLabelKey } from '@/features/profile/level-label';
 import { levelOptions } from '@/features/profile/rules';
+import { ClientMessages } from '@/i18n/client-messages';
 import { routing } from '@/i18n/routing';
 import { formatNumber } from '@/lib/format';
 import { requirePermission } from '@/server/auth/session';
@@ -150,12 +151,17 @@ export default async function UsersPage({ params, searchParams }: Props) {
             {t('list.empty')}
           </p>
         ) : (
-          <UsersTable
-            rows={rows}
-            labelledBy="users-list-title"
-            actorId={ctx.user.id}
-            academic={academic}
-          />
+          <ClientMessages
+            forms
+            namespaces={['common.actions', 'admin.users.actions', 'onboarding']}
+          >
+            <UsersTable
+              rows={rows}
+              labelledBy="users-list-title"
+              actorId={ctx.user.id}
+              academic={academic}
+            />
+          </ClientMessages>
         )}
         <UsersPagination filter={filter} page={page} pages={pages} />
       </section>

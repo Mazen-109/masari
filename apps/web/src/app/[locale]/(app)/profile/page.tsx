@@ -13,6 +13,7 @@ import {
 } from '@/features/profile/components/student-profile-form';
 import { levelLabelKey } from '@/features/profile/level-label';
 import { isDivisionSelectable, levelOptions } from '@/features/profile/rules';
+import { ClientMessages } from '@/i18n/client-messages';
 import { routing } from '@/i18n/routing';
 import { can } from '@/server/auth/permissions';
 import { requireSession } from '@/server/auth/session';
@@ -77,7 +78,9 @@ export default async function ProfilePage({ params }: Props) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <AccountForm name={ctx.user.name} email={ctx.user.email} />
+          <ClientMessages forms namespaces={['profile.account', 'profile.saved']}>
+            <AccountForm name={ctx.user.name} email={ctx.user.email} />
+          </ClientMessages>
         </CardContent>
       </Card>
 
@@ -101,11 +104,13 @@ export default async function ProfilePage({ params }: Props) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <StudentProfileForm
-              levels={academic.levels}
-              divisions={academic.divisions}
-              current={profile}
-            />
+            <ClientMessages forms namespaces={['onboarding', 'profile.academic', 'profile.saved']}>
+              <StudentProfileForm
+                levels={academic.levels}
+                divisions={academic.divisions}
+                current={profile}
+              />
+            </ClientMessages>
           </CardContent>
         </Card>
       )}
