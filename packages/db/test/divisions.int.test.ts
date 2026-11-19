@@ -2,10 +2,12 @@ import { sql } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { withTenant, type Tx } from '../src/context';
 import * as divisions from '../src/repositories/divisions';
+import * as studentProfiles from '../src/repositories/student-profiles';
 import {
   closeTestPools,
   inRuntimeTransaction,
   makeTenant,
+  makeUser,
   ownerTenantQuery,
   pgErrorCode,
   runtimeQuery,
@@ -189,6 +191,31 @@ describe('divisions.findByIdForUpdate', () => {
       await divisions.update(tx, created.id, { nameEn: 'After' });
     });
     expect(await concurrent).toBe('After');
+  });
+
+  it('does not hold up a profile written with that division meanwhile (foreign-key checks pass the lock)', async () => {
+    const created = await createOk(collegeA, { code: 'CS' });
+    const student = await makeUser(collegeA.id);
+    const order: string[] = [];
+    let profile: Promise<unknown> = Promise.resolve();
+    await inCollege(collegeA, async (tx) => {
+      await divisions.findByIdForUpdate(tx, created.id);
+      profile = inCollege(collegeA, (other) =>
+        studentProfiles.create(other, {
+          userId: student.id,
+          studentCode: 'FK-01',
+          level: 1,
+          divisionId: created.id,
+        }),
+      ).then((result) => {
+        order.push('profile');
+        return result;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      order.push('released');
+    });
+    expect(await profile).toMatchObject({ ok: true });
+    expect(order).toEqual(['profile', 'released']);
   });
 });
 

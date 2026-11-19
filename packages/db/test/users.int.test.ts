@@ -2,7 +2,15 @@ import { randomBytes } from 'node:crypto';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { divisions, studentProfiles, users, withTenant, type Tx, type UsersFilter } from '../src';
+import {
+  audit,
+  divisions,
+  studentProfiles,
+  users,
+  withTenant,
+  type Tx,
+  type UsersFilter,
+} from '../src';
 import { getAdminDbEnv } from '../src/env';
 import * as schema from '../src/schema';
 import {
@@ -885,23 +893,67 @@ describe('the last active administrator (spec.md "Last administrator")', () => {
       const tenant = await makeTenant();
       const first = await makeUser(tenant.id, { role: 'admin' });
       const second = await makeUser(tenant.id, { role: 'admin' });
-      const change = (kind: 'role' | 'status', userId: string) =>
+      const change = (kind: 'role' | 'status', userId: string): Promise<unknown> =>
         kind === 'role'
           ? users.setRole(tenant.id, userId, 'faculty')
           : users.setStatus(tenant.id, userId, 'suspended');
 
+      const order: string[] = [];
+      const track = <T>(label: string, promise: Promise<T>) =>
+        promise.then((result) => {
+          order.push(label);
+          return result;
+        });
       let both: Promise<unknown[]> = Promise.resolve([]);
-      // Holding the first administrator's row makes both changes start before either can finish: without
-      // a per-college lock the change of `second` would go through at once, and the other right after.
+      // Only `first`'s row is held. The change of `second` is a change of another row: it can wait only
+      // because every such change takes the college-wide administrator lock first, which covers `first`.
+      // A lock on the target row alone would let it commit at once, before 'locked'.
       await withTenant({ tenantId: tenant.id, userId: null }, async (tx) => {
         expect(await users.lockRoleInTenant(tx, tenant.id, first.id)).toBe('admin');
-        both = Promise.all([change(firstChange, second.id), change(secondChange, first.id)]);
+        both = Promise.all([
+          track('second changed', change(firstChange, second.id)),
+          track('first changed', change(secondChange, first.id)),
+        ]);
         await new Promise((resolve) => setTimeout(resolve, 200));
+        order.push('locked');
       });
       const results = await both;
 
+      expect(order[0]).toBe('locked');
       expect(results.filter((result) => result === users.LAST_ADMIN)).toHaveLength(1);
       expect(await activeAdmins(tenant.id)).toHaveLength(1);
     },
   );
+
+  it('never deadlocks with a transaction that holds a student and then writes an audit row as an administrator', async () => {
+    const tenant = await makeTenant();
+    const admin = await makeUser(tenant.id, { role: 'admin' });
+    await makeUser(tenant.id, { role: 'admin' });
+    const student = await makeUser(tenant.id);
+    const order: string[] = [];
+    let suspension: Promise<unknown> = Promise.resolve();
+
+    // The administrator's profile dialog: holds the student (FOR SHARE), then writes its audit row, whose
+    // foreign-key check locks the administrator's row FOR KEY SHARE. Meanwhile another administrator
+    // suspends the student: that change holds every active administrator and waits for the student.
+    await withTenant({ tenantId: tenant.id, userId: admin.id }, async (tx) => {
+      expect(await users.lockRoleInTenant(tx, tenant.id, student.id)).toBe('student');
+      suspension = users.setStatus(tenant.id, student.id, 'suspended').then((result) => {
+        order.push('suspended');
+        return result;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      await audit.record(tx, {
+        actorUserId: admin.id,
+        action: 'profile.updated',
+        targetId: student.id,
+        metadata: { fields: ['level'] },
+      });
+      order.push('audited');
+    });
+
+    expect(await suspension).toBe(true);
+    expect(order).toEqual(['audited', 'suspended']);
+    expect((await users.findById(student.id))?.status).toBe('suspended');
+  });
 });

@@ -165,8 +165,8 @@ Every unknown in the plan's Technical Context is resolved here. Format per item:
   result (`server/auth/password-hash.ts`), the same function the library is configured with
   (`emailAndPassword.password.hash`, the library's own scrypt hash; verification stays the library
   default), so every branch costs one hash. Each branch also sends one email. The remaining differences
-  (a few database round trips) are small next to the hash and the email and are further hidden by the
-  `register` rate limit.
+  (a few database round trips) are small next to the hash and the email; the `register` rate limit does
+  not hide them, it only limits how many timing samples one client can collect.
 - **Rationale**: FR-005/FR-013/FR-020–023; one place for each rule.
 - **Alternatives**: validating in Better Auth hooks while leaving its endpoints public — rules split between
   hooks and actions, harder to test, and hook signatures vary by version.

@@ -24,7 +24,7 @@ import type {
 } from '@/features/profile/components/student-profile-form';
 import type { ActionResult } from '@/lib/result';
 import { adminUpdateStudentProfileAction } from '../actions';
-import { useAnnounce } from './users-announcer';
+import { useAnnounceAfterClose } from './users-announcer';
 
 type Target = Readonly<{
   userId: string;
@@ -160,8 +160,8 @@ function StudentProfileDialogForm({
  * the student code, level, and division — or to enter them when the student has not yet. Same trigger
  * style as the other row actions (compact, the person's name visually hidden in its accessible name).
  * Focus is trapped in the dialog, Escape closes it, and focus returns to the trigger; a success is
- * announced in the table's live region (UsersAnnouncer). Needs JavaScript (the dialog); refusals show
- * inside the dialog.
+ * announced in the list's live region (UsersAnnouncer) once the dialog has closed. Needs JavaScript (the
+ * dialog); refusals show inside the dialog.
  */
 export function StudentProfileDialog({
   userId,
@@ -173,12 +173,12 @@ export function StudentProfileDialog({
   const t = useTranslations('admin.users.actions.profile');
   const tCommon = useTranslations('common.actions');
   const [open, setOpen] = useState(false);
-  const announce = useAnnounce();
+  const announcement = useAnnounceAfterClose();
   const bdi = (chunks: ReactNode) => <bdi>{chunks}</bdi>;
 
   function handleDone(): void {
     setOpen(false);
-    announce(t('done'));
+    announcement.later(t('done'));
   }
 
   return (
@@ -189,7 +189,12 @@ export function StudentProfileDialog({
           <span className="sr-only"> {t.rich('target', { name, bdi })}</span>
         </Button>
       </DialogTrigger>
-      <DialogContent closeLabel={tCommon('close')} data-slot="student-profile-dialog">
+      <DialogContent
+        closeLabel={tCommon('close')}
+        data-slot="student-profile-dialog"
+        // Focus still returns to the trigger (no preventDefault); the success is announced once closed.
+        onCloseAutoFocus={announcement.closed}
+      >
         <DialogHeader>
           <DialogTitle>{t('title')}</DialogTitle>
           <DialogDescription>{t.rich('description', { name, bdi })}</DialogDescription>

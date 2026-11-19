@@ -141,10 +141,13 @@ of invitation acceptance removes the account it created seconds earlier when a l
 (`users.deleteJustCreated`, `contracts/server-actions.md` §4.7).
 
 Last administrator (spec.md edge cases; PR-41): a college always keeps at least one active administrator.
-Demoting an administrator or suspending one first locks the college's active administrators (`role =
-'admin' AND status = 'active'`) FOR UPDATE, in id order, and is refused (`last_admin`) when the target is
-the only one, so two administrators who demote or suspend each other at the same moment cannot both
-succeed.
+Every role change to a role other than `admin` and every suspension, whatever the target's role, first
+locks the college's active administrators (`role = 'admin' AND status = 'active'`) FOR NO KEY UPDATE, in
+id order, and is refused (`last_admin`) when the target is the only one. All such changes in one college
+therefore run one at a time, and two administrators who demote or suspend each other at the same moment
+cannot both succeed. FOR NO KEY UPDATE (not FOR UPDATE) leaves foreign-key checks free: a transaction
+that writes an audit row with an administrator as actor never waits for this lock, so the two cannot
+deadlock.
 
 ### 3.3 `sessions`, `accounts`, `verifications` — auth library tables
 
@@ -201,7 +204,8 @@ ignored), so the table stays bounded without a scheduler (`contracts/db-api.md` 
 
 Constraints: `UNIQUE (tenant_id, code)`; `UNIQUE (tenant_id, id)` (target of the composite FK below).
 Ordering everywhere: `sort_order ASC, code ASC`. `code` is immutable after creation. No delete.
-State: `is_active true ⇄ false`. An edit reads the row FOR UPDATE in its transaction and writes (and
+State: `is_active true ⇄ false`. An edit reads the row FOR NO KEY UPDATE in its transaction (profile writes that reference the
+division are not held up) and writes (and
 audits) only the fields that differ from it (PR-41).
 
 ### 3.6 `student_profiles` — academic profile (tenant-scoped; first part of the shared student profile)

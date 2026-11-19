@@ -19,7 +19,6 @@ import { cn } from '@/lib/utils';
 import { RoleDialog, type RoleOption } from './role-dialog';
 import { StatusButton } from './status-button';
 import { StudentProfileDialog } from './student-profile-dialog';
-import { UsersAnnouncer } from './users-announcer';
 
 /** What one row shows — nothing more reaches the page than the screen needs. */
 export type UserRow = Readonly<{
@@ -99,8 +98,7 @@ function None({ label }: Readonly<{ label: string }>) {
  * (`dir="ltr"`), role, status badge with its word, a student's code (`dir="ltr"`), level and division, and
  * the date the account was created, in Egyptian time with Western digits, and the row actions — change
  * role, suspend or reactivate (FR-030, FR-031), and for a student the academic-data dialog (FR-028) — on
- * every row except the acting administrator's own (`actorId`), which says "your account" instead; their
- * successes are announced in one polite live region for the whole table (UsersAnnouncer). A
+ * every row except the acting administrator's own (`actorId`), which says "your account" instead. A
  * captioned table with column headers inside a focusable region labelled by `labelledBy`; when it is wider
  * than the screen it scrolls sideways and a hint says so (ScrollableTable). The caller renders the empty
  * state.
@@ -125,7 +123,7 @@ export function UsersTable({
   const none = <None label={t('none')} />;
   const roles: RoleOption[] = ROLES.map((role) => ({ value: role, label: tRoles(role) }));
 
-  const table = (
+  return (
     <ScrollableTable
       data-slot="users-table"
       labelledBy={labelledBy}
@@ -219,6 +217,4 @@ export function UsersTable({
       </TableBody>
     </ScrollableTable>
   );
-  // One live region for every row action's announcement, after the table.
-  return <UsersAnnouncer>{table}</UsersAnnouncer>;
 }

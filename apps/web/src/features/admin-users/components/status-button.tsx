@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import type { ActionResult } from '@/lib/result';
 import { setUserStatusAction } from '../actions';
-import { useAnnounce } from './users-announcer';
+import { useAnnounce, useAnnounceAfterClose } from './users-announcer';
 
 function bdi(chunks: ReactNode) {
   return <bdi>{chunks}</bdi>;
@@ -78,6 +78,7 @@ function SuspendDialog({
   const t = useTranslations('admin.users.actions.suspend');
   const tCommon = useTranslations('common.actions');
   const [open, setOpen] = useState(false);
+  const announcement = useAnnounceAfterClose();
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -91,9 +92,11 @@ function SuspendDialog({
         closeLabel={tCommon('close')}
         data-slot="suspend-dialog"
         // After a suspension the trigger is replaced by "Reactivate": focus goes to whichever button is there.
+        // The success is announced once the dialog has closed.
         onCloseAutoFocus={(event) => {
           event.preventDefault();
           buttonRef.current?.focus();
+          announcement.closed();
         }}
       >
         <DialogHeader>
@@ -104,6 +107,7 @@ function SuspendDialog({
           userId={userId}
           onDone={() => {
             setOpen(false);
+            announcement.later(t('done'));
             onDone();
           }}
         />
@@ -148,8 +152,8 @@ function ReactivateForm({
  * Suspend or reactivate one row's account (FR-031). An active account gets "Suspend", which asks for
  * confirmation in a dialog (focus trapped, Escape closes); a suspended one gets "Reactivate". Each button's
  * accessible name ends with the person's name (visually hidden). When the status changes the button is
- * replaced, so focus moves to the new one, and the change is announced in the table's live region
- * (UsersAnnouncer).
+ * replaced, so focus moves to the new one, and the change is announced in the list's live region
+ * (UsersAnnouncer; for a suspension once its dialog has closed).
  */
 export function StatusButton({
   userId,
@@ -172,8 +176,7 @@ export function StatusButton({
     if (expected === status) refocusIfLost(buttonRef.current);
   }, [status]);
 
-  function done(next: UserStatus, message: string): void {
-    announce(message);
+  function done(next: UserStatus): void {
     if (shown.current === next) refocusIfLost(buttonRef.current);
     else refocusOn.current = next;
   }
@@ -183,14 +186,18 @@ export function StatusButton({
       userId={userId}
       name={name}
       buttonRef={buttonRef}
-      onDone={() => done('suspended', t('suspend.done'))}
+      onDone={() => done('suspended')}
     />
   ) : (
     <ReactivateForm
       userId={userId}
       name={name}
       buttonRef={buttonRef}
-      onDone={() => done('active', t('reactivate.done'))}
+      onDone={() => {
+        // No dialog here: the announcement only waits for the next task (UsersAnnouncer).
+        announce(t('reactivate.done'));
+        done('active');
+      }}
     />
   );
 }

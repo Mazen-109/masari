@@ -282,7 +282,7 @@ returns `fail('internal')`; the administrator revokes and re-invites.
 | Action | Fields | Rules | Audit | Result |
 |---|---|---|---|---|
 | `createDivisionAction` (form) — FR-033 | `divisionCode`, `nameAr`, `nameEn`, `sortOrder` | duplicate code in college → `fieldErrors.divisionCode = 'code_taken'` | `division.created` | `ok`; revalidate `/admin/divisions` |
-| `updateDivisionAction` (form) | `divisionId`, `nameAr`, `nameEn`, `sortOrder` | must exist in college else `not_found`; code not editable; the division is read FOR UPDATE in the transaction (`divisions.findByIdForUpdate`) and the changed fields are computed against it; nothing changed → `ok`, no write, no audit | `division.updated {fields}` | `ok`; revalidate |
+| `updateDivisionAction` (form) | `divisionId`, `nameAr`, `nameEn`, `sortOrder` | must exist in college else `not_found`; code not editable; the division is read FOR NO KEY UPDATE in the transaction (`divisions.findByIdForUpdate`) and the changed fields are computed against it; nothing changed → `ok`, no write, no audit | `division.updated {fields}` | `ok`; revalidate |
 | `setDivisionActiveAction` (form) | `divisionId`, `isActive` (`"true"` \| `"false"`) | must exist in college else `not_found` | `division.activated` / `division.deactivated` | `ok`; revalidate |
 
 ## 6. Test obligations

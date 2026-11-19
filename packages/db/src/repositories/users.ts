@@ -62,7 +62,7 @@ export async function findInTenant(tenantId: string, userId: string): Promise<Us
 
 /**
  * The role of the account with this id when it belongs to tenantId, read in the caller's transaction and
- * locked (FOR SHARE) until it ends, so a concurrent role change (setRole locks the row FOR UPDATE) waits
+ * locked (FOR SHARE) until it ends, so a concurrent role change (setRole locks the row FOR NO KEY UPDATE) waits
  * for the caller's writes; null otherwise (another college, unknown id).
  */
 export async function lockRoleInTenant(
@@ -226,11 +226,14 @@ export const LAST_ADMIN = 'last_admin';
 export type LastAdmin = typeof LAST_ADMIN;
 
 /**
- * Locks the active administrators of tenantId (FOR UPDATE, in id order, so two callers never deadlock)
- * and returns their ids. Every change that can take an active administrator away — setRole to another
- * role, setStatus to `suspended` — takes this lock first, so in one college such changes run one after
- * the other and each sees the result of the one before: two administrators who demote or suspend each
- * other at the same moment cannot both succeed.
+ * Locks the active administrators of tenantId and returns their ids. Every role change to a role other
+ * than `admin` and every suspension takes this lock first, whatever the target's role, so in one college
+ * such changes run one after the other and each sees the result of the one before: two administrators
+ * who demote or suspend each other at the same moment cannot both succeed. The rows are locked in id
+ * order, so two of these callers never deadlock with each other, and FOR NO KEY UPDATE, which conflicts
+ * with these callers and with lockRoleInTenant's FOR SHARE but not with the FOR KEY SHARE lock a foreign
+ * key check takes: a transaction that writes a row referencing an administrator (an audit row with them
+ * as actor) is never blocked by it, so it cannot close a lock cycle with one.
  */
 async function lockActiveAdmins(tx: Tx, tenantId: string): Promise<string[]> {
   const rows = await tx
@@ -238,7 +241,7 @@ async function lockActiveAdmins(tx: Tx, tenantId: string): Promise<string[]> {
     .from(users)
     .where(and(eq(users.tenantId, tenantId), eq(users.role, 'admin'), eq(users.status, 'active')))
     .orderBy(asc(users.id))
-    .for('update');
+    .for('no key update');
   return rows.map((row) => row.id);
 }
 
@@ -266,7 +269,8 @@ export async function setRole(
       .select({ role: users.role })
       .from(users)
       .where(inTenant(tenantId, userId))
-      .for('update');
+      // Not FOR UPDATE: foreign-key checks on the account (FOR KEY SHARE) need not wait for it.
+      .for('no key update');
     const before = current[0];
     if (!before) return null;
     if (isLastActiveAdmin(activeAdmins, userId)) return LAST_ADMIN;

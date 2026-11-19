@@ -244,7 +244,8 @@ function revalidateStudentScreens(): void {
  * Validate → target (a student of the caller's college) → the student form's college rules → create or
  * change the profile, with its audit row, in one withTenant transaction (the administrator is the actor),
  * which first re-reads and locks the target's role (still a student of the college, else `not_found`)
- * and checks the level against the college row locked FOR SHARE (tenants.findCurrentForShare). A missing profile is created (`profile.created`); otherwise only the fields that differ are written and
+ * and checks the level against the college row locked FOR SHARE (tenants.findCurrentForShare). A
+ * missing profile is created (`profile.created`); otherwise only the fields that differ are written and
  * listed in `profile.updated {fields}`; nothing differs → `ok`, no write, no audit row.
  */
 async function updateStudentProfile(
