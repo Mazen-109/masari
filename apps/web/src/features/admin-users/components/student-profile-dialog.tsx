@@ -24,6 +24,7 @@ import type {
 } from '@/features/profile/components/student-profile-form';
 import type { ActionResult } from '@/lib/result';
 import { adminUpdateStudentProfileAction } from '../actions';
+import { useAnnounceAfterClose } from './users-announcer';
 
 type Target = Readonly<{
   userId: string;
@@ -159,7 +160,8 @@ function StudentProfileDialogForm({
  * the student code, level, and division — or to enter them when the student has not yet. Same trigger
  * style as the other row actions (compact, the person's name visually hidden in its accessible name).
  * Focus is trapped in the dialog, Escape closes it, and focus returns to the trigger; a success is
- * announced politely. Needs JavaScript (the dialog); refusals show inside the dialog.
+ * announced in the list's live region (UsersAnnouncer) once the dialog has closed. Needs JavaScript (the
+ * dialog); refusals show inside the dialog.
  */
 export function StudentProfileDialog({
   userId,
@@ -171,42 +173,37 @@ export function StudentProfileDialog({
   const t = useTranslations('admin.users.actions.profile');
   const tCommon = useTranslations('common.actions');
   const [open, setOpen] = useState(false);
-  const [announcement, setAnnouncement] = useState('');
+  const announcement = useAnnounceAfterClose();
   const bdi = (chunks: ReactNode) => <bdi>{chunks}</bdi>;
-
-  function handleOpenChange(next: boolean): void {
-    if (next) setAnnouncement('');
-    setOpen(next);
-  }
 
   function handleDone(): void {
     setOpen(false);
-    setAnnouncement(t('done'));
+    announcement.later(t('done'));
   }
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogTrigger asChild>
-          <Button variant="outline" size="compact" data-slot="student-profile-trigger">
-            {t('open')}
-            <span className="sr-only"> {t.rich('target', { name, bdi })}</span>
-          </Button>
-        </DialogTrigger>
-        <DialogContent closeLabel={tCommon('close')} data-slot="student-profile-dialog">
-          <DialogHeader>
-            <DialogTitle>{t('title')}</DialogTitle>
-            <DialogDescription>{t.rich('description', { name, bdi })}</DialogDescription>
-          </DialogHeader>
-          <StudentProfileDialogForm
-            target={{ userId, current, levels, divisions }}
-            onDone={handleDone}
-          />
-        </DialogContent>
-      </Dialog>
-      <p role="status" className="sr-only" data-slot="student-profile-status">
-        {announcement}
-      </p>
-    </>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="compact" data-slot="student-profile-trigger">
+          {t('open')}
+          <span className="sr-only"> {t.rich('target', { name, bdi })}</span>
+        </Button>
+      </DialogTrigger>
+      <DialogContent
+        closeLabel={tCommon('close')}
+        data-slot="student-profile-dialog"
+        // Focus still returns to the trigger (no preventDefault); the success is announced once closed.
+        onCloseAutoFocus={announcement.closed}
+      >
+        <DialogHeader>
+          <DialogTitle>{t('title')}</DialogTitle>
+          <DialogDescription>{t.rich('description', { name, bdi })}</DialogDescription>
+        </DialogHeader>
+        <StudentProfileDialogForm
+          target={{ userId, current, levels, divisions }}
+          onDone={handleDone}
+        />
+      </DialogContent>
+    </Dialog>
   );
 }

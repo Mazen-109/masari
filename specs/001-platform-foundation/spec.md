@@ -292,7 +292,8 @@ refused, and the disabled module is gone from every role's navigation.
 - **Deactivated division on a profile**: the student keeps it and sees it when editing, but cannot pick
   another deactivated division.
 - **Last administrator**: an administrator can never remove their own administrator role or suspend
-  themselves, so a college always keeps at least one active administrator.
+  themselves, so a college always keeps at least one active administrator — also when two administrators
+  demote or suspend each other at the same moment (one of the two changes is refused).
 - **Unsupported language in the address**: reported as not found; the bare site address opens in Arabic.
 - **Return address after sign-in**: only addresses inside Masari are honoured; anything else is ignored.
 - **Email delivery failure**: the user can request the message again (within the limits of FR-009); the

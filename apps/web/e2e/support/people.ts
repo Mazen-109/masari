@@ -11,6 +11,11 @@ export function userRow(page: Page, email: string): Locator {
   return page.locator('main [data-slot="users-table"] tbody tr').filter({ hasText: email });
 }
 
+/** The People table's one polite live region, where every row action announces its success (PR-41). */
+export function usersAnnouncement(page: Page): Locator {
+  return page.locator('main [data-slot="users-announcement"]');
+}
+
 /** The open "Change role" dialog. */
 export function roleDialog(page: Page): Locator {
   return page.getByRole('dialog', { name: t.role.title });

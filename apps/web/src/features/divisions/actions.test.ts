@@ -9,6 +9,7 @@ import { createDivisionAction, setDivisionActiveAction, updateDivisionAction } f
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   findById: vi.fn(),
+  findByIdForUpdate: vi.fn(),
   update: vi.fn(),
   setActive: vi.fn(),
   withTenant: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock('@masari/db', () => ({
   divisions: {
     create: mocks.create,
     findById: mocks.findById,
+    findByIdForUpdate: mocks.findByIdForUpdate,
     update: mocks.update,
     setActive: mocks.setActive,
   },
@@ -86,6 +88,7 @@ beforeEach(() => {
   );
   mocks.create.mockResolvedValue({ ok: true, value: STORED });
   mocks.findById.mockResolvedValue(STORED);
+  mocks.findByIdForUpdate.mockResolvedValue(STORED);
   mocks.update.mockResolvedValue(STORED);
   mocks.setActive.mockResolvedValue(STORED);
   mocks.recordAudit.mockResolvedValue(undefined);
@@ -165,7 +168,9 @@ describe('updateDivisionAction', () => {
   it('writes and audits only the changed fields, never the code', async () => {
     const entries = { ...EDIT, nameEn: 'Software Eng.', sortOrder: '0', divisionCode: 'HIJACK' };
     expect(await updateDivisionAction(null, form(entries))).toEqual(ok(undefined));
-    expect(mocks.findById).toHaveBeenCalledExactlyOnceWith(TX, DIVISION_ID);
+    // The changed fields are computed from the row locked in the same transaction, never an unlocked read.
+    expect(mocks.findByIdForUpdate).toHaveBeenCalledExactlyOnceWith(TX, DIVISION_ID);
+    expect(mocks.findById).not.toHaveBeenCalled();
     expect(mocks.update).toHaveBeenCalledExactlyOnceWith(TX, DIVISION_ID, {
       nameEn: 'Software Eng.',
       sortOrder: 0,
@@ -184,14 +189,24 @@ describe('updateDivisionAction', () => {
 
   it('is a success that writes and audits nothing when nothing changed', async () => {
     expect(await updateDivisionAction(null, form(EDIT))).toEqual(ok(undefined));
+    expect(mocks.findByIdForUpdate).toHaveBeenCalledExactlyOnceWith(TX, DIVISION_ID);
     expect(mocks.update).not.toHaveBeenCalled();
     expect(mocks.recordAudit).not.toHaveBeenCalled();
   });
 
   it('answers not_found for an id the college does not have, and changes nothing', async () => {
-    mocks.findById.mockResolvedValue(null);
+    mocks.findByIdForUpdate.mockResolvedValue(null);
     const result = await updateDivisionAction(null, form({ ...EDIT, nameEn: 'Changed' }));
     expect(result.ok === false && result.code).toBe('not_found');
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.recordAudit).not.toHaveBeenCalled();
+  });
+
+  it('compares with the values a concurrent edit left: the same names again write and audit nothing', async () => {
+    // Another administrator saved these names first; this request waited for the lock, then read them.
+    mocks.findByIdForUpdate.mockResolvedValue({ ...STORED, nameEn: 'Software Eng.' });
+    const result = await updateDivisionAction(null, form({ ...EDIT, nameEn: 'Software Eng.' }));
+    expect(result).toEqual(ok(undefined));
     expect(mocks.update).not.toHaveBeenCalled();
     expect(mocks.recordAudit).not.toHaveBeenCalled();
   });

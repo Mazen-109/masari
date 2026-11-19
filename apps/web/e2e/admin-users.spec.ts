@@ -37,6 +37,7 @@ import {
   suspendDialog,
   suspendTrigger,
   userRow,
+  usersAnnouncement,
 } from './support/people';
 
 // The People screen (contracts/routes.md §4). Part 1 (US6 acceptance scenario 1; FR-029): the list — only
@@ -411,7 +412,10 @@ test('changes another user’s role, which applies on their next page; own row h
     await clickAndWait(page, USERS_PATH, form.getByRole('button', { name: tActions.role.submit }));
     await expect(roleDialog(page)).toBeHidden();
     await expect(row.locator('[data-field="role"]')).toHaveText(ar.common.roles.student_affairs);
-    await expect(row.locator('[data-slot="role-status"]')).toHaveText(tActions.role.done);
+    await expect(usersAnnouncement(page)).toHaveText(tActions.role.done);
+    // One live region for the whole table, none in the rows.
+    await expect(page.locator('main [role="status"]')).toHaveCount(1);
+    await expect(usersAnnouncement(page)).toHaveAttribute('role', 'status');
     const facultyId = await userId(facultyEmail);
     expect((await getUserByEmail(facultyEmail))?.role).toBe('student_affairs');
     expect(await countAuditEvents(college.slug, 'user.role_changed', facultyId)).toBe(1);
@@ -493,8 +497,9 @@ test('suspending ends the sessions and blocks sign-in; reactivating restores sig
     );
     await expect(suspendDialog(page)).toBeHidden();
     await expect(row.locator('[data-field="status"]')).toHaveText(ar.common.statuses.suspended);
-    // The row's button is now "Reactivate", and keyboard focus is on it.
+    // The row's button is now "Reactivate", and keyboard focus is on it; the table's region announces it.
     await expect(reactivateButton(row)).toBeFocused();
+    await expect(usersAnnouncement(page)).toHaveText(tActions.suspend.done);
     expect((await getUserByEmail(studentEmail))?.status).toBe('suspended');
     expect(await countSessions(studentEmail)).toBe(0);
     expect(await countAuditEvents(college.slug, 'user.suspended', studentId)).toBe(1);
@@ -515,6 +520,7 @@ test('suspending ends the sessions and blocks sign-in; reactivating restores sig
     await clickAndWait(page, USERS_PATH, reactivateButton(row));
     await expect(row.locator('[data-field="status"]')).toHaveText(ar.common.statuses.active);
     await expect(suspendTrigger(row)).toBeFocused();
+    await expect(usersAnnouncement(page)).toHaveText(tActions.reactivate.done);
     expect(await countAuditEvents(college.slug, 'user.reactivated', studentId)).toBe(1);
     expect(await countSessions(studentEmail)).toBe(0);
     await student.goto('/ar/dashboard');
@@ -677,7 +683,7 @@ test('corrects a student’s code and level, shown in the list and on their dash
     await expect(profileDialog(page)).toBeHidden();
     await expect(row.locator('[data-field="studentCode"]')).toHaveText(newCode);
     await expect(row.locator('[data-field="level"]')).toHaveText(ar.common.levels['2']);
-    await expect(row.locator('[data-slot="student-profile-status"]')).toHaveText(tProfile.done);
+    await expect(usersAnnouncement(page)).toHaveText(tProfile.done);
     expect(await getStudentProfile(studentEmail)).toEqual({
       studentCode: newCode,
       level: 2,
@@ -712,4 +718,52 @@ test('corrects a student’s code and level, shown in the list and on their dash
   } finally {
     await student.context().close();
   }
+});
+
+test('enters the academic data of a student who has none yet: the profile is created and audited', async ({
+  page,
+}) => {
+  const tProfile = tActions.profile;
+  const adminEmail = uniqueEmail('new-profile-admin');
+  const college = await createCollege(uniqueCollegeSlug('new-profile'), adminEmail);
+  // Registered through the screens and never onboarded: no academic profile.
+  const studentEmail = await registerIn(page, college, 'Profileless Student');
+  expect(await getStudentProfile(studentEmail)).toBeNull();
+  await signInAdmin(page, college, adminEmail, 'Profile Administrator');
+  const [studentId, adminId] = [await userId(studentEmail), await userId(adminEmail)];
+
+  await page.goto(USERS_PATH);
+  const row = userRow(page, studentEmail);
+  await expect(row.locator('[data-field="studentCode"]')).toContainText(ar.admin.users.list.none);
+
+  // The dialog starts empty.
+  const form = await openDialog(profileTrigger(row), profileDialog(page));
+  const code = form.getByLabel(ar.onboarding.studentCode, { exact: true });
+  const level = form.getByLabel(ar.onboarding.level, { exact: true });
+  const division = form.getByLabel(ar.onboarding.division, { exact: true });
+  await expect(code).toHaveValue('');
+  await expect(level).toHaveValue('');
+  await expect(division).toHaveValue('');
+
+  const newCode = uniqueStudentCode();
+  await code.fill(newCode);
+  await level.selectOption('3');
+  await division.selectOption({ label: GEN_DIVISION.ar });
+  await clickAndWait(page, USERS_PATH, form.getByRole('button', { name: tProfile.submit }));
+  await expect(profileDialog(page)).toBeHidden();
+  await expect(row.locator('[data-field="studentCode"]')).toHaveText(newCode);
+  await expect(row.locator('[data-field="level"]')).toHaveText(ar.common.levels['3']);
+  await expect(row.locator('[data-field="division"]')).toHaveText(GEN_DIVISION.ar);
+  await expect(usersAnnouncement(page)).toHaveText(tProfile.done);
+
+  expect(await getStudentProfile(studentEmail)).toEqual({
+    studentCode: newCode,
+    level: 3,
+    divisionCode: 'GEN',
+  });
+  // Audited as a creation, with the administrator as the actor.
+  expect(await listAuditEvents(college.slug, 'profile.created')).toEqual([
+    expect.objectContaining({ actorUserId: adminId, targetId: studentId }),
+  ]);
+  expect(await countAuditEvents(college.slug, 'profile.updated')).toBe(0);
 });

@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   recordAudit: vi.fn(),
   enforceRateLimit: vi.fn(),
   rateLimitRules: vi.fn(),
+  hashPassword: vi.fn(),
   log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
@@ -80,6 +81,7 @@ vi.mock('@/server/auth/auth', () => ({
     },
   }),
 }));
+vi.mock('@/server/auth/password-hash', () => ({ hashPassword: mocks.hashPassword }));
 vi.mock('@/server/email/send', () => ({ sendEmail: mocks.sendEmail }));
 vi.mock('@/server/audit', () => ({ recordAudit: mocks.recordAudit }));
 vi.mock('@/server/env', () => ({ getEnv: () => ({ APP_URL: 'https://masari.example' }) }));
@@ -147,6 +149,7 @@ beforeEach(() => {
   mocks.sendVerificationEmail.mockResolvedValue({ status: true });
   mocks.sendEmail.mockResolvedValue(undefined);
   mocks.recordAudit.mockResolvedValue(undefined);
+  mocks.hashPassword.mockResolvedValue('hashed');
 });
 
 afterEach(() => {
@@ -154,6 +157,32 @@ afterEach(() => {
 });
 
 describe('registerStudentAction', () => {
+  // FR-005, research.md §8: every branch costs one password hash, so the answer's timing does not tell an
+  // existing address or a pending invitation from a new one. Step 7 hashes inside signUpEmail, with the
+  // same function (auth.test.ts: emailAndPassword.password.hash).
+  it.each([
+    ['an existing account (step 5)', 'exists'],
+    ['a pending invitation (step 6)', 'invited'],
+  ] as const)('hashes the password once and discards it for %s', async (_label, branch) => {
+    if (branch === 'exists') {
+      mocks.findByEmail.mockResolvedValue({ id: USER_ID, tenantId: TENANT_ID });
+    } else {
+      mocks.awaitsAccount.mockResolvedValue(true);
+    }
+    await expect(run(form())).resolves.toEqual({ redirect: '/en/verify-email' });
+    expect(mocks.hashPassword).toHaveBeenCalledExactlyOnceWith('Ab1'.repeat(4));
+    expect(mocks.signUpEmail).not.toHaveBeenCalled();
+    expect(mocks.hashPassword.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.sendEmail.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
+  it('adds no hash of its own for a new address: signUpEmail makes the one hash', async () => {
+    await expect(run(form())).resolves.toEqual({ redirect: '/en/verify-email' });
+    expect(mocks.signUpEmail).toHaveBeenCalledOnce();
+    expect(mocks.hashPassword).not.toHaveBeenCalled();
+  });
+
   it('creates a student with the page locale, sends the confirmation, audits, and redirects', async () => {
     await expect(run(form())).resolves.toEqual({ redirect: '/en/verify-email' });
     // Role and status are never passed: they take their defaults (student, active).

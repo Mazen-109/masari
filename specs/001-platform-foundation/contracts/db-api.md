@@ -88,6 +88,8 @@ listActivePublic(): Promise<TenantPublic[]>            // { id, slug, nameAr, na
 findBySlug(slug: string): Promise<Tenant | null>
 findById(id: string): Promise<Tenant | null>
 findCurrentForUpdate(tx: Tx): Promise<Tenant | null>     // the tenant in context, locked FOR UPDATE until the tx ends; null without one (PR-35)
+findCurrentForShare(tx: Tx): Promise<Tenant | null>      // the same row locked FOR SHARE (PR-41): profile writers check the level against
+  // its levelsCount (FR-032), so a settings save that lowers it waits for them, and they wait for it
 updateSettings(tx: Tx, patch: Partial<Pick<Tenant, 'nameAr' | 'nameEn' | 'allowedEmailDomains' | 'levelsCount' | 'enabledModules'>>): Promise<Tenant>
   // updates the current tenant (RLS: only the tenant in context); sets updated_at
 ```
@@ -109,8 +111,15 @@ listInTenant(tx: Tx, tenantId: string, filter: { q?: string; role?: Role; status
   // (MAX_PAGE_SIZE = 100) — callers validate first (the People screen: usersFilterSchema, pageSize 20).
   // Any database error is rethrown as UsersQueryError { code?: SQLSTATE }: no parameters in the message and
   // no cause (the search term may be a name, email, or student code); callers log an event name only.
-setRole(tenantId: string, userId: string, role: Role): Promise<{ from: Role; to: Role } | null>   // null = not in tenant
-setStatus(tenantId: string, userId: string, status: UserStatus): Promise<boolean>
+setRole(tenantId: string, userId: string, role: Role): Promise<{ from: Role; to: Role } | 'last_admin' | null>   // null = not in tenant
+setStatus(tenantId: string, userId: string, status: UserStatus): Promise<boolean | 'last_admin'>
+  // 'last_admin' (exported as LAST_ADMIN, PR-41): the change would leave the college without an active
+  // administrator; nothing changes. Every setRole to a role other than admin and every setStatus to
+  // suspended, whatever the target's role, first locks the college's active administrators FOR NO KEY
+  // UPDATE (in id order), so all such changes run one at a time per college and two administrators
+  // demoting or suspending each other at once cannot both succeed. NO KEY UPDATE (also for setRole's
+  // target row) never blocks a foreign-key check, so a transaction writing an audit row with an
+  // administrator as actor cannot deadlock with it.
 setName(userId: string, name: string): Promise<void>
 setLocale(userId: string, locale: Locale): Promise<void>
 activateInvited(tenantId: string, userId: string, role: Role): Promise<void>  // role + email_verified = true; throws (no data) if the college has no such account
@@ -134,6 +143,7 @@ revokeByToken(token: string): Promise<number>         // deletes the one session
 ```ts
 list(tx: Tx, opts?: { includeInactive?: boolean }): Promise<Division[]>       // sort_order, code
 findById(tx: Tx, id: string): Promise<Division | null>
+findByIdForUpdate(tx: Tx, id: string): Promise<Division | null>   // as findById, row locked FOR NO KEY UPDATE until the tx ends (PR-41)
 create(tx: Tx, input: { code: string; nameAr: string; nameEn: string; sortOrder: number }):
   Promise<{ ok: true; value: Division } | { ok: false; reason: 'code_taken' }>
 update(tx: Tx, id: string, patch: { nameAr?: string; nameEn?: string; sortOrder?: number }): Promise<Division | null>
@@ -273,12 +283,12 @@ All `admin` functions that write tenant-scoped rows set the tenant context exact
 |---|---|
 | `context.int.test.ts` | Settings are transaction-local (no leak to the next query on the same connection); without context, tenant-scoped tables return zero rows and reject inserts; invalid uuid is rejected. |
 | `safety.int.test.ts` | `assertSafeRuntimeRole` passes for the runtime role and throws for the owner; `ping` works. |
-| `tenants.int.test.ts` | Public listing hides suspended colleges; `updateSettings` changes only the current college; runtime role cannot insert/delete colleges nor update `slug`/`status`. |
+| `tenants.int.test.ts` | Public listing hides suspended colleges; `updateSettings` changes only the current college; runtime role cannot insert/delete colleges nor update `slug`/`status`; `findCurrentForShare` against a concurrent settings save lowering the levels, in both orders (FR-032, PR-41). |
 | `rls-meta.int.test.ts` | Every `public` table is classified; every tenant-scoped table has `tenant_id NOT NULL`, RLS enabled + forced, and a `tenant_isolation` policy; the runtime role owns nothing and has no privileges beyond `data-model.md` §1. |
-| `divisions.int.test.ts` | CRUD; duplicate code per college refused, same code in two colleges allowed; college A cannot read/update college B's divisions (by id). |
+| `divisions.int.test.ts` | CRUD; duplicate code per college refused, same code in two colleges allowed; college A cannot read/update college B's divisions (by id); `findByIdForUpdate` holds the row until the transaction ends but does not hold up a profile that references the division (PR-41). |
 | `audit.int.test.ts` | Insert + read within the college; `UPDATE`/`DELETE` denied; cross-college invisible. PR-5 uses `actorUserId: null` only (no `users` table yet); from PR-12: a real user as actor is stored, an unknown actor id is rejected by the FK. |
 | `rate-limit.int.test.ts` | Counts, refuses over the limit with a positive `retryAfterSeconds`, resets after the window (window passed as 1 s), concurrent hits are atomic; `purgeExpiredRateLimits` removes only counters older than the given age. |
-| `users.int.test.ts` | Tenant filter on every scoped function (cross-college `setRole`/`setStatus`/`findInTenant` → null/false); search escapes `%` and `_`; pagination and totals; `activateInvited`; `deleteJustCreated` removes a fresh user of that college with its accounts/sessions and refuses another college's user and a user older than 10 minutes. |
+| `users.int.test.ts` | Tenant filter on every scoped function (cross-college `setRole`/`setStatus`/`findInTenant` → null/false); search escapes `%` and `_`; pagination and totals; `activateInvited`; `deleteJustCreated` removes a fresh user of that college with its accounts/sessions and refuses another college's user and a user older than 10 minutes; the last active administrator cannot be demoted or suspended, also by two concurrent changes, which the per-college lock serialises even for different target rows, and that lock never deadlocks with an audit write naming an administrator as actor (PR-41). |
 | `sessions.int.test.ts` | `revokeAllForUser` deletes only that user's sessions; `revokeByToken` deletes only the session with that token. |
 | `student-profiles.int.test.ts` | Unique code per college (and concurrent creates → exactly one wins); same code in two colleges (create and update); division from another college → `invalid_division`; account from another college → `user_not_in_tenant`; empty update patch; unexpected errors never carry the code; cross-college invisibility; `maxLevelInUse`. |
 | `invitations.int.test.ts` | One pending per email; expired pending replaced; token lookup works only with the matching hash and returns nothing for other tokens; concurrent `claim` → exactly one succeeds; `release`; `revoke` states; cross-college invisibility. |

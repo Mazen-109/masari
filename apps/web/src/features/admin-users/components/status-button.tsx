@@ -18,9 +18,19 @@ import {
 } from '@/components/ui/dialog';
 import type { ActionResult } from '@/lib/result';
 import { setUserStatusAction } from '../actions';
+import { useAnnounce, useAnnounceAfterClose } from './users-announcer';
 
 function bdi(chunks: ReactNode) {
   return <bdi>{chunks}</bdi>;
+}
+
+/**
+ * Focuses the row's status button when focus was lost with the button it replaced (it is then on the
+ * page body); never takes focus from wherever the user has moved it since.
+ */
+function refocusIfLost(button: HTMLButtonElement | null): void {
+  const active = document.activeElement;
+  if (active === null || active === document.body) button?.focus();
 }
 
 /** Runs the status action and reports a success to `onDone` (the dialog closes, the change is announced). */
@@ -68,6 +78,7 @@ function SuspendDialog({
   const t = useTranslations('admin.users.actions.suspend');
   const tCommon = useTranslations('common.actions');
   const [open, setOpen] = useState(false);
+  const announcement = useAnnounceAfterClose();
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -81,9 +92,11 @@ function SuspendDialog({
         closeLabel={tCommon('close')}
         data-slot="suspend-dialog"
         // After a suspension the trigger is replaced by "Reactivate": focus goes to whichever button is there.
+        // The success is announced once the dialog has closed.
         onCloseAutoFocus={(event) => {
           event.preventDefault();
           buttonRef.current?.focus();
+          announcement.closed();
         }}
       >
         <DialogHeader>
@@ -94,6 +107,7 @@ function SuspendDialog({
           userId={userId}
           onDone={() => {
             setOpen(false);
+            announcement.later(t('done'));
             onDone();
           }}
         />
@@ -138,7 +152,8 @@ function ReactivateForm({
  * Suspend or reactivate one row's account (FR-031). An active account gets "Suspend", which asks for
  * confirmation in a dialog (focus trapped, Escape closes); a suspended one gets "Reactivate". Each button's
  * accessible name ends with the person's name (visually hidden). When the status changes the button is
- * replaced, so focus moves to the new one, and the change is announced politely.
+ * replaced, so focus moves to the new one, and the change is announced in the list's live region
+ * (UsersAnnouncer; for a suspension once its dialog has closed).
  */
 export function StatusButton({
   userId,
@@ -146,42 +161,43 @@ export function StatusButton({
   status,
 }: Readonly<{ userId: string; name: string; status: UserStatus }>) {
   const t = useTranslations('admin.users.actions');
+  const announce = useAnnounce();
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const refocus = useRef(false);
-  const [announcement, setAnnouncement] = useState('');
+  // The status the refreshed list will show after this row's last success, until it is shown.
+  const refocusOn = useRef<UserStatus | null>(null);
+  // The status currently rendered (the refresh can arrive before the action's answer).
+  const shown = useRef(status);
 
   // The refreshed list swaps the button: keep keyboard focus on the row's status control.
   useEffect(() => {
-    if (!refocus.current) return;
-    refocus.current = false;
-    buttonRef.current?.focus();
+    shown.current = status;
+    const expected = refocusOn.current;
+    refocusOn.current = null;
+    if (expected === status) refocusIfLost(buttonRef.current);
   }, [status]);
 
-  function done(message: string): void {
-    refocus.current = true;
-    setAnnouncement(message);
+  function done(next: UserStatus): void {
+    if (shown.current === next) refocusIfLost(buttonRef.current);
+    else refocusOn.current = next;
   }
 
-  return (
-    <>
-      {status === 'active' ? (
-        <SuspendDialog
-          userId={userId}
-          name={name}
-          buttonRef={buttonRef}
-          onDone={() => done(t('suspend.done'))}
-        />
-      ) : (
-        <ReactivateForm
-          userId={userId}
-          name={name}
-          buttonRef={buttonRef}
-          onDone={() => done(t('reactivate.done'))}
-        />
-      )}
-      <p role="status" className="sr-only" data-slot="status-announcement">
-        {announcement}
-      </p>
-    </>
+  return status === 'active' ? (
+    <SuspendDialog
+      userId={userId}
+      name={name}
+      buttonRef={buttonRef}
+      onDone={() => done('suspended')}
+    />
+  ) : (
+    <ReactivateForm
+      userId={userId}
+      name={name}
+      buttonRef={buttonRef}
+      onDone={() => {
+        // No dialog here: the announcement only waits for the next task (UsersAnnouncer).
+        announce(t('reactivate.done'));
+        done('active');
+      }}
+    />
   );
 }
